@@ -1,0 +1,8 @@
+openai
+langchain
+faiss-cpu
+python-dotenv
+pypdf
+fastapi
+uvicorn
+docx2txt
