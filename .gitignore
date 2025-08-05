@@ -1,0 +1,35 @@
+# Entorno virtual
+venv/
+.env
+*.env
+
+# Archivos de Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Archivos temporales de editores
+*.log
+*.swp
+*.swo
+*.tmp
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de JetBrains (como PyCharm)
+.idea/
+
+# Archivos de VS Code (si usás)
+.vscode/
+
+# Base de datos SQLite local (si llegás a usar)
+*.sqlite3
+
+# Archivos de frontend temporales (si usás herramientas tipo npm/webpack)
+node_modules/
+dist/
+build/
+# Ignorar documentos grandes de ejemplo
+documents/demo_client/
