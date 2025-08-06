@@ -1,3 +1,5 @@
+import argparse
+
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -6,6 +8,20 @@ from controllers import chat_controller
 import os
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
+# Parse the --prompt argument
+parser = argparse.ArgumentParser()
+parser.add_argument("--prompt", type=str, default="generic_prompt")
+args, _ = parser.parse_known_args()
+prompt_path = f"prompts/{args.prompt}.txt"
+
+with open(prompt_path, encoding="utf-8") as f:
+    prompt_text = f.read()
+
+    print(f"\n=== PROMPT CARGADO ===\n{prompt_text}\n======================\n")
+
+# Store it in environment variable
+os.environ["ZBOT_PROMPT_NAME"] = args.prompt
+print(f">>> Prompt selected from CLI: {args.prompt}")
 
 app = FastAPI()
 
