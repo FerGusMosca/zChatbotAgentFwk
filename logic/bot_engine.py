@@ -5,8 +5,8 @@ from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 
-from handlers.hibrid_bot import HybridBot
-from handlers.prompt_based_chatbot import PromptBasedChatbot
+from logic.pipeline.hybrid_bot import HybridBot
+from logic.pipeline.prompt_based_chatbot import PromptBasedChatbot
 from logic.prompt_loader import PromptLoader
 
 load_dotenv()
