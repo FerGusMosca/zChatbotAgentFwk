@@ -40,7 +40,7 @@ def load_documents_from_folder(folder_path):
 
 
 def build_vectorstore(client_id):
-    doc_path = f"documents/{client_id}"
+    doc_path = f"data/documents/{client_id}"
     vectorstore_path = f"vectorstores/{client_id}"
 
     print(f"📂 Loading documents from: {doc_path}")
