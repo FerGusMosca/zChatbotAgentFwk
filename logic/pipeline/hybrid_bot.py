@@ -11,6 +11,8 @@ from langchain.prompts import (
 )
 from langchain_community.chat_models import ChatOpenAI
 
+from common.config.settings import settings
+
 from common.util.app_logger import AppLogger
 
 
@@ -30,11 +32,14 @@ class HybridBot:
         temperature: float = 0.0,
         top_k: int = 4,
     ):
+
         self.retriever = vectordb.as_retriever(search_kwargs={"k": top_k})
         self.prompt_bot = prompt_bot
         self.logger = AppLogger.get_logger(__name__)
         self.top_k = top_k
         self.last_metrics={}
+
+        self.logger.info(f"Loading HybridBot for profile: {settings.bot_profile}")
 
         # Build a prompt = system prompt + {context} + {question}
         prompt_template = ChatPromptTemplate(

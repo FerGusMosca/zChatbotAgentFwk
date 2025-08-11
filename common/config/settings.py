@@ -1,0 +1,52 @@
+# common/config/settings.py
+from functools import lru_cache
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, AliasChoices
+
+class Settings(BaseSettings):
+    # Config de pydantic v2
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    # ===== API Keys =====
+    openai_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OPENAI_API_KEY", "openai_api_key"),
+    )
+    other_service_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OTHER_SERVICE_KEY", "other_service_key"),
+    )
+
+    # ===== Bot profile / paths =====
+    bot_profile: str = Field(
+        default="demo_client",
+        validation_alias=AliasChoices("BOT_PROFILE", "bot_profile"),
+    )
+    faiss_index_path: str = Field(
+        default="./vectorstores",
+        validation_alias=AliasChoices("FAISS_INDEX_PATH", "faiss_index_path"),
+    )
+
+    # ===== Thresholds =====
+    retrieval_score_threshold: float = Field(
+        default=0.4,
+        validation_alias=AliasChoices("RETRIEVAL_SCORE_THRESHOLD", "retrieval_score_threshold"),
+    )
+
+    # ===== Misc =====
+    debug_mode: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("DEBUG_MODE", "debug_mode"),
+    )
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()

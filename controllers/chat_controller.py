@@ -3,6 +3,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 import time
 
+from common.config.settings import get_settings
 from common.util.app_logger import AppLogger
 from common.util.builder.bot_engine_loader import load_hybrid_bot
 
@@ -26,6 +27,7 @@ def _log_chat_metrics(question: str, latency_ms: int, bot) -> None:
 @router.post("/ask")
 async def ask_question(request: Request):
     try:
+        import time
         start = time.time()
 
         payload = await request.json()
@@ -37,7 +39,11 @@ async def ask_question(request: Request):
         answer = hybrid_bot.handle(question)
 
         latency_ms = int((time.time() - start) * 1000)
-        _log_chat_metrics(question, latency_ms, hybrid_bot)
+
+        try:
+            _log_chat_metrics(question, latency_ms, hybrid_bot)
+        except Exception as log_ex:
+            logger.warning("metrics_error", extra={"error": str(log_ex)})
 
         return JSONResponse(content={"answer": answer})
 
