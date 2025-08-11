@@ -1,4 +1,3 @@
-# logic/pipeline/hybrid_bot.py
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from langchain.chains.llm import LLMChain
@@ -10,52 +9,39 @@ from common.util.app_logger import AppLogger
 
 
 class HybridBot:
-    """
-    Orchestrates a hybrid flow:
-      1) Try RAG (retrieval + LLM) when relevant context exists.
-      2) Fallback to prompt-only bot when no relevant docs are found.
-
-    Notes:
-    - Keeps a conversation memory so reformulated questions work.
-    - Uses the SAME system prompt for both RAG and fallback so tone is consistent.
-    """
-
-    def __init__(self, vectordb, prompt_bot, model_name: str = "gpt-4o", top_k: int = 4):
-        self.retriever = vectordb.as_retriever(search_kwargs={"k": top_k})
+    def __init__(self, vectordb, prompt_bot):
+        self.retriever = vectordb.as_retriever()
         self.prompt_bot = prompt_bot
         self.logger = AppLogger.get_logger(__name__)
 
-        # Build a composable prompt: system + context + user question.
+        # 🧠 Crear el prompt que incluye el system_prompt personalizado
         prompt_template = ChatPromptTemplate(
             messages=[
-                SystemMessagePromptTemplate.from_template(
-                    # We append {context} to system so the LLM treats it as authoritative input.
-                    prompt_bot.system_prompt + "\n\n{context}"
-                ),
+                SystemMessagePromptTemplate.from_template(prompt_bot.system_prompt + "\n{context}"),
                 HumanMessagePromptTemplate.from_template("{question}")
             ],
             input_variables=["context", "question"]
         )
 
-        # LLM chain using the full prompt (system + context + question).
+        # 🧠 Cadena base con el LLM y el prompt completo
         llm_chain = LLMChain(
-            llm=ChatOpenAI(model_name=model_name, temperature=0),
+            llm=ChatOpenAI(model_name="gpt-4o", temperature=0),
             prompt=prompt_template
         )
 
-        # Combine retrieved docs into the {context} variable for the LLM chain.
+        # 🧠 Encadenar contexto + respuesta
         combine_docs_chain = StuffDocumentsChain(
             llm_chain=llm_chain,
             document_variable_name="context"
         )
 
-        # Optional: question reformulation (kept simple — reuse same prompt).
+        # Podés usar el mismo LLM y prompt si querés algo simple
         question_generator = LLMChain(
-            llm=ChatOpenAI(model_name=model_name, temperature=0),
-            prompt=prompt_template,
+            llm=ChatOpenAI(model_name="gpt-4o", temperature=0),
+            prompt=prompt_template,  # o usá otro más simple si solo querés reformulación
         )
 
-        # Final QA chain with conversation memory.
+        # 🧠 QA Chain final con memoria de conversación
         self.chain = ConversationalRetrievalChain(
             retriever=self.retriever,
             combine_docs_chain=combine_docs_chain,
@@ -63,24 +49,44 @@ class HybridBot:
             question_generator=question_generator
         )
 
+    def has_relevant_context(self, question: str) -> bool:
+        """Mirror the controller's check: use vectorstore.similarity_search_with_score(k=1)."""
+        try:
+            retriever = self.retriever
+            vs = getattr(retriever, "vectorstore", None)
+            if vs and hasattr(vs, "similarity_search_with_score"):
+                pairs = vs.similarity_search_with_score(query=question, k=1)
+                return bool(pairs)
+            # fallback sin scores
+            docs = retriever.get_relevant_documents(question)
+            return bool(docs and any((getattr(d, "page_content", "") or "").strip() for d in docs))
+        except Exception as ex:
+            self.logger.error("context_check_error", extra={"error": str(ex)})
+            return False
+
+    def answer(self, question: str) -> str:
+        """Decide RAG vs fallback here, keeping current behavior."""
+        if self.has_relevant_context(question):
+            self.logger.info("hybrid_decision", extra={"mode": "rag"})
+            # usamos run() porque así te funciona hoy (evitamos romper nada)
+            return self.chain.run(question)
+        else:
+            self.logger.info("hybrid_decision", extra={"mode": "fallback"})
+            return self.prompt_bot.handle(question)
+
+    import logging
+
+
+
     def handle(self, user_query: str) -> str:
-        """
-        Route the query:
-          - If retriever yields no meaningful docs, use fallback (prompt-only).
-          - Otherwise, run the QA chain with context.
-        """
         docs = self.retriever.get_relevant_documents(user_query)
-        has_context = bool(docs and any((d.page_content or "").strip() for d in docs))
 
-        if not has_context:
-            self.logger.info(
-                "hybrid_decision",
-                extra={"mode": "fallback", "docs_found": 0, "query": user_query[:200]}
-            )
+        if not docs or all(doc.page_content.strip() == "" for doc in docs):
+            self.logger.info("No relevant documents from FAISS. Using prompt fallback.")
+            self.logger.debug(f"Query: {user_query}")
             return self.prompt_bot.handle(user_query)
+        else:
+            self.logger.info("Relevant context found in FAISS. Using QA chain.")
+            self.logger.debug(f"Query: {user_query} | Context docs: {len(docs)}")
+            return self.chain.run(user_query)
 
-        self.logger.info(
-            "hybrid_decision",
-            extra={"mode": "rag", "docs_found": len(docs), "query": user_query[:200]}
-        )
-        return self.chain.run(user_query)
