@@ -34,6 +34,7 @@ class HybridBot:
         self.prompt_bot = prompt_bot
         self.logger = AppLogger.get_logger(__name__)
         self.top_k = top_k
+        self.last_metrics={}
 
         # Build a prompt = system prompt + {context} + {question}
         prompt_template = ChatPromptTemplate(
@@ -115,24 +116,55 @@ class HybridBot:
           - Otherwise, use the QA chain with retrieved context.
         NOTE: Keeps `.run(...)` to avoid changing runtime behavior.
         """
-        # Quick retrieval (no scores) to keep existing behavior for logging granularity
-        docs = self.retriever.get_relevant_documents(user_query)
+        # Default metrics (assume fallback until proven otherwise)
+        self.last_metrics = {
+            "mode": "fallback",
+            "docs_found": 0,
+            "best_score": None,
+            "threshold": getattr(self, "threshold", None),
+            "prompt_name": getattr(self, "prompt_name", None),
+        }
 
-        if not docs or all((getattr(doc, "page_content", "") or "").strip() == "" for doc in docs):
+        docs = []
+        best_score = None
+
+        # Try to retrieve WITH scores (preferred) so we can log best_score
+        try:
+            vs = getattr(self.retriever, "vectorstore", None)
+            if vs and hasattr(vs, "similarity_search_with_score"):
+                pairs = vs.similarity_search_with_score(query=user_query, k=4)
+                docs = [doc for doc, _ in pairs]
+                if pairs:
+                    raw = float(pairs[0][1])
+                    # Normalize score: if it's already [0..1] treat as similarity;
+                    # otherwise assume it's a distance and map to similarity proxy 1/(1+raw).
+                    best_score = raw if 0.0 <= raw <= 1.0 else (1.0 / (1.0 + raw))
+            else:
+                # Fallback: retrieval without scores
+                docs = self.retriever.get_relevant_documents(user_query)
+        except Exception as ex:
+            self.logger.error("retriever_error", extra={"error": str(ex)})
+            docs = []
+
+        # Decide route
+        has_any = bool(docs) and any((getattr(d, "page_content", "") or "").strip() for d in docs)
+        if not has_any:
             self.logger.info("No relevant documents from FAISS. Using prompt fallback.")
             self.logger.debug(f"Query: {user_query}")
+            # last_metrics already set to fallback defaults
             return self.prompt_bot.handle(user_query)
-
-        # Extra guard: if vector store says there are hits, log RAG path explicitly
-        if not self._has_relevant_context(user_query):
-            # Should rarely happen, but keeps behavior conservative
-            self.logger.info("Context check failed. Using prompt fallback.")
-            self.logger.debug(f"Query: {user_query}")
-            return self.prompt_bot.handle(user_query)
-
-        self.logger.info("Relevant context found in FAISS. Using QA chain.")
-        self.logger.debug(f"Query: {user_query} | Context docs: {len(docs)}")
-        return self.chain.run(user_query)
+        else:
+            # RAG path
+            self.last_metrics.update({
+                "mode": "rag",
+                "docs_found": len(docs),
+                "best_score": best_score,
+                "threshold": getattr(self, "threshold", None),
+                "prompt_name": getattr(self, "prompt_name", None),
+            })
+            self.logger.info("Relevant context found in FAISS. Using QA chain.")
+            self.logger.debug(f"Query: {user_query} | Context docs: {len(docs)}")
+            return self.chain.run(user_query)
 
     def ask(self, question: str) -> str:
         return self.handle(question)
