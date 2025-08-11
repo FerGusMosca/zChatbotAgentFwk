@@ -1,0 +1,16 @@
+[
+  {
+    "name": "covered_qra",
+    "client_id": "demo_client",
+    "prompt_name": "generic",
+    "question": "¿Cuál es el evento relevante de este trimestre?",
+    "expected_mode": "rag"
+  },
+  {
+    "name": "ooc_president",
+    "client_id": "demo_client",
+    "prompt_name": "generic",
+    "question": "¿Quién es el presidente de Guatemala?",
+    "expected_mode": "fallback"
+  }
+]
