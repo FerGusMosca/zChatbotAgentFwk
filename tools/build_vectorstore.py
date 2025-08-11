@@ -6,6 +6,8 @@ from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain.schema import Document
 import docx2txt
 
+from common.config.settings import get_settings
+
 load_dotenv()
 
 
@@ -60,5 +62,5 @@ def build_vectorstore(client_id):
 
 
 if __name__ == "__main__":
-    client_id = "demo_client"
+    client_id = get_settings().bot_profile
     build_vectorstore(client_id)

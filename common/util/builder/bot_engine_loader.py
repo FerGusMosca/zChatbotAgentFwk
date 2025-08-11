@@ -5,6 +5,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 
+from common.config.settings import settings
 from logic.pipeline.hybrid_bot import HybridBot
 from logic.pipeline.prompt_based_chatbot import PromptBasedChatbot
 from common.util.prompt_loader import PromptLoader
@@ -30,7 +31,7 @@ def load_bot_for_client(client_name: str):
     return PromptBasedChatbot(loader, prompt_name=prompt_name)
 
 
-def load_qa_chain_for_client(client_id="demo_client"):
+def load_qa_chain_for_client(client_id: str = None):
     """
     Loads a simple QA bot using only FAISS and memory (RAG-style).
 
@@ -43,6 +44,7 @@ def load_qa_chain_for_client(client_id="demo_client"):
     Use case:
     - Good for pure knowledge-retrieval chatbots without behavioral customization.
     """
+    client_id = client_id or settings.bot_profile
     print(f"🤖 Loading QA bot for client: {client_id}")
 
     vectorstore_path = f"vectorstores/{client_id}"
@@ -64,7 +66,7 @@ def load_qa_chain_for_client(client_id="demo_client"):
     return qa_chain
 
 
-def load_hybrid_bot(client_id="demo_client"):
+def load_hybrid_bot(client_id: str = None):
     """
     Loads the full hybrid bot: FAISS + prompt-based behavior + OpenAI fallback.
 
@@ -77,7 +79,7 @@ def load_hybrid_bot(client_id="demo_client"):
     - Ideal for production-grade assistants combining structure, knowledge and flexibility.
     """
 
-
+    client_id = client_id or settings.bot_profile
     print(f"🤖 Loading hybrid bot for client: {client_id}")
 
     # Detect project root (carpeta que contiene 'vectorstores' y 'prompts')
