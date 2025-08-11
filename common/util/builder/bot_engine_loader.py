@@ -7,8 +7,8 @@ from langchain.memory import ConversationBufferMemory
 
 from logic.pipeline.hybrid_bot import HybridBot
 from logic.pipeline.prompt_based_chatbot import PromptBasedChatbot
-from logic.prompt_loader import PromptLoader
-
+from common.util.prompt_loader import PromptLoader
+from pathlib import Path
 load_dotenv()
 
 
@@ -76,18 +76,32 @@ def load_hybrid_bot(client_id="demo_client"):
     Use case:
     - Ideal for production-grade assistants combining structure, knowledge and flexibility.
     """
+
+
     print(f"🤖 Loading hybrid bot for client: {client_id}")
 
-    vectorstore_path = f"vectorstores/{client_id}"
+    # Detect project root (carpeta que contiene 'vectorstores' y 'prompts')
+    current_dir = Path(__file__).resolve()
+    for parent in [current_dir, *current_dir.parents]:
+        if (parent / "vectorstores").exists() and (parent / "prompts").exists():
+            base_dir = parent
+            break
+    else:
+        # fallback: mismo comportamiento que antes (un nivel arriba)
+        base_dir = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+    vectorstore_path = base_dir / "vectorstores" / client_id
     vectordb = FAISS.load_local(
-        vectorstore_path,
+        str(vectorstore_path),
         OpenAIEmbeddings(),
         allow_dangerous_deserialization=True
     )
 
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    prompts_path = os.path.join(base_dir, "prompts")
-    prompt_loader = PromptLoader(prompts_path,prompt_name=os.getenv("ZBOT_PROMPT_NAME", "generic_prompt"))
+    prompts_path = base_dir / "prompts"
+    prompt_loader = PromptLoader(
+        str(prompts_path),
+        prompt_name=os.getenv("ZBOT_PROMPT_NAME", "generic_prompt")
+    )
     prompt_bot = PromptBasedChatbot(
         prompt_loader,
         prompt_name=os.getenv("ZBOT_PROMPT_NAME", "generic_prompt")
