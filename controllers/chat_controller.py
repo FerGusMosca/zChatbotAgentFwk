@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 
 from common.util.app_logger import AppLogger
-from logic.bot_engine import load_hybrid_bot
+from common.util.builder.bot_engine_loader import load_hybrid_bot
 
 router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
 logger = AppLogger.get_logger(__name__)
