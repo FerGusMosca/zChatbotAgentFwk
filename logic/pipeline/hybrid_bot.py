@@ -133,3 +133,6 @@ class HybridBot:
         self.logger.info("Relevant context found in FAISS. Using QA chain.")
         self.logger.debug(f"Query: {user_query} | Context docs: {len(docs)}")
         return self.chain.run(user_query)
+
+    def ask(self, question: str) -> str:
+        return self.handle(question)
