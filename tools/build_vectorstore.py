@@ -5,7 +5,6 @@ from langchain_community.embeddings import OpenAIEmbeddings
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain.schema import Document
 import docx2txt
-
 from common.config.settings import get_settings
 
 load_dotenv()
