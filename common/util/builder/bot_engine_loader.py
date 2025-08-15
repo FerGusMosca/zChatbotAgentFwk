@@ -109,4 +109,4 @@ def load_hybrid_bot(client_id: str = None):
         prompt_name=os.getenv("ZBOT_PROMPT_NAME", "generic_prompt")
     )
 
-    return HybridBot(vectordb, prompt_bot)
+    return HybridBot(vectordb, prompt_bot,settings.retrieval_score_threshold)

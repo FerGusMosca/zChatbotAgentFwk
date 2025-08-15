@@ -28,6 +28,7 @@ class HybridBot:
         self,
         vectordb,
         prompt_bot,
+        retrieval_score_threshold=0.4,
         model_name: str = "gpt-4o",
         temperature: float = 0.0,
         top_k: int = 4,
@@ -37,6 +38,7 @@ class HybridBot:
         self.prompt_bot = prompt_bot
         self.logger = AppLogger.get_logger(__name__)
         self.top_k = top_k
+        self.retrieval_score_threshold=retrieval_score_threshold
         self.last_metrics={}
 
         self.logger.info(f"Loading HybridBot for profile: {settings.bot_profile}")
@@ -153,7 +155,10 @@ class HybridBot:
 
         # Decide route
         has_any = bool(docs) and any((getattr(d, "page_content", "") or "").strip() for d in docs)
-        if not has_any:
+        if (not has_any
+            or (best_score is not None
+                and self.retrieval_score_threshold is not None
+                and best_score < self.retrieval_score_threshold)):
             self.logger.info("No relevant documents from FAISS. Using prompt fallback.")
             self.logger.debug(f"Query: {user_query}")
             # last_metrics already set to fallback defaults
