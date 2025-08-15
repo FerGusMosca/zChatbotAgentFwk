@@ -91,7 +91,9 @@ async def healthz():
     return {"status": "ok", "prompt": os.getenv("ZBOT_PROMPT_NAME")}
 
 # API router (chat endpoints)
+from controllers.whatsapp_controller import router as whatsapp_router
 app.include_router(chat_controller.router)
+app.include_router(whatsapp_router, prefix="/whatsapp")
 
 
 # ---------- Dev entrypoint ----------
@@ -99,4 +101,7 @@ app.include_router(chat_controller.router)
 if __name__ == "__main__":
     import uvicorn
     # Use 0.0.0.0 if you want to test from other devices in your LAN
-    uvicorn.run("main:app", host="127.0.0.1", port=8081, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+
+
+print (__name__)
