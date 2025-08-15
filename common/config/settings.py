@@ -44,6 +44,17 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("DEBUG_MODE", "debug_mode"),
     )
 
+    # ===== Twilio =====
+    twilio_account_sid: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("TWILIO_ACCOUNT_SID", "twilio_account_sid"))
+    twilio_auth_token: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("TWILIO_AUTH_TOKEN", "twilio_auth_token"))
+    twilio_whatsapp_from: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("TWILIO_WHATSAPP_FROM", "twilio_whatsapp_from"))
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
