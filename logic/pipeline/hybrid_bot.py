@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional, List, Tuple
 
 from langchain.chains import ConversationalRetrievalChain
@@ -116,6 +117,20 @@ class HybridBot:
         """
         return self.handle(question)
 
+
+
+    def _log_generic_metrics(self, user_query: str, mode_used: str):
+        """Log generic metrics for any handled query."""
+        self.logger.info(
+            "metric_query_handled",
+            extra={
+                "timestamp": datetime.utcnow().isoformat(),
+                "question": user_query,
+                "mode": mode_used,
+                "prompt_profile": getattr(self, "prompt_name", None),
+            }
+        )
+
     def handle(self, user_query: str) -> str:
         """
         Route the query:
@@ -162,6 +177,7 @@ class HybridBot:
             self.logger.info("No relevant documents from FAISS. Using prompt fallback.")
             self.logger.debug(f"Query: {user_query}")
             # last_metrics already set to fallback defaults
+            self._log_generic_metrics(user_query, "fallback")
             return self.prompt_bot.handle(user_query)
         else:
             # RAG path
@@ -176,6 +192,7 @@ class HybridBot:
             self.logger.debug(f"Query: {user_query} | Context docs: {len(docs)}")
             if hasattr(self.chain, "memory"):
                 self.chain.memory.clear()
+            self._log_generic_metrics(user_query, "rag")
             return self.chain.run(user_query)
 
     def ask(self, question: str) -> str:
