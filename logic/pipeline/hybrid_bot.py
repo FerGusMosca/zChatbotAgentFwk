@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List, Tuple
-
+import json
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from langchain.chains.llm import LLMChain
@@ -12,9 +12,12 @@ from langchain.prompts import (
 )
 from langchain_community.chat_models import ChatOpenAI
 
+
 from common.config.settings import settings
 
 from common.util.app_logger import AppLogger
+from logic.logic.custom_logging_logic import CustomLoggingLogic
+from logic.logic.custom_logic_august_investments import CustomLoggingLogicAugustInvestments
 
 
 class HybridBot:
@@ -43,6 +46,9 @@ class HybridBot:
         self.last_metrics={}
 
         self.logger.info(f"Loading HybridBot for profile: {settings.bot_profile}")
+        #self.custom_logger= CustomLoggingLogicAugustInvestments()#Comment this if turning off the example
+        self.custom_logger=CustomLoggingLogic()
+
 
         # Build a prompt = system prompt + {context} + {question}
         prompt_template = ChatPromptTemplate(
@@ -117,28 +123,35 @@ class HybridBot:
         """
         return self.handle(question)
 
+    def _log_generic_metrics(self, user_query: str, mode_used: str, intent: str = None, specific_flag: str = None):
+        """
+        Log generic metrics unless the custom logic handled it.
+        """
+        # First, let custom logger decide if it wants to handle the event
+        if self.custom_logger and self.custom_logger.handle(user_query, self.logger):
+            return
 
+        # Otherwise, fallback to generic metrics
+        payload = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "question": user_query,
+            "mode": mode_used,
+            "prompt_profile": getattr(self, "prompt_name", None),
+        }
+        if intent:
+            payload["intent"] = intent
+        if specific_flag:
+            payload["specific_flag"] = specific_flag
 
-    def _log_generic_metrics(self, user_query: str, mode_used: str):
-        """Log generic metrics for any handled query."""
-        self.logger.info(
-            "metric_query_handled",
-            extra={
-                "timestamp": datetime.utcnow().isoformat(),
-                "question": user_query,
-                "mode": mode_used,
-                "prompt_profile": getattr(self, "prompt_name", None),
-            }
-        )
+        self.logger.info("metric_query_handled", extra=payload)
 
     def handle(self, user_query: str) -> str:
         """
         Route the query:
           - If no relevant documents are found, use the prompt-only fallback.
           - Otherwise, use the QA chain with retrieved context.
-        NOTE: Keeps `.run(...)` to avoid changing runtime behavior.
         """
-        # Default metrics (assume fallback until proven otherwise)
+        # Reset default metrics
         self.last_metrics = {
             "mode": "fallback",
             "docs_found": 0,
@@ -147,53 +160,88 @@ class HybridBot:
             "prompt_name": getattr(self, "prompt_name", None),
         }
 
+        docs, best_score = self._retrieve_context(user_query)
+
+        # Decide route
+        if (
+                not docs
+                or (
+                best_score is not None
+                and self.retrieval_score_threshold is not None
+                and best_score < self.retrieval_score_threshold
+        )
+        ):
+            answer, intent, flag = self._fallback(user_query)
+            mode_used = "fallback"
+        else:
+            answer, intent, flag = self._rag(user_query, docs, best_score)
+            mode_used = "rag"
+
+        # Generic + intent metrics
+        self._log_generic_metrics(user_query, mode_used, intent, flag)
+        return answer
+
+    def _retrieve_context(self, user_query: str) -> Tuple[List, Optional[float]]:
+        """
+        Run vector retrieval and return (docs, best_score).
+        """
         docs = []
         best_score = None
-
-        # Try to retrieve WITH scores (preferred) so we can log best_score
         try:
             vs = getattr(self.retriever, "vectorstore", None)
             if vs and hasattr(vs, "similarity_search_with_score"):
-                pairs = vs.similarity_search_with_score(query=user_query, k=4)
+                pairs = vs.similarity_search_with_score(query=user_query, k=self.top_k)
                 docs = [doc for doc, _ in pairs]
                 if pairs:
                     raw = float(pairs[0][1])
-                    # Normalize score: if it's already [0..1] treat as similarity;
-                    # otherwise assume it's a distance and map to similarity proxy 1/(1+raw).
                     best_score = raw if 0.0 <= raw <= 1.0 else (1.0 / (1.0 + raw))
             else:
-                # Fallback: retrieval without scores
                 docs = self.retriever.get_relevant_documents(user_query)
         except Exception as ex:
             self.logger.error("retriever_error", extra={"error": str(ex)})
-            docs = []
+        return docs, best_score
 
-        # Decide route
-        has_any = bool(docs) and any((getattr(d, "page_content", "") or "").strip() for d in docs)
-        if (not has_any
-            or (best_score is not None
-                and self.retrieval_score_threshold is not None
-                and best_score < self.retrieval_score_threshold)):
-            self.logger.info("No relevant documents from FAISS. Using prompt fallback.")
-            self.logger.debug(f"Query: {user_query}")
-            # last_metrics already set to fallback defaults
-            self._log_generic_metrics(user_query, "fallback")
-            return self.prompt_bot.handle(user_query)
-        else:
-            # RAG path
-            self.last_metrics.update({
-                "mode": "rag",
-                "docs_found": len(docs),
-                "best_score": best_score,
-                "threshold": getattr(self, "threshold", None),
-                "prompt_name": getattr(self, "prompt_name", None),
-            })
-            self.logger.info("Relevant context found in FAISS. Using QA chain.")
-            self.logger.debug(f"Query: {user_query} | Context docs: {len(docs)}")
+    def _fallback(self, user_query: str) -> Tuple[str, Optional[str], Optional[str]]:
+        """
+        Prompt-only fallback path.
+        """
+        try:
+            result = self.prompt_bot.handle(user_query)
+        except Exception as ex:
+            self.logger.error(f"fallback_execution_error: {ex} | query={user_query}")
+            return "An error occurred while generating the fallback response.", None, None
+
+        return self._parse_result(result)
+
+    def _rag(self, user_query: str, docs, best_score: float) -> Tuple[str, Optional[str], Optional[str]]:
+        """
+        RAG path using chain.run() after clearing memory if needed.
+        """
+        try:
             if hasattr(self.chain, "memory"):
                 self.chain.memory.clear()
-            self._log_generic_metrics(user_query, "rag")
-            return self.chain.run(user_query)
+            result = self.chain.run(user_query)
+        except Exception as ex:
+            self.logger.error(f"rag_execution_error: {ex} | query={user_query}")
+            return "An error occurred while generating the RAG response.", None, None
+
+        return self._parse_result(result)
+
+    def _parse_result(self, result: str) -> Tuple[str, Optional[str], Optional[str]]:
+        """
+        Extract (answer, intent, specific_flag) from a JSON result; fallback to plain text.
+        """
+        try:
+            parsed = json.loads(result)
+            return (
+                parsed.get("answer", result),
+                parsed.get("intent"),
+                parsed.get("specific_flag"),
+            )
+        except Exception:
+            # Log raw result for debugging
+            self.logger.error("json_parse_failure", extra={"raw_result": result})
+            return result, None, None
 
     def ask(self, question: str) -> str:
         return self.handle(question)
