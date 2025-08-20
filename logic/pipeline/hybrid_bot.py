@@ -18,6 +18,7 @@ from common.config.settings import settings
 from common.util.app_logger import AppLogger
 from logic.logic.custom_logging_logic import CustomLoggingLogic
 from logic.logic.custom_logic_august_investments import CustomLoggingLogicAugustInvestments
+from logic.logic.dyncamic_topic_extractor import  DynamicTopicExtractorLLM
 
 
 class HybridBot:
@@ -48,6 +49,7 @@ class HybridBot:
         self.logger.info(f"Loading HybridBot for profile: {settings.bot_profile}")
         #self.custom_logger= CustomLoggingLogicAugustInvestments()#Comment this if turning off the example
         self.custom_logger=CustomLoggingLogic()
+        #self.custom_logger=DynamicTopicExtractorLLM()#Comment this if turning off the example
 
 
         # Build a prompt = system prompt + {context} + {question}
