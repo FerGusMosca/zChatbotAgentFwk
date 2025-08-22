@@ -3,7 +3,8 @@ import argparse
 import os
 from pathlib import Path
 import time
-
+import asyncio
+import sys
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -15,6 +16,7 @@ from controllers import chat_controller
 
 
 # ---------- Boot / CLI ----------
+
 
 BASE_DIR = Path(__file__).resolve().parent
 logger = AppLogger.get_logger(__name__)
