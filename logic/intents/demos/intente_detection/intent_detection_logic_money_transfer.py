@@ -1,12 +1,12 @@
-from typing import Dict, Tuple, Optional
+from typing import Tuple, Optional
 from langchain_community.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 import json
 
-from logic.intents.demos.money_transfer_intent_logic_demo import MoneyTransferIntentLogicDemo
+from logic.intents.demos.intents_execution.money_transfer_intent_logic_demo import MoneyTransferIntentLogicDemo
 
 
-class IntentDetectionLogic:
+class IntentDetectionLogicMoneyTransfer:
     """
     GPT-only intent manager:
     - try_handle(...) starts a new 'send_transfer' session if detected.
@@ -21,14 +21,12 @@ class IntentDetectionLogic:
             temperature=temperature,
             response_format={"type": "json_object"},
         )
-        self.intent = MoneyTransferIntentLogicDemo(
-            logger, model_name=model_name, temperature=temperature
-        )
+        self.intent = MoneyTransferIntentLogicDemo(logger, model_name=model_name, temperature=temperature)
 
         # Simple in-memory session (demo scope). In prod, persist by user_id.
-        self.active = getattr(IntentDetectionLogic, "_active", False)
-        self.collected = getattr(IntentDetectionLogic, "_collected", {})
-        self.awaiting_keys = getattr(IntentDetectionLogic, "_awaiting_keys", [])
+        self.active = getattr(IntentDetectionLogicMoneyTransfer, "_active", False)
+        self.collected = getattr(IntentDetectionLogicMoneyTransfer, "_collected", {})
+        self.awaiting_keys = getattr(IntentDetectionLogicMoneyTransfer, "_awaiting_keys", [])
 
         # Detection prompt (JSON-only; braces escaped).
         self.detect_prompt = ChatPromptTemplate.from_messages([
@@ -83,9 +81,9 @@ class IntentDetectionLogic:
         ])
 
     def _persist_session(self) -> None:
-        IntentDetectionLogic._active = self.active
-        IntentDetectionLogic._collected = self.collected
-        IntentDetectionLogic._awaiting_keys = self.awaiting_keys
+        IntentDetectionLogicMoneyTransfer._active = self.active
+        IntentDetectionLogicMoneyTransfer._collected = self.collected
+        IntentDetectionLogicMoneyTransfer._awaiting_keys = self.awaiting_keys
 
     # ---------- lifecycle helpers ----------
 
@@ -177,9 +175,9 @@ class IntentDetectionLogic:
     def resume_intent(self, user_text: str):
         if not self.active:
             # in case a fresh instance didn't hydrate yet
-            self.active = getattr(IntentDetectionLogic, "_active", False)
-            self.collected = getattr(IntentDetectionLogic, "_collected", {})
-            self.awaiting_keys = getattr(IntentDetectionLogic, "_awaiting_keys", [])
+            self.active = getattr(IntentDetectionLogicMoneyTransfer, "_active", False)
+            self.collected = getattr(IntentDetectionLogicMoneyTransfer, "_collected", {})
+            self.awaiting_keys = getattr(IntentDetectionLogicMoneyTransfer, "_awaiting_keys", [])
             if not self.active:
                 return False, "", None, None
 

@@ -11,14 +11,13 @@ from langchain.prompts import (
     HumanMessagePromptTemplate,
 )
 from langchain_community.chat_models import ChatOpenAI
-import uuid
 
 from common.config.settings import settings
 
 from common.util.app_logger import AppLogger
-from logic.intents.intent_detection_logic import IntentDetectionLogic
-from logic.logic.custom_logging_logic import CustomLoggingLogic
-from logic.logic.custom_logic_august_investments import CustomLoggingLogicAugustInvestments
+from logic.intents.demos.intente_detection.intent_detection_logic_money_transfer import IntentDetectionLogicMoneyTransfer
+from logic.intents.demos.intente_detection.intent_detection_logic_property_download import \
+    IntentDetectionLogicPropertyDownload
 from logic.logic.dyncamic_topic_extractor import  DynamicTopicExtractorLLM
 
 
@@ -49,11 +48,11 @@ class HybridBot:
 
         self.logger.info(f"Loading HybridBot for profile: {settings.bot_profile}")
         #self.custom_logger= CustomLoggingLogicAugustInvestments()#Comment this if turning off the example
-        self.custom_logger=CustomLoggingLogic()
-        #self.custom_logger=DynamicTopicExtractorLLM()#Comment this if turning off the example
+        #self.custom_logger=CustomLoggingLogic()
+        self.custom_logger=DynamicTopicExtractorLLM()#Comment this if turning off the example
 
-        self.intent_logic = IntentDetectionLogic(self.logger, model_name=model_name, temperature=temperature)
-
+        #self.intent_logic = IntentDetectionLogicMoneyTransfer(self.logger, model_name=model_name, temperature=temperature)
+        self.intent_logic = IntentDetectionLogicPropertyDownload(self.logger)
 
         # Build a prompt = system prompt + {context} + {question}
         prompt_template = ChatPromptTemplate(

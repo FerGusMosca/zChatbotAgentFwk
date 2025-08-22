@@ -9,7 +9,7 @@ E2E tests for the demo "send_transfer" intent using a fake LLM.
 from types import SimpleNamespace
 from typing import List, Any, Dict
 
-from logic.intents.intent_detection_logic import IntentDetectionLogic
+from logic.intents.demos.intente_detection.intent_detection_logic_money_transfer import IntentDetectionLogicMoneyTransfer
 
 
 # --------------------------- Test doubles ---------------------------
@@ -44,7 +44,7 @@ class FakeLLM:
     """
     Deterministic LLM stub for tests.
     It inspects the last prompt and returns JSON strings matching the
-    behavior expected by IntentDetectionLogic + MoneyTransferIntentLogicDemo.
+    behavior expected by IntentDetectionLogicMoneyTransfer + MoneyTransferIntentLogicDemo.
     """
 
     def invoke(self, messages: List[Any]) -> SimpleNamespace:
@@ -103,9 +103,9 @@ class FakeLLM:
 
 # ------------------------------ Tests ------------------------------
 
-def _make_logic_with_fakes() -> IntentDetectionLogic:
+def _make_logic_with_fakes() -> IntentDetectionLogicMoneyTransfer:
     """Factory that wires the fake LLM into both the detector and the intent."""
-    logic = IntentDetectionLogic(DummyLogger(), model_name="gpt-4o-mini", temperature=0.0)
+    logic = IntentDetectionLogicMoneyTransfer(DummyLogger(), model_name="gpt-4o-mini", temperature=0.0)
     fake = FakeLLM()
     logic.llm = fake
     logic.intent.llm = fake
