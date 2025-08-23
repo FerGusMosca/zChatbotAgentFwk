@@ -2,6 +2,9 @@ from __future__ import annotations
 from typing import Dict, Optional, Tuple
 import json
 
+from langchain_core.prompts import ChatPromptTemplate
+
+from common.util.loader.intent_prompt_loader import IntentPromptLoader
 from logic.intents.demos.intente_detection.base_intent_detection import BaseInentDetect
 from logic.intents.demos.intents_execution.download_property_portals_demo import DownloadPropertyPortalsIntentLogicDemo
 
@@ -20,14 +23,18 @@ class IntentDetectionLogicPropertyDownload(BaseInentDetect):
     INTENT_NAME = "download_property_portals"
 
     def __init__(self, logger, model_name: str = "gpt-4o-mini", temperature: float = 0.0):
-        super().__init__()
-        self.logger = logger
+        super().__init__(logger)
+
         self.demo = DownloadPropertyPortalsIntentLogicDemo(
             logger, model_name=model_name, temperature=temperature
         )
         # Active state of the ongoing intent, if any
         # {"slots": dict, "missing": dict, "last_reprompt": str}
         self._active: Optional[Dict] = None
+
+        self._propdl_classifier: ChatPromptTemplate = IntentPromptLoader.get_prompt(
+            "property_download_intent_cmd_detect"  # archivo .md en input/intent_prompts
+        )
 
     # ---------------------- API expected by HybridBot -----------------------
 
@@ -88,26 +95,38 @@ class IntentDetectionLogicPropertyDownload(BaseInentDetect):
 
     def _looks_like_property_download(self, text: str) -> bool:
         """
-        Strict binary classification via LLM.
-        True if the user request is about downloading real-estate listings in CABA.
-        No regex or keyword heuristics.
+        Strict binary classification via LLM
+        True si el usuario pide descargar listados inmobiliarios (CABA).
         """
         try:
-            msgs = [
-                ("system",
-                 "You are a STRICT binary classifier.\n"
-                 "Task: Decide if the user is requesting to download real-estate listings "
-                 "from property portals in Buenos Aires (CABA).\n"
-                 "Respond ONLY valid JSON:\n"
-                 "{\"property_download\": true/false}"),
-                ("user", f"User message:\n{text}")
-            ]
+            msgs = self._propdl_classifier.format_messages(user_text=text)
             resp = self.demo.llm.invoke(msgs)
-            raw = getattr(resp, "content", None) or getattr(resp, "message", None)
-            data = json.loads(raw)
-            return bool(data.get("property_download", False))
+
+            raw = getattr(resp, "content", None)
+            if self.logger:
+                self.logger.error(f"[propdl_classify] raw_type={type(raw).__name__} raw={raw!r}")
+
+            if isinstance(raw, str):
+                data = json.loads(raw)
+            elif isinstance(raw, dict):
+                data = raw
+            else:
+                data = getattr(resp, "additional_kwargs", {}) or {}
+                if self.logger:
+                    self.logger.error(f"[propdl_classify] using additional_kwargs={data!r}")
+
+            # tolerancia a alias de clave
+            for k in ("property_download", "download", "should_download", "is_download_intent"):
+                if k in data:
+                    v = data[k]
+                    if isinstance(v, str):
+                        v = v.strip().lower() == "true"
+                    return bool(v)
+
+            return False
         except Exception as ex:
-            self.logger.error(f"intent_detection_llm_error: {ex}")
+            if self.logger:
+                self.logger.error(f"[intent_detection_llm_error] {ex!r}")
             return False
 
     def _safe_execute(self, filled_slots: Dict[str, str]) -> str:
