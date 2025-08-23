@@ -19,6 +19,8 @@ from common.util.app_logger import AppLogger
 from logic.intents.demos.intente_detection.intent_detection_logic_money_transfer import IntentDetectionLogicMoneyTransfer
 from logic.intents.demos.intente_detection.intent_detection_logic_property_download import \
     IntentDetectionLogicPropertyDownload
+from logic.intents.demos.intente_detection.intent_detection_property_business_orchestation import \
+    IntentDetectionPropertyBusinessOrchestationLogic
 from logic.logic.dyncamic_topic_extractor import  DynamicTopicExtractorLLM
 
 
@@ -53,7 +55,14 @@ class HybridBot:
         self.custom_logger=DynamicTopicExtractorLLM()#Comment this if turning off the example
 
         #self.intent_logic = IntentDetectionLogicMoneyTransfer(self.logger, model_name=model_name, temperature=temperature)
-        self.intent_logic = IntentDetectionLogicPropertyDownload(self.logger)
+        #self.intent_logic = IntentDetectionLogicPropertyDownload(self.logger)
+        self.intent_logic = IntentDetectionPropertyBusinessOrchestationLogic(
+            logger=self.logger,
+            model_name=model_name,
+            temperature=temperature,
+            exports_dir="exports",  #
+            max_chars=24000,  # max chunk for LLM
+        )
 
         # Build a prompt = system prompt + {context} + {question}
         prompt_template = ChatPromptTemplate(
