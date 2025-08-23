@@ -2,7 +2,11 @@ from __future__ import annotations
 from typing import Optional
 import json
 from pathlib import Path
-from langchain.prompts import ChatPromptTemplate
+
+from langchain_core.prompts import ChatPromptTemplate
+
+from common.util.loader.intent_prompt_loader import IntentPromptLoader
+from common.util.loader.prompt_loader import PromptLoader
 
 
 class FileCommandExecutor:
@@ -14,7 +18,7 @@ class FileCommandExecutor:
     - No heuristics/regex on our side; the LLM does ALL computations.
     """
 
-    def __init__(self, logger, llm, exports_dir: str = "exports", max_chars: int = 24000):
+    def __init__(self, logger, llm, exports_dir: str = "exports", max_chars: int = 80000):
         self.logger = logger
         self.llm = llm
         self.exports_dir = Path(exports_dir)
@@ -22,92 +26,121 @@ class FileCommandExecutor:
 
         # Unified executor prompt: the LLM must interpret the ACTION and operate on the file.
         # NOTE: braces are escaped with double {{ }} to avoid format issues.
+        sys_txt = IntentPromptLoader.get_text("command_executor_exec_prompt_system")
+        usr_txt = IntentPromptLoader.get_text("command_executor_exec_prompt_user")
+
         self.exec_prompt = ChatPromptTemplate.from_messages([
-            ("system",
-             "You are a careful analyst of a plain-text export of real-estate listings.\n"
-             "Each listing starts with a line beginning with '## ' followed by fields like "
-             "'- Precio:', '- Ubicación:', '- Detalles:', '- Agencia:', '- URL:'.\n"
-             "Your job is to EXECUTE the user's ACTION exactly as requested, using ONLY the provided file content.\n"
-             "If the ACTION asks to 'show the whole file', provide a brief summary plus a SMALL representative sample; "
-             "otherwise compute precisely what is requested (e.g., most expensive, best opportunities, by neighborhood, etc.).\n"
-             "If a neighborhood is provided separately, treat it as a hard filter ONLY if the ACTION implies restriction.\n\n"
-             "Return ONLY valid JSON with this schema:\n"
-             "{{\n"
-             "  \"result\": {{\n"
-             "    \"summary\": <string>,\n"
-             "    \"selections\": [\n"
-             "      {{\n"
-             "        \"header\": <string|null>,\n"
-             "        \"price\": <string|null>,\n"
-             "        \"location\": <string|null>,\n"
-             "        \"details\": <string|null>,\n"
-             "        \"url\": <string|null>\n"
-             "      }}\n"
-             "    ]\n"
-             "  }}\n"
-             "}}\n\n"
-             "Rules:\n"
-             "- Strict JSON. No markdown, no code fences.\n"
-             "- If the ACTION mentions a number N (e.g., '3 propiedades', 'top 5'), RETURN EXACTLY N items in \"selections\" "
-             "(or fewer ONLY if the file has less).\n"
-             "- Each item in \"selections\" MUST come directly from the file content. Do not invent.\n"
-             "- If a field is missing in the file, set it to null (not '(no header)').\n"
-             "- Never collapse multiple results into one object; always use an array with N objects.\n"
-             "- Keep the summary short, explaining the selection criterion.\n"
-             "- If nothing matches, return an empty \"selections\" array and explain clearly in \"summary\"."),
-            ("user",
-             "ACTION (user words): {action}\n"
-             "Neighborhood (optional): {neighborhood}\n"
-             "File name: {filename}\n\n"
-             "=== FILE CONTENT BEGIN ===\n{file_chunk}\n=== FILE CONTENT END ===\n\n"
-             "Respond ONLY with strict JSON following the schema.")
+            ("system", sys_txt),
+            ("user", usr_txt),
         ])
 
     # Public API --------------------------------------------------------------
 
+    def _smart_chunk(self, text: str) -> str:
+        if len(text) <= self.max_chars:
+            return text
+        cut = text[: self.max_chars]
+        # buscar el último inicio de listing
+        anchor = cut.rfind("\n## ")
+        if anchor == -1:
+            return cut  # fallback
+        return cut[:anchor].rstrip()
+
+    def _est_tokens(self, s: str) -> int:
+        # Regla rápida ~4 chars/token (sirve para monitorear)
+        try:
+            return max(1, int(len(s) / 4))
+        except Exception:
+            return -1
+
     def execute(self, filename: str, action: str, neighborhood: Optional[str] = None) -> str:
         """Execute the requested action purely via LLM (action is FREE TEXT)."""
-        if self.logger: self.logger.error(f"[file_exec] action={action!r} neighborhood={neighborhood!r}")
+        if self.logger:
+            self.logger.error(
+                "[file_exec:init] action=%r neighborhood=%r exports_dir=%s max_chars=%s",
+                action, neighborhood, str(self.exports_dir), self.max_chars
+            )
 
         fpath = self._resolve_file(filename)
         if not fpath:
             return f"❌ File not found: {filename}"
 
+        # ---- Lectura del archivo
         try:
             full = Path(fpath).read_text(encoding="utf-8")
         except Exception as ex:
             return f"❌ Could not read file {filename}: {ex!r}"
 
-        file_chunk = full if len(full) <= self.max_chars else full[:self.max_chars]
+        truncated = len(full) > self.max_chars
+        file_chunk = self._smart_chunk(full)
+        truncated = len(full) > len(file_chunk)
+        if self.logger:
+            self.logger.error("[file_exec:truncate] truncated=%s sent_chars=%d", truncated, len(file_chunk))
+
+        # Métricas previas
+        if self.logger:
+            self.logger.error(
+                "[file_exec:metrics] file_chars_total=%d  file_chars_sent=%d  truncated=%s  "
+                "sys_chars=%d usr_chars=%d  action_chars=%d  neigh_chars=%d",
+                len(full), len(file_chunk), truncated,
+                # ojo: estos vienen de los prompts ya cargados
+                len(IntentPromptLoader.get_text('command_executor_exec_prompt_system')),
+                len(IntentPromptLoader.get_text('command_executor_exec_prompt_user')),
+                len(action or ""), len((neighborhood or ""))
+            )
+            self.logger.error(
+                "[file_exec:tokens_est] file_tokens~%d  sys_tokens~%d  usr_tokens~%d",
+                self._est_tokens(file_chunk),
+                self._est_tokens(IntentPromptLoader.get_text('command_executor_exec_prompt_system')),
+                self._est_tokens(IntentPromptLoader.get_text('command_executor_exec_prompt_user')),
+            )
 
         try:
-            # --- LLM call ---
+            # ---- LLM call
             msgs = self.exec_prompt.format_messages(
                 action=(action or "").strip(),
                 neighborhood=neighborhood or "",
                 filename=Path(fpath).name,
                 file_chunk=file_chunk
             )
+            # log de preview (solo tamaños para no inundar)
+            if self.logger:
+                preview_sizes = [{"role": m.type, "chars": len(m.content or "")} for m in msgs]
+                self.logger.error("[exec_llm:preview_sizes] %r", preview_sizes)
+
             resp = self.llm.invoke(msgs)
             raw = getattr(resp, "content", None)
 
+            # logs crudos
             if self.logger:
-                preview = [{"role": m.type, "content": m.content} for m in msgs]
-                self.logger.error(f"[exec_llm] msgs_preview={preview!r}")
-                self.logger.error(f"[exec_llm] raw_type={type(raw).__name__} raw={raw!r}")
+                self.logger.error("[exec_llm:raw_type] %s", type(raw).__name__)
+                self.logger.error("[exec_llm:raw_snippet] %s",
+                                  (raw[:600] + "…") if isinstance(raw, str) and len(raw) > 600 else raw)
 
-            # --- Parse & normalize ---
+                # si el cliente expone usage/tokens
+                meta = getattr(resp, "response_metadata", {}) or {}
+                self.logger.error("[exec_llm:response_metadata] %r", meta)
+
+            # ---- Parse & normalize
             summary, selections = self._parse_llm_result(resp)
 
-            # --- Render output ---
+            # ---- Render
             body = self._render_selections(summary, selections, neighborhood)
-            return f"{body}\n📄 File: {Path(fpath).name}"
+            out = f"{body}\n📄 File: {Path(fpath).name}"
+
+            # Post-metrics útiles
+            if self.logger:
+                self.logger.error(
+                    "[file_exec:done] selections=%d  summary_chars=%d  out_chars=%d",
+                    len(selections), len(summary or ""), len(out)
+                )
+            return out
 
         except Exception as ex:
             if self.logger:
                 self.logger.exception("exec_llm_error", extra={
                     "error": str(ex),
-                    "filename": filename,
+                    "src_filename": filename,
                     "action": action,
                     "neighborhood": neighborhood
                 })

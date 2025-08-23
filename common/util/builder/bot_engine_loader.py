@@ -8,7 +8,7 @@ from langchain.memory import ConversationBufferMemory
 from common.config.settings import settings
 from logic.pipeline.hybrid_bot import HybridBot
 from logic.pipeline.prompt_based_chatbot import PromptBasedChatbot
-from common.util.prompt_loader import PromptLoader
+from common.util.loader.prompt_loader import PromptLoader
 from pathlib import Path
 load_dotenv()
 

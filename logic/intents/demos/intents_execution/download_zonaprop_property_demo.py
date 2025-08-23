@@ -45,7 +45,7 @@ class DownloadZonapropPropertyDemo:
         self,
         logger,
         outdir: str = "exports",
-        max_pages: int = 3,
+        max_pages: int = 10,
         timeout: float = 20.0,
         sleep_secs: float = 0.8,
         listing_validator: Optional[Callable[[ZpListing, str], bool]] = None,

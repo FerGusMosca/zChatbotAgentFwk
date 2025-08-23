@@ -3,6 +3,7 @@ from typing import Dict, Optional, Tuple
 import json
 from langchain.prompts import ChatPromptTemplate
 
+from common.util.loader.intent_prompt_loader import IntentPromptLoader
 from logic.intents.demos.intente_detection.base_intent_detection import BaseInentDetect
 from logic.intents.demos.intents_execution.file_command_executor_demo import FileCommandExecutor
 
@@ -21,54 +22,18 @@ class IntentDetectionLogicCommandExecution(BaseInentDetect):
         self.llm = llm
         self.exec = FileCommandExecutor(logger=logger, llm=llm, exports_dir=exports_dir, max_chars=max_chars)
 
-        # 1) Classifier: is this a command over a file?
-        self.classifier_prompt = ChatPromptTemplate.from_messages([
-            ("system",
-             "You are a STRICT binary classifier for file-processing requests.\n"
-             "Return ONLY this exact JSON: {{\"cmd_exec\": true/false}}\n"
-             "Answer true when the user asks to open/read/process/scan/compute/search/show data from a local file by name "
-             "(e.g., .txt/.csv/ndjson), even if they don't explicitly say 'execute a command'."),
-            ("user", "User message:\n{user_text}")
-        ])
+        # Prompt to classify if the user request is about processing a file (yes/no).
+        self.classifier_prompt = IntentPromptLoader.get_prompt("intent_detect_process_file_classifier")
 
-        # 2) Slot extractor: filename, action (FREE TEXT), neighborhood (optional)
-        self.cmd_extract_prompt = ChatPromptTemplate.from_messages([
-            ("system",
-             "You are a STRICT information extractor for file-based commands.\n"
-             "Return ONLY valid JSON. Nothing else.\n\n"
-             "Output MUST be exactly:\n"
-             "{{\"slots\": {{\"filename\": <string or null>, \"action\": <string or null>, \"neighborhood\": <string or null>}}}}\n\n"
-             "Rules:\n"
-             "- Read the user message in Spanish or English and extract:\n"
-             "  • filename: the TXT filename mentioned (e.g., \"caba_venta_20250822_1950.txt\"). Trim spaces/newlines. If not present -> null.\n"
-             "  • action: REWRITE the user's request as a short imperative phrase in the SAME language of the user (e.g., \"decime cuál es la propiedad más cara\", \"show me the whole file\", \"filtrá por Recoleta y decime la más cara\"). No markdown, no quotes, no extra commentary.\n"
-             "  • neighborhood: ONLY fill when the user's request clearly restricts to a specific neighborhood; otherwise -> null. If the neighborhood is part of the action text, still extract it here.\n"
-             "- Do NOT add extra keys. Do NOT output markdown. Respond ONLY strict JSON.\n\n"
-             "Examples (guidance, DO NOT echo):\n"
-             "1) \"Procesa caba_venta_20250822_1950.txt y decime la propiedad más cara\" →\n"
-             "   {{\"slots\": {{\"filename\": \"caba_venta_20250822_1950.txt\", \"action\": \"decime cuál es la propiedad más cara\", \"neighborhood\": null}}}}\n"
-             "2) \"En caba_venta_20250822_1950.txt, propiedad más cara en Recoleta\" →\n"
-             "   {{\"slots\": {{\"filename\": \"caba_venta_20250822_1950.txt\", \"action\": \"decime la propiedad más cara en Recoleta\", \"neighborhood\": \"Recoleta\"}}}}\n"
-             "3) \"Mostrame todo el archivo caba_venta_20250822_1950.txt\" →\n"
-             "   {{\"slots\": {{\"filename\": \"caba_venta_20250822_1950.txt\", \"action\": \"mostrame todo el archivo\", \"neighborhood\": null}}}}\n"
-             ),
-            ("user",
-             "User message:\n{user_text}\n\n"
-             "Extract the three fields and respond ONLY with strict JSON.")
-        ])
+        # Prompt to extract slots from the user request:
+        # - filename (the TXT file mentioned)
+        # - action (the command in free text, rewritten as imperative)
+        # - neighborhood (optional filter if present)
+        self.cmd_extract_prompt = IntentPromptLoader.get_prompt("intent_detect_process_file_slot_extract")
 
-        # 3) Reprompt when something is missing
-        self.reprompt_prompt = ChatPromptTemplate.from_messages([
-            ("system",
-             "You are a dialogue assistant. Return ONLY valid JSON. "
-             "Write ONE short follow-up question in the SAME language as the user "
-             "to collect ONLY the missing keys. Keep it concise (1–2 lines)."),
-            ("user",
-             "User message:\n{user_text}\n"
-             "Missing keys (canonical): {missing_keys}\n"
-             "Return EXACT JSON:\n"
-             "{{\"reprompt\": <string>}}")
-        ])
+        # Prompt to generate a reprompt if any required slot is missing.
+        # It asks the user (in the same language) for only the missing keys.
+        self.reprompt_prompt = IntentPromptLoader.get_prompt("intent_detect_process_file_reprompt")
 
     # ---------------------- Public API -----------------------
 
