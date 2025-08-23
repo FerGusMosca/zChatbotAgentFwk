@@ -3,10 +3,11 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 import json
 
+from logic.intents.demos.intente_detection.base_intent_detection import BaseInentDetect
 from logic.intents.demos.intents_execution.money_transfer_intent_logic_demo import MoneyTransferIntentLogicDemo
 
 
-class IntentDetectionLogicMoneyTransfer:
+class IntentDetectionLogicMoneyTransfer(BaseInentDetect):
     """
     GPT-only intent manager:
     - try_handle(...) starts a new 'send_transfer' session if detected.
@@ -15,6 +16,7 @@ class IntentDetectionLogicMoneyTransfer:
     """
 
     def __init__(self, logger, model_name: str = "gpt-4o-mini", temperature: float = 0.0):
+        super().__init__()
         self.logger = logger
         self.llm = ChatOpenAI(
             model_name=model_name,
