@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from typing import Optional, List, Tuple
 import json
@@ -159,16 +160,7 @@ class HybridBot:
         """
 
 
-        def _safe_fallback(uq: str):
-            try:
-                ans, it, fl = self._fallback(uq)
-                return ans, it, fl, "fallback"
-            except Exception as ex_fb:
-                error_id = str(uuid.uuid4())[:8]
-                self.logger.exception("fallback_execution_error",
-                                      extra={"error_id": error_id, "query": uq, "error": str(ex_fb)})
-                return (f"Sorry, I couldn't generate a fallback answer (error {error_id}).",
-                        None, "FALLBACK_ERROR", "fallback")
+
 
         # Default metrics scaffold
         self.last_metrics = {
@@ -245,7 +237,7 @@ class HybridBot:
         )
 
         if use_fallback:
-            answer, intent, flag, mode_used = _safe_fallback(user_query)
+            answer, intent, flag, mode_used = self._safe_fallback(user_query)
         else:
             try:
                 answer, intent, flag = self._rag(user_query, docs, best_score)
@@ -254,7 +246,7 @@ class HybridBot:
                 rag_error_id = str(uuid.uuid4())[:8]
                 self.logger.exception("rag_execution_error",
                                       extra={"error_id": rag_error_id, "query": user_query, "error": str(ex_rag)})
-                answer, intent, flag, mode_used = _safe_fallback(user_query)
+                answer, intent, flag, mode_used = self._safe_fallback(user_query)
 
         # 4) METRICS (safe)
         self.last_metrics["mode"] = mode_used
@@ -290,6 +282,17 @@ class HybridBot:
         except Exception as ex:
             self.logger.error("retriever_error", extra={"error": str(ex)})
         return docs, best_score
+
+    def _safe_fallback(self,uq: str):
+        try:
+            ans, it, fl = self._fallback(uq)
+            return ans, it, fl, "fallback"
+        except Exception as ex_fb:
+            error_id = str(uuid.uuid4())[:8]
+            self.logger.exception("fallback_execution_error",
+                                  extra={"error_id": error_id, "query": uq, "error": str(ex_fb)})
+            return (f"Sorry, I couldn't generate a fallback answer (error {error_id}).",
+                    None, "FALLBACK_ERROR", "fallback")
 
     def _fallback(self, user_query: str) -> Tuple[str, Optional[str], Optional[str]]:
         """

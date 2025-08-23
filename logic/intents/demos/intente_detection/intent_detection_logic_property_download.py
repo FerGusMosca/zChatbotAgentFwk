@@ -2,10 +2,11 @@ from __future__ import annotations
 from typing import Dict, Optional, Tuple
 import json
 
+from logic.intents.demos.intente_detection.base_intent_detection import BaseInentDetect
 from logic.intents.demos.intents_execution.download_property_portals_demo import DownloadPropertyPortalsIntentLogicDemo
 
 
-class IntentDetectionLogicPropertyDownload:
+class IntentDetectionLogicPropertyDownload(BaseInentDetect):
     """
     Intent manager with state for 'download_property_portals'.
 
@@ -19,6 +20,7 @@ class IntentDetectionLogicPropertyDownload:
     INTENT_NAME = "download_property_portals"
 
     def __init__(self, logger, model_name: str = "gpt-4o-mini", temperature: float = 0.0):
+        super().__init__()
         self.logger = logger
         self.demo = DownloadPropertyPortalsIntentLogicDemo(
             logger, model_name=model_name, temperature=temperature
