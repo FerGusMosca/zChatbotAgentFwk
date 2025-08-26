@@ -13,16 +13,7 @@ from selectolax.parser import HTMLParser
 from selenium.webdriver.common.by import By
 import undetected_chromedriver as uc
 
-
-@dataclass
-class ZpListing:
-    id: str
-    url: str
-    title: str | None
-    price: str | None
-    location: str | None
-    details: str | None
-    agency: str | None
+from logic.intents.demos.intents_execution.real_state_parsers.models import ZpListing
 
 
 class DownloadZonapropPropertyDemo:
@@ -45,7 +36,7 @@ class DownloadZonapropPropertyDemo:
         self,
         logger,
         outdir: str = "exports",
-        max_pages: int = 10,
+        max_pages: int = 1,
         timeout: float = 20.0,
         sleep_secs: float = 0.8,
         listing_validator: Optional[Callable[[ZpListing, str], bool]] = None,
@@ -113,28 +104,21 @@ class DownloadZonapropPropertyDemo:
 
     # ----------------------- Public API -----------------------
 
-    def run(self, barrio: str, operacion: Optional[str] = None) -> dict:
+    def run(self, barrio: str, operacion: Optional[str] = None, export: bool = True) -> dict:
         """
-        Full scrape → validator filter → export TXT.
-        RAW mode support:
-          - If `barrio` is empty/None => crawl ALL CABA (use 'capital federal' slug).
-          - We still call `listing_validator` (can be a BYPASS that always returns True).
+        Full scrape → validator filter → optional export.
+        If export=False, returns the kept listings in-memory (for the orchestrator).
         """
         try:
-            # Normalize inputs
             op = (operacion or "venta").strip().lower()
             nb_raw = (barrio or "").strip()
             is_all_caba = (nb_raw == "")
-
-            # Slug to build URLs:
-            # - empty barrio => use 'capital federal' (CABA-wide)
-            # - non-empty barrio => use the given barrio
             nb_for_url = ("capital federal" if is_all_caba else nb_raw).lower()
 
-            # Do the scrape
+            # --- scrape
             listings = self._scrape(nb_for_url, op)
 
-            # LLM-driven validator (can be BYPASS=True)
+            # --- validate (BYPASS in RAW mode)
             target_for_validator = ("caba" if is_all_caba else nb_raw.lower())
             kept: list[ZpListing] = []
             for it in listings:
@@ -142,25 +126,15 @@ class DownloadZonapropPropertyDemo:
                     if self.listing_validator(it, target_for_validator):
                         kept.append(it)
                 except Exception as ex:
-                    self.logger.warning(
-                        "listing_validator_error",
-                        extra={"error": str(ex), "url": it.url},
-                    )
+                    self.logger.warning("listing_validator_error", extra={"error": str(ex), "url": it.url})
 
-            # Export using a friendly tag for filename/header
+            # --- devolver en memoria si export=False
+            if not export:
+                return {"ok": True, "file": None, "count": len(kept), "listings": kept}
+
+            # --- exportar a TXT si export=True
             barrio_tag = ("caba" if is_all_caba else nb_raw.lower())
             fpath = self._export_txt(barrio_tag, kept, op)
-
-            self.logger.info(
-                "zonaprop_download_done",
-                extra={
-                    "barrio": barrio_tag,
-                    "operacion": op,
-                    "count": len(kept),
-                    "file": str(fpath),
-                },
-            )
-
             nice_area = ("CABA" if is_all_caba else nb_raw.title())
             msg = f"✅ Descargué {len(kept)} propiedades de {nice_area} (Zonaprop). Archivo: {fpath.name}"
             return {"ok": True, "file": str(fpath), "count": len(kept), "message": msg}
@@ -301,15 +275,22 @@ class DownloadZonapropPropertyDemo:
 
     def _scrape(self, barrio: str, operacion: Optional[str]) -> list[ZpListing]:
         """
-        Parse listing cards defensively and dedupe by id/url.
+        Parse result cards; log per-page progress as 'Bajando ZonaProp Page N'.
         """
         acc: Dict[str, ZpListing] = {}
+        pages_scanned = 0
+
         for page in range(1, self.max_pages + 1):
             url = self._build_url(barrio, page, operacion)
+
+            # >>>> NEW: human-friendly progress log
+            self.logger.info("Bajando ZonaProp Page %d", page, extra={"url": url})
+
             html = self._get(url)
             if not html:
                 break
 
+            pages_scanned = page
             doc = HTMLParser(html)
             cards = doc.css(
                 "article[class*='posting'], article[class*='postings-card'], "
@@ -331,23 +312,29 @@ class DownloadZonapropPropertyDemo:
                     acc[key] = item
                     new_items += 1
 
-            self.logger.info("zp_page_parsed", extra={"url": url, "found": len(cards), "new": new_items, "total": len(acc)})
+            self.logger.info(
+                "zp_page_parsed",
+                extra={"url": url, "page": page, "found": len(cards), "new": new_items, "total": len(acc)}
+            )
             if new_items == 0:
                 break
             time.sleep(self.sleep_secs)
 
+        self._pages_scanned = pages_scanned
         return list(acc.values())
 
     def _parse_card(self, card) -> Optional[ZpListing]:
         """
-        Extract critical fields from a result card.
-        Note: regex here is only for extracting numeric IDs from URLs, not for classification.
+        Extracts robust fields from a Zonaprop result card.
+        Returns a ZpListing with source='zonaprop'.
         """
+        import re
         a = card.css_first("a[href]")
         url = a.attributes.get("href") if a else None
         if url and url.startswith("/"):
             url = "https://www.zonaprop.com.ar" + url
 
+        # Try to read a portal id either from attributes or the URL
         lid = None
         for attr in ("data-id", "data-posting-id", "data-qa"):
             if attr in card.attributes:
@@ -362,8 +349,8 @@ class DownloadZonapropPropertyDemo:
         title = title_node.text(strip=True) if title_node else None
 
         price_node = (
-            card.css_first("[class*='price']") or
-            card.css_first("strong:contains('USD'), strong:contains('$'), span:contains('USD'), span:contains('$')")
+                card.css_first("[class*='price']") or
+                card.css_first("strong:contains('USD'), strong:contains('$'), span:contains('USD'), span:contains('$')")
         )
         price = price_node.text(strip=True) if price_node else None
 
@@ -379,21 +366,36 @@ class DownloadZonapropPropertyDemo:
         if not url:
             return None
 
+        portal_id = lid
+        unique_id = f"zp:{portal_id or url}"
+
         return ZpListing(
-            id=lid or url, url=url, title=title, price=price,
-            location=location, details=details, agency=agency
+            id=unique_id,
+            url=url,
+            title=title,
+            price=price,
+            location=location,
+            details=details,
+            agency=agency,
+            source="zonaprop",
+            portal_id=portal_id,
         )
 
     def _export_txt(self, barrio: str, listings: Iterable[ZpListing], operacion: Optional[str]) -> Path:
         """
-        Write a clean TXT with only LLM-approved listings.
+        Write a clean TXT with only LLM-approved listings. Includes portal line and page count.
         """
         ts = time.strftime("%Y%m%d_%H%M")
         suffix = f"_{operacion}" if operacion else ""
-        fname = f"{barrio.replace(' ', '_')}{suffix}_{ts}.txt"
+        fname = f"{barrio.replace(' ', '_')}{suffix}_ZONAPROP_{ts}.txt"
         fpath = self.outdir / fname
 
-        lines = [f"# Zonaprop — {barrio.title()} ({operacion or 'general'}) — {ts}\n"]
+        pages = getattr(self, "_pages_scanned", 0)
+        lines = [
+            f"# Zonaprop — {barrio.title()} ({operacion or 'general'}) — {ts}",
+            f"# Pages scanned: {pages}",
+            ""
+        ]
         seen = set()
         for i, it in enumerate(listings, 1):
             if it.id in seen:
@@ -404,7 +406,9 @@ class DownloadZonapropPropertyDemo:
             if it.location: lines.append(f"- Ubicación: {it.location}")
             if it.details:  lines.append(f"- Detalles: {it.details}")
             if it.agency:   lines.append(f"- Agencia: {it.agency}")
+            lines.append(f"- Portal: {it.source}")
             lines.append(f"- URL: {it.url}")
             lines.append("")
         fpath.write_text("\n".join(lines), encoding="utf-8")
         return fpath
+

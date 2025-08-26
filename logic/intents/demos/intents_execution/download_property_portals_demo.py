@@ -1,16 +1,24 @@
 # logic/intents/demos/download_property_portals_demo.py
 from __future__ import annotations
-
-import json
+from datetime import datetime
 from typing import Dict, Optional
-
+from anyio import Path
 from langchain_community.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
-
+import os
 from logic.intents.base_intent_logic_demo import BaseIntentLogicDemo
-from logic.intents.demos.intents_execution.download_zonaprop_property_demo import (
-    DownloadZonapropPropertyDemo, ZpListing
+from logic.intents.demos.intents_execution.real_state_parsers.download_argenprop_property_demo import \
+    DownloadArgenpropPropertyDemo
+from logic.intents.demos.intents_execution.real_state_parsers.download_zonaprop_property_demo import (
+    DownloadZonapropPropertyDemo
 )
+from logic.intents.demos.intents_execution.real_state_parsers.models import ZpListing
+from pathlib import Path
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
 
 
 class DownloadPropertyPortalsIntentLogicDemo(BaseIntentLogicDemo):
@@ -51,6 +59,56 @@ class DownloadPropertyPortalsIntentLogicDemo(BaseIntentLogicDemo):
             ("user", "Ignored.")
         ])
 
+    # --- Google Drive upload helper (service account) ---
+    def _upload_to_drive(self, file_path: str) -> str:
+        """Sube a Drive (Shared Drive) usando credenciales en <root>/config."""
+
+
+        p = Path(file_path)
+        if not p.exists():
+            raise FileNotFoundError(f"File not found: {p}")
+
+        # <root>/config
+        root_dir = Path.cwd()
+        config_dir = root_dir / "config"
+
+        client_json = config_dir / "client_secret_186464463107-ga6pk2655frmkq18o9rih98uvfh7am9.apps.googleusercontent.com.json"
+        token_file = config_dir / "token.json"
+
+        folder_id = "1hJOsSgUqdtSKs2DtEg7rMAN9yhNWMqVE"
+        scopes = ["https://www.googleapis.com/auth/drive.file"]
+
+        creds = None
+        if token_file.exists():
+            creds = Credentials.from_authorized_user_file(str(token_file), scopes)
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                flow = InstalledAppFlow.from_client_secrets_file(str(client_json), scopes)
+                creds = flow.run_local_server(port=0)
+            token_file.write_text(creds.to_json(), encoding="utf-8")
+
+        drive = build("drive", "v3", credentials=creds)
+
+        meta = {"name": p.name, "parents": [folder_id]}
+        media = MediaFileUpload(str(p), resumable=True)
+
+        f = drive.files().create(
+            body=meta,
+            media_body=media,
+            fields="id,webViewLink",
+            supportsAllDrives=True,
+        ).execute()
+
+        drive.permissions().create(
+            fileId=f["id"],
+            body={"role": "reader", "type": "anyone"},
+            supportsAllDrives=True,
+        ).execute()
+
+        return f["webViewLink"]
+
     # ------------------- Required slots -------------------
 
     def required_slots(self) -> Dict[str, str]:
@@ -80,61 +138,123 @@ class DownloadPropertyPortalsIntentLogicDemo(BaseIntentLogicDemo):
     # ------------------- LLM validator (BYPASS) -------------------
 
     def _llm_keep_listing(self, listing: ZpListing, target: str) -> bool:
-        """
-        BYPASS validator: keep EVERY listing.
-        - No regex, no heuristics, no LLM call here.
-        - Returns True unconditionally to dump everything to file.
-        """
+        # BYPASS validator: keep everything (RAW mode)
         return True
 
     # ------------------- Execute -------------------
 
+    def _dedupe_cross_portal(self, items: list[ZpListing]) -> list[ZpListing]:
+        """
+        Cross-portal dedupe using listing.canonical_key().
+        Keeps the first occurrence (stable order). Portal/source remains visible.
+        """
+        seen = set()
+        out = []
+        for it in items:
+            key = it.canonical_key()
+            if not key:
+                # fallback: keep unique by (source,id)
+                key = f"{it.source}:{it.id}"
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(it)
+        return out
+
+    def _export_txt_combined(self, barrio: str, operacion: str, listings: list[ZpListing]) -> str:
+        """
+        Single TXT export (sync, no async Path). Returns the absolute path as str.
+        """
+        ts = datetime.now().strftime("%Y%m%d_%H%M")
+        fname = f"{barrio.replace(' ', '_')}_{operacion}_ALLPORTALS_{ts}.txt"
+        outdir = "exports"
+        os.makedirs(outdir, exist_ok=True)
+        fpath = os.path.join(outdir, fname)
+
+        pages_zp = getattr(self, "_zp_pages_scanned", None)
+        pages_ap = getattr(self, "_ap_pages_scanned", None)
+
+        lines = [f"# Combined — {barrio.title()} ({operacion}) — {ts}"]
+        if pages_zp is not None:
+            lines.append(f"# Zonaprop pages scanned: {pages_zp}")
+        if pages_ap is not None:
+            lines.append(f"# Argenprop pages scanned: {pages_ap}")
+        lines.append("")
+
+        for i, it in enumerate(listings, 1):
+            lines.append(f"## {i}. {it.title or '(no title)'}")
+            if it.price:    lines.append(f"- Precio: {it.price}")
+            if it.location: lines.append(f"- Ubicación: {it.location}")
+            if it.details:  lines.append(f"- Detalles: {it.details}")
+            if it.agency:   lines.append(f"- Agencia: {it.agency}")
+            lines.append(f"- Portal: {it.source}")
+            lines.append(f"- URL: {it.url}")
+            lines.append("")
+
+        with open(fpath, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines))
+
+        return fpath
+
     def execute(self, filled_slots: Dict[str, str]) -> str:
         """
-        Execute the RAW download:
-        - neighborhood = "" (all CABA)
-        - operation = "venta" (fixed)
-        - Connects to DownloadZonapropPropertyDemo and dumps EVERYTHING found.
+        RAW multi-portal download:
+        - neighborhood = "" (ALL CABA)
+        - operation = "venta"
+        - Scrapes Zonaprop + Argenprop (AP is experimental)
+        - Cross-portal dedupe
+        - Single combined TXT with source marker
+        - Upload final file to transfer.sh and return public URL
         """
-        import time, os
+        import time
+        import os
+        from pathlib import Path
+
         t0 = time.monotonic()
+        neighborhood = ""  # ALL CABA
+        operation = "venta"
 
-        neighborhood = ""       # all barrios
-        operation = "venta"     # fixed to sales
+        self.logger.info("[exec] RAW combined start: op=%s, barrio=<ALL CABA>", operation)
 
-        self.logger.info("[exec] RAW dump start: op=%s, barrio=<ALL CABA>", operation)
+        # 1) Zonaprop (no export)
+        zp = DownloadZonapropPropertyDemo(
+            logger=self.logger,
+            listing_validator=self._llm_keep_listing,
+        )
+        r1 = zp.run(neighborhood, operation, export=False)
+        zp_list = r1.get("listings", []) if r1.get("ok") else []
+        zp_pages = getattr(zp, "_pages_scanned", None)
 
+        # 2) Argenprop (no export) — experimental
+        ap = DownloadArgenpropPropertyDemo(
+            logger=self.logger,
+            listing_validator=self._llm_keep_listing,
+        )
+        r2 = ap.run(neighborhood, operation, export=False)
+        ap_list = r2.get("listings", []) if r2.get("ok") else []
+        ap_pages = getattr(ap, "_pages_scanned", None)
+
+        # 3) Merge + cross-portal dedupe
+        merged = zp_list + ap_list
+        deduped = self._dedupe_cross_portal(merged)
+
+        # 4) Export single combined file
+        out_path = self._export_txt_combined("caba", operation, deduped)
+
+        # 5) Upload to Google Drive (public link)
         try:
-            scraper = DownloadZonapropPropertyDemo(
-                logger=self.logger,
-                # Pass BYPASS validator to avoid discarding anything
-                listing_validator=self._llm_keep_listing,
-            )
-
-            # NOTE: run(neighborhood, operation) must accept empty neighborhood for "all".
-            res = scraper.run(neighborhood, operation)
-
-            self.logger.info(
-                "[exec] scraper_done ok=%s count=%s file=%s elapsed=%.2fs llm_calls=%d",
-                res.get("ok"), res.get("count"), res.get("file"),
-                time.monotonic() - t0, self._llm_filter_calls
-            )
-
-            if not res.get("ok"):
-                return f"⚠️ Could not download: {res.get('message', 'Unknown error')}"
-
-            path = res["file"]
-            try:
-                size = os.path.getsize(path)
-                self.logger.info("[exec] file_ready path=%s size=%dB", path, size)
-            except Exception as e:
-                self.logger.warning("[exec] file_stat_error path=%s err=%s", path, e)
-
-            return (
-                f"✅ Downloaded {res['count']} *venta* listings in *CABA (all barrios)* "
-                f"(Zonaprop — RAW, unfiltered dump).\nFile: {path}"
-            )
-
+            public_url = self._upload_to_drive(out_path)
+            download_line = f"\n📂 Link: {public_url}"
         except Exception as ex:
-            self.logger.exception("[exec] EXC during RAW dump: op=%s", operation)
-            return "❌ An error occurred during download. Please try again later."
+            self.logger.warning("drive_upload_failed", extra={"error": str(ex)})
+            download_line = "\n⚠️ Falló la subida a Drive"
+
+        return (
+            f"✅ Descarga completada\n"
+            f"• Zonaprop: {len(zp_list)} avisos (páginas: {zp_pages or '-'})\n"
+            f"• Argenprop: {len(ap_list)} avisos (páginas: {ap_pages or '-'})\n"
+            f"• Únicos (dedupe): {len(deduped)}\n"
+            f"• Archivo: {Path(out_path).name}{download_line}"
+        )
+
+

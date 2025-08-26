@@ -12,5 +12,25 @@
     "prompt_name": "generic",
     "question": "¿Quién es el presidente de Guatemala?",
     "expected_mode": "fallback"
+  },
+   {
+    "name": "capital_portugal",
+    "client_id": "demo_client",
+    "prompt_name": "generic",
+    "question": "¿Cuál es la capital de Portugal?",
+    "expected_mode": "fallback",
+    "expected_answer": "Lisboa"
+  },
+  {
+    "name": "goalkeeper_boca",
+    "client_id": "demo_client",
+    "prompt_name": "generic",
+    "question": "¿Quién es el arquero de Boca?",
+    "expected_mode": "fallback",
+    "expected_contains": [
+      "arquero",
+      "Boca",
+      "Romero"
+    ]
   }
 ]
