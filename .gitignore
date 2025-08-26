@@ -32,4 +32,4 @@ node_modules/
 dist/
 build/
 # Ignorar documentos grandes de ejemplo
-data/documents/demo_client/
+data/documents/demo_client/"config/*.json" 
