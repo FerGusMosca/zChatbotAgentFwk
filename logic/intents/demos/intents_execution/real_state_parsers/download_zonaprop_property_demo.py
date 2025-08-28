@@ -4,7 +4,6 @@ from __future__ import annotations
 import re
 import time
 from pathlib import Path
-from dataclasses import dataclass
 from typing import Callable, Iterable, Optional, Dict
 
 import httpx
@@ -13,30 +12,34 @@ from selectolax.parser import HTMLParser
 from selenium.webdriver.common.by import By
 import undetected_chromedriver as uc
 
+from common.util.settings.env_deploy_reader import EnvDeployReader
 from logic.intents.demos.intents_execution.real_state_parsers.models import ZpListing
 
 
 class DownloadZonapropPropertyDemo:
     """
-    Zonaprop scraper for a single neighborhood and operation.
+    Zonaprop scraper for a single neighborhood + operation.
 
-    Design:
-      - Networking: httpx first; fallback to Selenium (undetected-chromedriver) on 403/!=200.
-      - Parsing: defensive selectors; basic dedupe by id/url.
-      - Filtering/Classification: **delegated 100% to an external callback** (LLM).
-        The scraper itself does NOT decide neighborhood membership.
+    Design
+    ------
+    - Two fetching modes:
+        * "http": try httpx first and fallback to Selenium on 403/non-200.
+        * "selenium": use Selenium from the start and reuse a single browser.
+    - Parsing: robust CSS selectors.
+    - Filtering: fully delegated to `listing_validator`.
 
-    Contract:
-      - listing_validator: Callable[[ZpListing, str], bool]
-        Must return True to keep the listing, False to drop it.
-      - The TXT file is written with ONLY listings the validator approved.
+    .env_deploy flags
+    -----------------
+    - PAGES_TO_DOWNLOAD      -> max pages to scan
+    - ZP_FETCH_MODE          -> "selenium" | "http" (default "http")
+    - SELENIUM_HEADLESS      -> "true" | "false" (default "true")
     """
 
     def __init__(
         self,
         logger,
         outdir: str = "exports",
-        max_pages: int = 1,
+        max_pages: int = int(EnvDeployReader.get("PAGES_TO_DOWNLOAD")),
         timeout: float = 20.0,
         sleep_secs: float = 0.8,
         listing_validator: Optional[Callable[[ZpListing, str], bool]] = None,
@@ -48,17 +51,19 @@ class DownloadZonapropPropertyDemo:
         self.max_pages = max_pages
         self.sleep_secs = sleep_secs
 
-        # A validator is REQUIRED because all classification must be LLM-driven.
         if listing_validator is None:
-            raise ValueError("listing_validator is required: all classification is delegated to LLM.")
+            raise ValueError("listing_validator is required (external LLM-based filtering).")
         self.listing_validator = listing_validator
 
-        # Networking strategy
-        self.use_browser_fallback = True
-        self.debug_browser = True    # show browser on first run (optional)
-        self.dump_debug_html = True  # save last HTML/screenshot to exports/debug
+        # Fetch mode & headless flags
+        self.fetch_mode = (EnvDeployReader.get("ZP_FETCH_MODE") or "http").strip().lower()
+        self.headless = (str(EnvDeployReader.get("SELENIUM_HEADLESS") or "true").lower() == "true")
 
-        # Basic UA rotation for 403s
+        # Debug opts (keep minimal in prod)
+        self.debug_browser = not self.headless
+        self.dump_debug_html = False
+
+        # UA pool for httpx anti-403 rotation
         self._ua_pool = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0",
@@ -86,39 +91,28 @@ class DownloadZonapropPropertyDemo:
         transport = httpx.HTTPTransport(retries=2)
         try:
             self.client = httpx.Client(
-                timeout=timeout,
-                headers=base_headers,
-                follow_redirects=True,
-                http2=True,
-                transport=transport,
+                timeout=timeout, headers=base_headers, follow_redirects=True, http2=True, transport=transport
             )
         except Exception:
             self.logger.warning("http2_not_available_falling_back_to_http11")
             self.client = httpx.Client(
-                timeout=timeout,
-                headers=base_headers,
-                follow_redirects=True,
-                http2=False,
-                transport=transport,
+                timeout=timeout, headers=base_headers, follow_redirects=True, http2=False, transport=transport
             )
 
     # ----------------------- Public API -----------------------
 
     def run(self, barrio: str, operacion: Optional[str] = None, export: bool = True) -> dict:
-        """
-        Full scrape → validator filter → optional export.
-        If export=False, returns the kept listings in-memory (for the orchestrator).
-        """
+        """Scrape -> external validation -> optional TXT export."""
         try:
             op = (operacion or "venta").strip().lower()
             nb_raw = (barrio or "").strip()
             is_all_caba = (nb_raw == "")
             nb_for_url = ("capital federal" if is_all_caba else nb_raw).lower()
 
-            # --- scrape
+            # Scrape
             listings = self._scrape(nb_for_url, op)
 
-            # --- validate (BYPASS in RAW mode)
+            # External validation (keep only accepted)
             target_for_validator = ("caba" if is_all_caba else nb_raw.lower())
             kept: list[ZpListing] = []
             for it in listings:
@@ -128,11 +122,10 @@ class DownloadZonapropPropertyDemo:
                 except Exception as ex:
                     self.logger.warning("listing_validator_error", extra={"error": str(ex), "url": it.url})
 
-            # --- devolver en memoria si export=False
             if not export:
                 return {"ok": True, "file": None, "count": len(kept), "listings": kept}
 
-            # --- exportar a TXT si export=True
+            # Export TXT
             barrio_tag = ("caba" if is_all_caba else nb_raw.lower())
             fpath = self._export_txt(barrio_tag, kept, op)
             nice_area = ("CABA" if is_all_caba else nb_raw.title())
@@ -143,13 +136,10 @@ class DownloadZonapropPropertyDemo:
             self.logger.exception("zonaprop_run_error", extra={"error": repr(e)})
             return {"ok": False, "message": f"Unhandled error: {e!r}"}
 
-    # ----------------------- Helpers -------------------------
+    # ----------------------- URL builder ----------------------
 
     def _build_url(self, barrio: str, page: int, operacion: Optional[str]) -> str:
-        """
-        Builds the correct Zonaprop search URL for the provided barrio+operation.
-        This is NOT a classification step; just URL composition.
-        """
+        """Compose Zonaprop URL for (barrio, operacion, page)."""
         slug = barrio.replace(" ", "-")
         if operacion == "venta":
             base = f"https://www.zonaprop.com.ar/departamentos-en-venta-{slug}"
@@ -159,77 +149,72 @@ class DownloadZonapropPropertyDemo:
             base = f"https://www.zonaprop.com.ar/departamentos-{slug}"
         return base + (".html" if page == 1 else f"-pagina-{page}.html")
 
-    # ----------------------- Networking ----------------------
+    # ----------------------- Fetching -------------------------
 
-    def _get(self, url: str) -> Optional[str]:
-        """
-        GET with basic anti-403 strategy.
-        """
+    def _make_driver(self):
+        """Create a single undetected-chromedriver instance with sane defaults."""
+        opts = uc.ChromeOptions()
+        if self.headless:
+            opts.add_argument("--headless=new")
+        opts.add_argument("--disable-blink-features=AutomationControlled")
+        opts.add_argument("--no-sandbox")
+        opts.add_argument("--disable-dev-shm-usage")
+        opts.add_argument("--lang=es-AR")
+
+        ua = self.client.headers.get("User-Agent", "")
+        if ua:
+            opts.add_argument(f"--user-agent={ua}")
+
+        driver = uc.Chrome(options=opts)
+        driver.set_window_size(1366, 900)
+
+        # Extra header (helps with WAF heuristics)
         try:
-            r = self.client.get(url)
-            if r.status_code == 403:
-                self.logger.info("zp_403_detected")
-                # rotate UA + referer and retry once
-                self._ua_idx = (self._ua_idx + 1) % len(self._ua_pool)
-                self.client.headers["User-Agent"] = self._ua_pool[self._ua_idx]
-                self.client.headers["Referer"] = "https://www.bing.com/"
-                time.sleep(0.8)
-                r2 = self.client.get(url)
-                if r2.status_code == 200:
-                    return r2.text
-                self.logger.info("zp_403_persist")
-                if self.use_browser_fallback:
-                    self.logger.info("zp_fallback_selenium")
-                    return self._get_with_selenium(url)
-                return None
+            driver.execute_cdp_cmd(
+                "Network.setExtraHTTPHeaders", {"headers": {"Referer": "https://www.google.com/"}}
+            )
+        except Exception:
+            pass
+        return driver
 
-            if r.status_code == 200:
-                return r.text
-
-            self.logger.info("zp_non200", extra={"status": r.status_code})
-            if self.use_browser_fallback:
-                self.logger.info("zp_fallback_selenium")
-                return self._get_with_selenium(url)
-            return None
-
-        except Exception as ex:
-            self.logger.error("zp_fetch_error", extra={"url": url, "error": str(ex)})
-            return None
-
-    def _get_with_selenium(self, url: str) -> Optional[str]:
+    def _get_with_selenium(self, url: str, driver=None) -> Optional[str]:
         """
-        Loads the page with a real Chrome (Selenium + undetected-chromedriver).
-        Saves debug artifacts if enabled. Returns page_source or None.
+        Load page with Selenium. If a driver is provided, reuse it;
+        otherwise create a temporary one. Return page_source or None.
         """
-        driver = None
+        local_driver = None
+        if driver is None:
+            local_driver = self._make_driver()
+            driver = local_driver
+
         try:
-            opts = uc.ChromeOptions()
-            if not getattr(self, "debug_browser", False):
-                opts.add_argument("--headless=new")
-            opts.add_argument("--disable-blink-features=AutomationControlled")
-            opts.add_argument("--no-sandbox")
-            opts.add_argument("--disable-dev-shm-usage")
-            opts.add_argument("--lang=es-AR")
-
-            ua = self.client.headers.get("User-Agent", "")
-            if ua:
-                opts.add_argument(f"--user-agent={ua}")
-
-            driver = uc.Chrome(options=opts)
-            driver.set_window_size(1366, 900)
-
-            try:
-                driver.execute_cdp_cmd("Network.setExtraHTTPHeaders", {"headers": {"Referer": "https://www.google.com/"}})
-            except Exception:
-                pass
-
             driver.get(url)
+            ua_js = driver.execute_script("return navigator.userAgent")
+            is_webdriver = driver.execute_script("return !!window.navigator.webdriver")
+            cards = driver.find_elements(By.CSS_SELECTOR,
+                                         "[data-qa*='posting'], [data-testid*='posting'], article[class*='posting']")
 
-            # Accept cookies (best-effort)
+            self.logger.info("zp_dbg",
+                             extra={
+                                 "ua_js": ua_js,
+                                 "webdriver": is_webdriver,
+                                 "cards_found": len(cards)
+                             })
+            # snapshots
+            dbg = self.outdir / "debug"
+            dbg.mkdir(parents=True, exist_ok=True)
+            (dbg / "bot_vps_page1.html").write_text(driver.page_source, encoding="utf-8")
+            driver.save_screenshot(str(dbg / "bot_vps_page1.png"))
+
+            # Accept cookies (best effort)
             try:
-                for sel in ["//button[contains(.,'Aceptar')]", "//button[contains(.,'Aceptar todas')]"]:
+                for sel in [
+                    "//button[contains(.,'Acept')]",   # 'Aceptar', 'Aceptar todas'
+                    "//button[contains(.,'Entendido')]",
+                    "//button[contains(.,'continuar')]",
+                ]:
                     btns = driver.find_elements(By.XPATH, sel)
-                    if btns:
+                    if btns and btns[0].is_displayed():
                         btns[0].click()
                         break
             except Exception:
@@ -237,23 +222,20 @@ class DownloadZonapropPropertyDemo:
 
             # Trigger lazy loading
             try:
-                for _ in range(6):
-                    driver.execute_script("window.scrollBy(0, 1200);")
-                    time.sleep(0.4)
+                for _ in range(4):
+                    driver.execute_script("window.scrollBy(0, 1000);")
+                    time.sleep(0.35)
             except Exception:
                 pass
 
             html = driver.page_source
 
-            if getattr(self, "dump_debug_html", False) or getattr(self, "debug_browser", False):
+            # Optional debug dump
+            if self.dump_debug_html or self.debug_browser:
                 (self.outdir / "debug").mkdir(parents=True, exist_ok=True)
-            if getattr(self, "dump_debug_html", False):
+            if self.dump_debug_html:
                 try:
                     (self.outdir / "debug" / "last_page.html").write_text(html, encoding="utf-8")
-                except Exception:
-                    pass
-            if getattr(self, "debug_browser", False):
-                try:
                     driver.save_screenshot(str(self.outdir / "debug" / "last_page.png"))
                 except Exception:
                     pass
@@ -265,76 +247,131 @@ class DownloadZonapropPropertyDemo:
             self.logger.error("zp_selenium_error", extra={"url": url, "error": repr(e)})
             return None
         finally:
-            try:
-                if driver:
-                    driver.quit()
-            except Exception:
-                pass
+            if local_driver:
+                try:
+                    local_driver.quit()
+                except Exception:
+                    pass
 
-    # ----------------------- Parsing & Export ----------------
+    def _get(self, url: str) -> Optional[str]:
+        """
+        If fetch_mode=selenium -> always Selenium.
+        Else -> httpx first with anti-403 rotation and Selenium fallback.
+        """
+        if self.fetch_mode == "selenium":
+            return self._get_with_selenium(url)
+
+        try:
+            r = self.client.get(url)
+            if r.status_code == 403:
+                self.logger.info("zp_403_detected")
+                self._ua_idx = (self._ua_idx + 1) % len(self._ua_pool)
+                self.client.headers["User-Agent"] = self._ua_pool[self._ua_idx]
+                self.client.headers["Referer"] = "https://www.bing.com/"
+                time.sleep(0.8)
+
+                r2 = self.client.get(url)
+                if r2.status_code == 200:
+                    return r2.text
+
+                self.logger.info("zp_403_persist")
+                self.logger.info("zp_fallback_selenium")
+                return self._get_with_selenium(url)
+
+            if r.status_code == 200:
+                return r.text
+
+            self.logger.info("zp_non200", extra={"status": r.status_code})
+            self.logger.info("zp_fallback_selenium")
+            return self._get_with_selenium(url)
+
+        except Exception as ex:
+            self.logger.error("zp_fetch_error", extra={"url": url, "error": str(ex)})
+            return None
+
+    # ----------------------- Scrape loop ----------------------
 
     def _scrape(self, barrio: str, operacion: Optional[str]) -> list[ZpListing]:
         """
-        Parse result cards; log per-page progress as 'Bajando ZonaProp Page N'.
+        Iterate pages, fetch HTML, parse cards, and accumulate unique listings.
+        When in selenium mode, reuse a single driver across all pages.
         """
         acc: Dict[str, ZpListing] = {}
         pages_scanned = 0
 
-        for page in range(1, self.max_pages + 1):
-            url = self._build_url(barrio, page, operacion)
+        driver = None
+        if self.fetch_mode == "selenium":
+            driver = self._make_driver()
 
-            # >>>> NEW: human-friendly progress log
-            self.logger.info("Bajando ZonaProp Page %d", page, extra={"url": url})
+        try:
+            for page in range(1, self.max_pages + 1):
+                url = self._build_url(barrio, page, operacion)
+                self.logger.info("Bajando ZonaProp Page %d", page, extra={"url": url})
 
-            html = self._get(url)
-            if not html:
-                break
+                if self.fetch_mode == "selenium":
+                    html = self._get_with_selenium(url, driver=driver)
+                else:
+                    html = self._get(url)
 
-            pages_scanned = page
-            doc = HTMLParser(html)
-            cards = doc.css(
-                "article[class*='posting'], article[class*='postings-card'], "
-                "li[class*='posting'], div[class*='posting'], "
-                "div[data-qa*='posting'], article[data-qa*='posting'], "
-                "[data-qa*='posting-card'], [data-testid*='posting']"
-            )
-            if not cards:
-                self.logger.info("zp_no_cards", extra={"url": url})
-                break
+                if not html:
+                    break
 
-            new_items = 0
-            for c in cards:
-                item = self._parse_card(c)
-                if not item:
-                    continue
-                key = item.id or item.url
-                if key and key not in acc:
-                    acc[key] = item
-                    new_items += 1
+                pages_scanned = page
+                doc = HTMLParser(html)
+                cards = doc.css(
+                    "article[class*='posting'], article[class*='postings-card'], "
+                    "li[class*='posting'], div[class*='posting'], "
+                    "div[data-qa*='posting'], article[data-qa*='posting'], "
+                    "[data-qa*='posting-card'], [data-testid*='posting']"
+                )
+                if not cards:
+                    try:
+                        (self.outdir / "debug").mkdir(parents=True, exist_ok=True)
+                        (self.outdir / "debug" / f"page-{page}-empty.html").write_text(html, encoding="utf-8")
+                    except Exception:
+                        pass
+                    self.logger.info("zp_no_cards", extra={"url": url})
+                    break
 
-            self.logger.info(
-                "zp_page_parsed",
-                extra={"url": url, "page": page, "found": len(cards), "new": new_items, "total": len(acc)}
-            )
-            if new_items == 0:
-                break
-            time.sleep(self.sleep_secs)
+                new_items = 0
+                for c in cards:
+                    item = self._parse_card(c)
+                    if not item:
+                        continue
+                    key = item.id or item.url
+                    if key and key not in acc:
+                        acc[key] = item
+                        new_items += 1
 
-        self._pages_scanned = pages_scanned
-        return list(acc.values())
+                self.logger.info(
+                    "zp_page_parsed",
+                    extra={"url": url, "page": page, "found": len(cards), "new": new_items, "total": len(acc)}
+                )
+
+                if new_items == 0:
+                    break
+
+                time.sleep(self.sleep_secs)
+
+            self._pages_scanned = pages_scanned
+            return list(acc.values())
+
+        finally:
+            if driver:
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+
+    # ----------------------- Parsing & Export -----------------
 
     def _parse_card(self, card) -> Optional[ZpListing]:
-        """
-        Extracts robust fields from a Zonaprop result card.
-        Returns a ZpListing with source='zonaprop'.
-        """
-        import re
+        """Extract robust fields from a result card and return a ZpListing."""
         a = card.css_first("a[href]")
         url = a.attributes.get("href") if a else None
         if url and url.startswith("/"):
             url = "https://www.zonaprop.com.ar" + url
 
-        # Try to read a portal id either from attributes or the URL
         lid = None
         for attr in ("data-id", "data-posting-id", "data-qa"):
             if attr in card.attributes:
@@ -349,8 +386,8 @@ class DownloadZonapropPropertyDemo:
         title = title_node.text(strip=True) if title_node else None
 
         price_node = (
-                card.css_first("[class*='price']") or
-                card.css_first("strong:contains('USD'), strong:contains('$'), span:contains('USD'), span:contains('$')")
+            card.css_first("[class*='price']") or
+            card.css_first("strong:contains('USD'), strong:contains('$'), span:contains('USD'), span:contains('$')")
         )
         price = price_node.text(strip=True) if price_node else None
 
@@ -382,9 +419,7 @@ class DownloadZonapropPropertyDemo:
         )
 
     def _export_txt(self, barrio: str, listings: Iterable[ZpListing], operacion: Optional[str]) -> Path:
-        """
-        Write a clean TXT with only LLM-approved listings. Includes portal line and page count.
-        """
+        """Write a TXT with the kept listings (already validated by caller)."""
         ts = time.strftime("%Y%m%d_%H%M")
         suffix = f"_{operacion}" if operacion else ""
         fname = f"{barrio.replace(' ', '_')}{suffix}_ZONAPROP_{ts}.txt"
@@ -411,4 +446,3 @@ class DownloadZonapropPropertyDemo:
             lines.append("")
         fpath.write_text("\n".join(lines), encoding="utf-8")
         return fpath
-

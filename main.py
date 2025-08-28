@@ -1,5 +1,6 @@
 # main.py
 import argparse
+import logging
 import os
 from pathlib import Path
 import time
@@ -11,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 
 from common.util.app_logger import AppLogger
+from common.util.settings.env_deploy_reader import EnvDeployReader
 from controllers import chat_controller
   # your centralized logger
 
@@ -102,8 +104,17 @@ app.include_router(whatsapp_router, prefix="/whatsapp")
 
 if __name__ == "__main__":
     import uvicorn
+
+    EnvDeployReader.load()
+    logging.getLogger(__name__).info(
+        "env loaded from %s | ZP_FETCH_MODE=%s | HEADLESS=%s",
+        EnvDeployReader._path,
+        EnvDeployReader.get("ZP_FETCH_MODE", "<none>"),
+        EnvDeployReader.get("SELENIUM_HEADLESS", "<none>")
+    )
     # Use 0.0.0.0 if you want to test from other devices in your LAN
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    port= int( EnvDeployReader.get("PORT"))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
 
 
 print (__name__)
