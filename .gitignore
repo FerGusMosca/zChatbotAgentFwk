@@ -28,4 +28,20 @@ config/token.json
 *.p8
 *.key
 *credentials*.json
--e "config/*.json\n.env\nvectorstores/\nexports/\ndata/documents/" 
+-e "config/*.json\n.env\nvectorstores/\nexports/\ndata/documents/"
+
+# Cachés y checkpoints
+*.checkpoint
+*.ckpt
+*.h5
+
+# CSV / datasets locales
+*.csv
+*.tsv
+*.xlsx
+*.parquet
+
+# Archivos de debugging
+debug/
+logs/
+
