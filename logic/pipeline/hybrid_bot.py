@@ -54,9 +54,9 @@ class HybridBot:
         #self.custom_logger=CustomLoggingLogic()
         self.custom_logger=DynamicTopicExtractorLLM()#Comment this if turning off the example
 
-        self.intent_logic = IntentDetectionLogicMoneyTransfer(self.logger, model_name=model_name, temperature=temperature)
+        #self.intent_logic = IntentDetectionLogicMoneyTransfer(self.logger, model_name=model_name, temperature=temperature)
         #self.intent_logic = IntentDetectionLogicPropertyDownload(self.logger)
-        '''
+
         self.intent_logic = IntentDetectionPropertyBusinessOrchestationLogic(
             logger=self.logger,
             model_name=model_name,
@@ -64,7 +64,7 @@ class HybridBot:
             exports_dir="exports",  #
             max_chars=2000,  # max chunk for LLM
         )
-        '''
+
 
         # Build a prompt = system prompt + {context} + {question}
         prompt_template = ChatPromptTemplate(

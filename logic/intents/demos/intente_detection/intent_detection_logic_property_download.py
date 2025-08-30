@@ -26,7 +26,7 @@ class IntentDetectionLogicPropertyDownload(BaseInentDetect):
         super().__init__(logger)
 
         self.demo = DownloadPropertyPortalsIntentLogicDemo(
-            logger, model_name=model_name, temperature=temperature
+            logger, model_name=model_name, temperature=temperature, use_llm=True
         )
         # Active state of the ongoing intent, if any
         # {"slots": dict, "missing": dict, "last_reprompt": str}

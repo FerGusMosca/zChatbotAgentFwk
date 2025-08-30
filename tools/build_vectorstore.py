@@ -63,9 +63,17 @@ def load_documents_from_folder(folder_path: str) -> List[Document]:
     return docs
 
 def build_vectorstore(client_id: str):
+    # 🛠️ Normalize client_id to avoid hidden spaces or line breaks
+    client_id = (client_id or "").strip()
+
+    # 🛠️ Compute repo root and target paths
     repo_root = Path(__file__).resolve().parents[1]
     doc_path = repo_root / "data" / "documents" / client_id
     vectorstore_path = repo_root / "vectorstores" / client_id
+
+    # 🛡️ Extra safety: fail early if documents folder does not exist
+    if not doc_path.exists():
+        raise FileNotFoundError(f"❌ Docs folder not found: {doc_path}")
 
     print(f"📂 Loading documents from: {doc_path}")
     raw_docs = load_documents_from_folder(str(doc_path))
