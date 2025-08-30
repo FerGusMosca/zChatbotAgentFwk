@@ -1,37 +1,31 @@
-# Entorno virtual
+# venv / env
 venv/
 .env
 *.env
 
-# Archivos de Python
+# app
 __pycache__/
 *.py[cod]
-*.pyo
-
-# Archivos temporales de editores
 *.log
-*.swp
-*.swo
 *.tmp
-
-# Archivos de sistema
 .DS_Store
 Thumbs.db
-
-# Archivos de JetBrains (como PyCharm)
 .idea/
-
-# Archivos de VS Code (si usás)
 .vscode/
 
-# Base de datos SQLite local (si llegás a usar)
-*.sqlite3
+# datos locales / artefactos
+vectorstores/
+exports/
+data/documents/
+*.faiss
+*.pkl
 
-# Archivos de frontend temporales (si usás herramientas tipo npm/webpack)
-node_modules/
-dist/
-build/
-# Ignorar documentos grandes de ejemplo
-data/documents/demo_client/"config/*.json" 
-".env*" 
-"config/*.json" 
+# ⛔ secretos / credenciales
+config/*.json
+config/token.json
+*.pem
+*.p12
+*.p8
+*.key
+*credentials*.json
+-e "config/*.json\n.env\nvectorstores/\nexports/\ndata/documents/" 
