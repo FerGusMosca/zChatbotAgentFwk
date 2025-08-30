@@ -35,7 +35,8 @@ async def ask_question(request: Request):
         if not question:
             raise HTTPException(status_code=400, detail="Missing 'question' in request body")
 
-        hybrid_bot = load_hybrid_bot("demo_client")
+        client_id = get_settings().bot_profile
+        hybrid_bot = load_hybrid_bot(client_id)
         answer = hybrid_bot.handle(question)
 
         latency_ms = int((time.time() - start) * 1000)

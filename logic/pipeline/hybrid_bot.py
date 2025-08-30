@@ -54,15 +54,17 @@ class HybridBot:
         #self.custom_logger=CustomLoggingLogic()
         self.custom_logger=DynamicTopicExtractorLLM()#Comment this if turning off the example
 
-        #self.intent_logic = IntentDetectionLogicMoneyTransfer(self.logger, model_name=model_name, temperature=temperature)
+        self.intent_logic = IntentDetectionLogicMoneyTransfer(self.logger, model_name=model_name, temperature=temperature)
         #self.intent_logic = IntentDetectionLogicPropertyDownload(self.logger)
+        '''
         self.intent_logic = IntentDetectionPropertyBusinessOrchestationLogic(
             logger=self.logger,
             model_name=model_name,
             temperature=temperature,
             exports_dir="exports",  #
-            max_chars=24000,  # max chunk for LLM
+            max_chars=2000,  # max chunk for LLM
         )
+        '''
 
         # Build a prompt = system prompt + {context} + {question}
         prompt_template = ChatPromptTemplate(
@@ -244,6 +246,13 @@ class HybridBot:
                         and best_score < self.retrieval_score_threshold
                 )
         )
+
+        self.logger.info("routing_decision",
+                         extra={"query": user_query,
+                                "docs_found": len(docs),
+                                "best_score": best_score,
+                                "threshold": self.retrieval_score_threshold,
+                                "use_fallback": use_fallback})
 
         if use_fallback:
             answer, intent, flag, mode_used = self._safe_fallback(user_query)

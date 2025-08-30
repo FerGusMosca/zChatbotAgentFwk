@@ -5,6 +5,7 @@ from typing import Dict, Optional
 import os
 from pathlib import Path
 
+from common.util.uploader.google_drive_upload import GoogleDriveUpload
 from logic.intents.base_intent_logic_demo import BaseIntentLogicDemo
 from logic.intents.demos.intents_execution.real_state_parsers.download_argenprop_property_demo import (
     DownloadArgenpropPropertyDemo,
@@ -14,7 +15,7 @@ from logic.intents.demos.intents_execution.real_state_parsers.download_zonaprop_
 )
 from logic.intents.demos.intents_execution.real_state_parsers.models import ZpListing
 
-# Opcional LLM (no se usa cuando use_llm=False)
+# Optional LLM (not used when use_llm=False)
 try:
     from langchain_community.chat_models import ChatOpenAI
     from langchain.prompts import ChatPromptTemplate
@@ -22,31 +23,21 @@ except Exception:
     ChatOpenAI = None
     ChatPromptTemplate = None
 
-# Opcional Drive
-try:
-    from googleapiclient.discovery import build
-    from googleapiclient.http import MediaFileUpload
-    from google.oauth2.credentials import Credentials
-    from google_auth_oauthlib.flow import InstalledAppFlow
-    from google.auth.transport.requests import Request
-except Exception:
-    build = None
-    MediaFileUpload = None
-    Credentials = None
-    InstalledAppFlow = None
-    Request = None
+# Google Drive uploader utility (our wrapper)
+
 
 
 class DownloadPropertyPortalsIntentLogicDemo(BaseIntentLogicDemo):
     """
     Intent: 'download_property_portals'
 
-    RAW SALES DUMP
-    - Barrio fijo: "" (CABA completa)
-    - Operación: 'venta'
-    - No hay extracción de slots ni filtro por LLM cuando use_llm=False
-    - Ejecuta Zonaprop + Argenprop, mergea, dedup y escribe un único TXT en /exports
-    - Subida a Drive opcional
+    RAW SALES DUMP:
+      - Fixed barrio: "" (ALL CABA)
+      - Fixed operation: 'venta'
+      - No slot extraction or online LLM filtering when use_llm=False
+      - Runs Zonaprop + Argenprop scrapers, merges, deduplicates
+      - Exports a single TXT to /exports
+      - Optional upload to Google Drive via GoogleDriveUpload helper
     """
 
     name = "download_property_portals"
@@ -60,13 +51,17 @@ class DownloadPropertyPortalsIntentLogicDemo(BaseIntentLogicDemo):
         *,
         upload_to_drive: bool = False,
         drive_folder_id: Optional[str] = None,
+        export_dir: str = "exports",
     ):
         super().__init__(logger)
         self.use_llm = use_llm
         self.upload_to_drive = upload_to_drive
-        self.drive_folder_id = drive_folder_id  # si es None y upload_to_drive=True -> error controlado
+        self.drive_folder_id = drive_folder_id  # must be provided if upload_to_drive=True
+        self.export_dir = export_dir
 
         self._llm_filter_calls = 0
+        self._zp_pages_scanned: Optional[int] = None
+        self._ap_pages_scanned: Optional[int] = None
 
         if self.use_llm and ChatOpenAI is not None:
             self.llm = ChatOpenAI(
@@ -89,67 +84,79 @@ class DownloadPropertyPortalsIntentLogicDemo(BaseIntentLogicDemo):
             self.reprompt_prompt = None
             self.listing_filter_prompt = None
 
-        # para cabecera del TXT combinado
-        self._zp_pages_scanned: Optional[int] = None
-        self._ap_pages_scanned: Optional[int] = None
+    # -------- Google Drive upload (optional) --------
+    # dentro de DownloadPropertyPortalsIntentLogicDemo
 
-    # -------- Google Drive (opcional) --------
     def _upload_to_drive(self, file_path: str) -> str:
+        """
+        Upload the combined TXT to Google Drive using GoogleDriveUpload.
+        Logs EVERY path we try to read so you see exactly what is happening.
+        """
+        from pathlib import Path
+        from common.util.settings.env_deploy_reader import EnvDeployReader
+        from common.util.uploader.google_drive_upload import GoogleDriveUpload
+
         if not self.upload_to_drive:
-            raise RuntimeError("Drive upload disabled (set upload_to_drive=True to enable).")
-        if build is None:
-            raise RuntimeError("Google Drive libraries not available in this environment.")
-        p = Path(file_path)
-        if not p.exists():
-            raise FileNotFoundError(f"File not found: {p}")
+            raise RuntimeError("Drive upload disabled (set upload_to_drive=True).")
 
-        # config files en <root>/config
-        root_dir = Path.cwd()
-        config_dir = root_dir / "config"
-        client_json = next(config_dir.glob("client_secret*.json"), None)
-        token_file = config_dir / "token.json"
+        # ---- Read .env_deploy (and trim whitespace) ----
+        folder_id = (EnvDeployReader.get("DRIVE_FOLDER_ID", self.drive_folder_id or "") or "").strip()
+        client_secret_name = (EnvDeployReader.get("GOOGLE_CLIENT_SECRET", "") or "").strip()
+        token_name = (EnvDeployReader.get("GOOGLE_TOKEN_FILE", "token.json") or "").strip()
 
-        if not client_json:
-            raise FileNotFoundError("Google client_secret*.json not found in ./config")
+        # ---- Discover ./config robustly (supports running from subfolders) ----
+        def find_config_dir(start: Path) -> Path:
+            for p in [start, *start.parents]:
+                cand = p / "config"
+                if cand.exists():
+                    return cand
+            return start / "config"
 
-        folder_id = self.drive_folder_id or ""
+        cwd = Path.cwd()
+        config_dir = find_config_dir(cwd)
+
+        # ---- Candidate paths (explicit + fallback glob) ----
+        explicit_client = (config_dir / client_secret_name) if client_secret_name else None
+        explicit_exists = explicit_client.exists() if explicit_client else False
+
+        # Logs so we SEE exactly what we try to read
+        self.logger.info("[drive.find] cwd=%r", str(cwd))
+        self.logger.info("[drive.find] config_dir=%r exists=%s", str(config_dir), config_dir.exists())
+        self.logger.info("[drive.find] explicit_client_secret=%r exists=%s",
+                         str(explicit_client) if explicit_client else "<none>", explicit_exists)
+
+        if not explicit_client or not explicit_exists:
+            hit = next(config_dir.glob("client_secret*.json"), None)
+            self.logger.info("[drive.find] fallback_glob='client_secret*.json' hit=%r",
+                             str(hit) if hit else "<none>")
+            client_path = hit
+        else:
+            client_path = explicit_client
+
+        token_path = config_dir / (token_name or "token.json")
+        self.logger.info("[drive.find] token_path=%r exists=%s", str(token_path), token_path.exists())
+
+        # Final sanity + what we will use
+        self.logger.info("[drive.cfg] folder_id_tail=%s file_to_upload=%r",
+                         (folder_id or "")[-10:], str(file_path))
+
         if not folder_id:
-            raise ValueError("drive_folder_id is empty; provide a Shared Drive folder id.")
+            raise ValueError("DRIVE_FOLDER_ID is empty (set it in .env_deploy or pass drive_folder_id).")
+        if not client_path or not client_path.exists():
+            raise FileNotFoundError(f"Google client secret not found: {client_path!r}")
 
-        scopes = ["https://www.googleapis.com/auth/drive.file"]
+        # ---- Upload ----
+        uploader = GoogleDriveUpload(
+            client_secret_path=client_path,
+            token_path=token_path,
+        )
+        self.logger.info("[drive.upload] using client_secret=%r token=%r",
+                         str(client_path), str(token_path))
+        link = uploader.upload_file(file_path, folder_id=folder_id)
+        self.logger.info("[drive.done] webViewLink=%s", link)
+        return link
 
-        creds = None
-        if token_file.exists():
-            creds = Credentials.from_authorized_user_file(str(token_file), scopes)
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file(str(client_json), scopes)
-                creds = flow.run_local_server(port=0)
-            token_file.write_text(creds.to_json(), encoding="utf-8")
-
-        drive = build("drive", "v3", credentials=creds)
-
-        meta = {"name": p.name, "parents": [folder_id]}
-        media = MediaFileUpload(str(p), resumable=True)
-
-        f = drive.files().create(
-            body=meta,
-            media_body=media,
-            fields="id,webViewLink",
-            supportsAllDrives=True,
-        ).execute()
-
-        drive.permissions().create(
-            fileId=f["id"],
-            body={"role": "reader", "type": "anyone"},
-            supportsAllDrives=True,
-        ).execute()
-
-        return f["webViewLink"]
-
-    # -------- RAW slots/reprompt (no-op) --------
+    # -------- Slots / reprompt (no-op in RAW mode) --------
     def required_slots(self) -> Dict[str, str]:
         return {}
 
@@ -161,11 +168,11 @@ class DownloadPropertyPortalsIntentLogicDemo(BaseIntentLogicDemo):
         self.logger.info("[reprompt] Skipped (no required slots in RAW mode).")
         return ""
 
-    # -------- Validator (bypass) --------
+    # -------- Keep-all validator (RAW) --------
     def _llm_keep_listing(self, listing: ZpListing, target: str) -> bool:
         return True
 
-    # -------- Dedupe --------
+    # -------- Cross-portal dedupe --------
     def _dedupe_cross_portal(self, items: list[ZpListing]) -> list[ZpListing]:
         seen = set()
         out = []
@@ -177,13 +184,13 @@ class DownloadPropertyPortalsIntentLogicDemo(BaseIntentLogicDemo):
             out.append(it)
         return out
 
-    # -------- TXT combinado --------
+    # -------- TXT export --------
     def _export_txt_combined(self, barrio: str, operacion: str, listings: list[ZpListing]) -> str:
         ts = datetime.now().strftime("%Y%m%d_%H%M")
         fname = f"{barrio.replace(' ', '_')}_{operacion}_ALLPORTALS_{ts}.txt"
-        outdir = "exports"
-        os.makedirs(outdir, exist_ok=True)
-        fpath = os.path.join(outdir, fname)
+
+        os.makedirs(self.export_dir, exist_ok=True)
+        fpath = os.path.join(self.export_dir, fname)
 
         lines = [f"# Combined — {barrio.title()} ({operacion}) — {ts}"]
         if self._zp_pages_scanned is not None:
@@ -205,12 +212,12 @@ class DownloadPropertyPortalsIntentLogicDemo(BaseIntentLogicDemo):
         Path(fpath).write_text("\n".join(lines), encoding="utf-8")
         return fpath
 
-    # -------- Ejecutar --------
+    # -------- Execute --------
     def execute(self, filled_slots: Dict[str, str]) -> str:
         import time
         t0 = time.monotonic()
-        neighborhood = ""  # ALL CABA
-        operation = "venta"
+        neighborhood = ""   # ALL CABA
+        operation = "venta" # fixed for RAW dump
 
         self.logger.info("[exec] RAW combined start: op=%s, barrio=<ALL CABA>", operation)
 
@@ -257,15 +264,15 @@ class DownloadPropertyPortalsIntentLogicDemo(BaseIntentLogicDemo):
                 download_line = f"\n📂 Link: {public_url}"
             except Exception as ex:
                 self.logger.warning("drive_upload_failed | %s", ex)
-                download_line = "\n⚠️ Falló la subida a Drive"
+                download_line = "\n⚠️ Drive upload failed"
         else:
             download_line = "\n(Drive upload disabled)"
 
         dt = time.monotonic() - t0
         return (
-            f"✅ Descarga completada ({dt:.1f}s)\n"
-            f"• Zonaprop: {len(zp_list)} avisos (páginas: {self._zp_pages_scanned or '-'})\n"
-            f"• Argenprop: {len(ap_list)} avisos (páginas: {self._ap_pages_scanned or '-'})\n"
-            f"• Únicos (dedupe): {len(deduped)}\n"
-            f"• Archivo: {Path(out_path).name}{download_line}"
+            f"✅ Download completed ({dt:.1f}s)\n"
+            f"• Zonaprop: {len(zp_list)} listings (pages: {self._zp_pages_scanned or '-'})\n"
+            f"• Argenprop: {len(ap_list)} listings (pages: {self._ap_pages_scanned or '-'})\n"
+            f"• Unique (deduped): {len(deduped)}\n"
+            f"• File: {Path(out_path).name}{download_line}"
         )

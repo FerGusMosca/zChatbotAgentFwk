@@ -68,45 +68,61 @@ def load_qa_chain_for_client(client_id: str = None):
 
 def load_hybrid_bot(client_id: str = None):
     """
-    Loads the full hybrid bot: FAISS + prompt-based behavior + OpenAI fallback.
-
-    This bot:
-    - Uses FAISS to retrieve trained content.
-    - Uses a prompt to define behavior and tone.
-    - Falls back to OpenAI (general knowledge) if no relevant document is found.
-
-    Use case:
-    - Ideal for production-grade assistants combining structure, knowledge and flexibility.
+    Load the hybrid bot (RAG + prompt fallback) always from vectorstores/{BOT_PROFILE}.
+    No FAISS_INDEX_PATH logic here. Uses Settings for BOT_PROFILE and thresholds.
     """
 
+    # --- Resolve profile from Settings (fallback to env already handled by Settings) ---
     client_id = client_id or settings.bot_profile
     print(f"🤖 Loading hybrid bot for client: {client_id}")
 
-    # Detect project root (carpeta que contiene 'vectorstores' y 'prompts')
-    current_dir = Path(__file__).resolve()
-    for parent in [current_dir, *current_dir.parents]:
+    # --- Resolve project root that contains /vectorstores and /prompts ---
+    # We walk up from this file until we find the repo root.
+    current = Path(__file__).resolve()
+    for parent in [current, *current.parents]:
         if (parent / "vectorstores").exists() and (parent / "prompts").exists():
-            base_dir = parent
+            repo_root = parent
             break
     else:
-        # fallback: mismo comportamiento que antes (un nivel arriba)
-        base_dir = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+        # Fallback: one level up from this file (keeps old behavior)
+        repo_root = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-    vectorstore_path = base_dir / "vectorstores" / client_id
+    # --- Always load from vectorstores/{BOT_PROFILE} ---
+    vectorstore_path = repo_root / "vectorstores" / client_id
+
+    # --- Load FAISS index ---
+    # NOTE: Comments in English as requested.
+    emb = OpenAIEmbeddings()
     vectordb = FAISS.load_local(
         str(vectorstore_path),
-        OpenAIEmbeddings(),
+        emb,
         allow_dangerous_deserialization=True
     )
 
-    prompts_path = base_dir / "prompts"
-    prompt_loader = PromptLoader(
-        str(prompts_path),
-        prompt_name=os.getenv("ZBOT_PROMPT_NAME", "generic_prompt")
-    )
-    prompt_bot = PromptBasedChatbot(
-        prompt_loader,
-        prompt_name=os.getenv("ZBOT_PROMPT_NAME", "generic_prompt")
+    # Sanity log: how many vectors do we have?
+    try:
+        ntotal = getattr(getattr(vectordb, "index", None), "ntotal", None)
+        print(f"[VDB] path={vectorstore_path} | ntotal={ntotal}")
+    except Exception:
+        pass
+
+    # --- Load prompt (name from env or default) ---
+    prompts_path = repo_root / "prompts"
+    prompt_name = os.getenv("ZBOT_PROMPT_NAME", "generic_prompt")  # e.g., 'generic_inmob'
+    prompt_loader = PromptLoader(str(prompts_path), prompt_name=prompt_name)
+    prompt_bot = PromptBasedChatbot(prompt_loader, prompt_name=prompt_name)
+
+    # --- Build HybridBot (use Settings for threshold; keep other params configurable via env if you want) ---
+    model_name = os.getenv("OPENAI_MODEL_NAME", "gpt-4o")
+    temperature = float(os.getenv("OPENAI_TEMPERATURE", "0.0"))
+    top_k = int(os.getenv("TOP_K", "4"))  # you can bump this via env without code changes
+
+    return HybridBot(
+        vectordb=vectordb,
+        prompt_bot=prompt_bot,
+        retrieval_score_threshold=settings.retrieval_score_threshold,
+        model_name=model_name,
+        temperature=temperature,
+        top_k=top_k,
     )
 
-    return HybridBot(vectordb, prompt_bot,settings.retrieval_score_threshold)

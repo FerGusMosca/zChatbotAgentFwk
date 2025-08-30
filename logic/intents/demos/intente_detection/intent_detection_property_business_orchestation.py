@@ -39,7 +39,7 @@ class IntentDetectionPropertyBusinessOrchestationLogic(BaseInentDetect):
         model_name: str = "gpt-4o-mini",
         temperature: float = 0.0,
         exports_dir: str = "exports",
-        max_chars: int = 24000,
+        max_chars: int = 2000,
     ):
         super().__init__(logger)
 

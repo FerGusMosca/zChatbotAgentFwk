@@ -1,6 +1,7 @@
 # test_run_portals.py
 import logging
 
+from common.util.settings.env_deploy_reader import EnvDeployReader
 from logic.intents.demos.intents_execution.download_property_portals_demo import DownloadPropertyPortalsIntentLogicDemo
 
 
@@ -15,7 +16,15 @@ def build_logger() -> logging.Logger:
 
 if __name__ == "__main__":
     logger = build_logger()
-    demo = DownloadPropertyPortalsIntentLogicDemo(logger=logger, use_llm=False)
+    EnvDeployReader.load()
+    logging.getLogger(__name__).info(
+        "env loaded from %s | ZP_FETCH_MODE=%s | HEADLESS=%s",
+        EnvDeployReader._path,
+        EnvDeployReader.get("ZP_FETCH_MODE", "<none>"),
+        EnvDeployReader.get("SELENIUM_HEADLESS", "<none>")
+    )
+
+    demo = DownloadPropertyPortalsIntentLogicDemo(logger=logger, use_llm=False,upload_to_drive=True)
 
     # No slots needed in RAW mode
     summary = demo.execute({})
