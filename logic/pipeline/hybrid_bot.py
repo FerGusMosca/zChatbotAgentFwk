@@ -16,12 +16,11 @@ from langchain_community.chat_models import ChatOpenAI
 from common.config.settings import settings
 
 from common.util.app_logger import AppLogger
-from logic.intents.demos.intente_detection.intent_detection_logic_money_transfer import IntentDetectionLogicMoneyTransfer
-from logic.intents.demos.intente_detection.intent_detection_logic_property_download import \
-    IntentDetectionLogicPropertyDownload
 from logic.intents.demos.intente_detection.intent_detection_property_business_orchestation import \
     IntentDetectionPropertyBusinessOrchestationLogic
-from logic.logic.dyncamic_topic_extractor import  DynamicTopicExtractorLLM
+
+from logic.telemetry.advanced_dynamic_topic_extractor_llm import AdvancedDynamicTopicExtractorLLM
+from logic.telemetry.dyncamic_topic_extractor_llm import DynamicTopicExtractorLLM
 
 
 class HybridBot:
@@ -52,7 +51,8 @@ class HybridBot:
         self.logger.info(f"Loading HybridBot for profile: {settings.bot_profile}")
         #self.custom_logger= CustomLoggingLogicAugustInvestments()#Comment this if turning off the example
         #self.custom_logger=CustomLoggingLogic()
-        self.custom_logger=DynamicTopicExtractorLLM()#Comment this if turning off the example
+        #self.custom_logger=DynamicTopicExtractorLLM()
+        self.custom_logger = AdvancedDynamicTopicExtractorLLM()
 
         #self.intent_logic = IntentDetectionLogicMoneyTransfer(self.logger, model_name=model_name, temperature=temperature)
         #self.intent_logic = IntentDetectionLogicPropertyDownload(self.logger)

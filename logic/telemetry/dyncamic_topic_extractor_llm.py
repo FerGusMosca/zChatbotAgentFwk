@@ -10,7 +10,7 @@ class DynamicTopicExtractorLLM(CustomLoggingLogic):
     representing the topic.  E.g. "COCINAR_PIZZAS", "JUGADORES_BOCA", etc.
 
     The label is logged and the method returns True (i.e. we consider the
-    request 'handled' for logging purposes).
+    request 'handled' for telemetry purposes).
     """
 
     def __init__(self):
