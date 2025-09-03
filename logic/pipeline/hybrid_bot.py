@@ -17,8 +17,12 @@ from langchain_core.prompts import MessagesPlaceholder
 from common.config.settings import settings
 
 from common.util.app_logger import AppLogger
+from logic.intents.demos.intente_detection.intent_detection_logic_property_download import \
+    IntentDetectionLogicPropertyDownload
+from logic.intents.demos.intente_detection.intent_detection_outbound_sales import IntentDetectionLogicOutboundSales
 from logic.intents.demos.intente_detection.intent_detection_property_business_orchestation import \
     IntentDetectionPropertyBusinessOrchestationLogic
+from logic.intents.demos.intents_execution.outbound_sales.outbound_sales_intent_logic import OutboundSalesIntentLogic
 
 from logic.telemetry.advanced_dynamic_topic_extractor_llm import AdvancedDynamicTopicExtractorLLM
 from logic.telemetry.dyncamic_topic_extractor_llm import DynamicTopicExtractorLLM
@@ -61,7 +65,7 @@ class HybridBot:
         # --- Intent logic (keep your commented variants) ---
         # self.intent_logic = IntentDetectionLogicMoneyTransfer(self.logger, model_name=model_name, temperature=temperature)
         # self.intent_logic = IntentDetectionLogicPropertyDownload(self.logger)
-
+        '''
         self.intent_logic = IntentDetectionPropertyBusinessOrchestationLogic(
             logger=self.logger,
             model_name=model_name,
@@ -69,6 +73,8 @@ class HybridBot:
             exports_dir="exports",  # keep as-is
             max_chars=2000,  # max chunk for LLM
         )
+        '''
+        self.intent_logic=IntentDetectionLogicOutboundSales(self.logger)
 
         # ---------- LLM (single base instance) ----------
         base_llm = ChatOpenAI(model_name=model_name, temperature=temperature)

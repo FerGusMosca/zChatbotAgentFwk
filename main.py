@@ -14,7 +14,9 @@ from fastapi.staticfiles import StaticFiles
 from common.util.app_logger import AppLogger
 from common.util.settings.env_deploy_reader import EnvDeployReader
 from controllers import chat_controller
-  # your centralized logger
+from logic.intents.demos.intents_execution.outbound_sales.hooks.wa_sales_agent import install_wa_sales_agent
+
+
 
 
 # ---------- Boot / CLI ----------
@@ -49,6 +51,7 @@ except FileNotFoundError:
 # ---------- FastAPI App ----------
 
 app = FastAPI(title="zChatbotAgentFwk")
+#install_wa_sales_agent(app) #UNCOMMENT for websales hook
 
 # Templates & static use absolute paths to avoid chdir side effects
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -115,6 +118,8 @@ if __name__ == "__main__":
     # Use 0.0.0.0 if you want to test from other devices in your LAN
     port= int( EnvDeployReader.get("PORT"))
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+
+
 
 
 print (__name__)
