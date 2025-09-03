@@ -12,6 +12,7 @@ from langchain.prompts import (
     HumanMessagePromptTemplate,
 )
 from langchain_community.chat_models import ChatOpenAI
+from langchain_core.prompts import MessagesPlaceholder
 
 from common.config.settings import settings
 
@@ -32,81 +33,147 @@ class HybridBot:
     """
 
     def __init__(
-        self,
-        vectordb,
-        prompt_bot,
-        retrieval_score_threshold=0.4,
-        model_name: str = "gpt-4o",
-        temperature: float = 0.0,
-        top_k: int = 4,
+            self,
+            vectordb,
+            prompt_bot,
+            retrieval_score_threshold=0.4,
+            model_name: str = "gpt-4o",
+            temperature: float = 0.0,
+            top_k: int = 4,
     ):
-
+        # --- Core wiring ---
         self.retriever = vectordb.as_retriever(search_kwargs={"k": top_k})
         self.prompt_bot = prompt_bot
         self.logger = AppLogger.get_logger(__name__)
         self.top_k = top_k
-        self.retrieval_score_threshold=retrieval_score_threshold
-        self.last_metrics={}
+        self.retrieval_score_threshold = retrieval_score_threshold
+        self.last_metrics = {}
+        self.facts_store = {}  # {session_id: {"user_name": "...", "neighborhood_pref": "...", ...}}
 
         self.logger.info(f"Loading HybridBot for profile: {settings.bot_profile}")
-        #self.custom_logger= CustomLoggingLogicAugustInvestments()#Comment this if turning off the example
-        #self.custom_logger=CustomLoggingLogic()
-        #self.custom_logger=DynamicTopicExtractorLLM()
+
+        # --- Custom loggers (keep your commented variants) ---
+        # self.custom_logger = CustomLoggingLogicAugustInvestments()  # Comment this if turning off the example
+        # self.custom_logger = CustomLoggingLogic()
+        # self.custom_logger = DynamicTopicExtractorLLM()
         self.custom_logger = AdvancedDynamicTopicExtractorLLM()
 
-        #self.intent_logic = IntentDetectionLogicMoneyTransfer(self.logger, model_name=model_name, temperature=temperature)
-        #self.intent_logic = IntentDetectionLogicPropertyDownload(self.logger)
+        # --- Intent logic (keep your commented variants) ---
+        # self.intent_logic = IntentDetectionLogicMoneyTransfer(self.logger, model_name=model_name, temperature=temperature)
+        # self.intent_logic = IntentDetectionLogicPropertyDownload(self.logger)
 
         self.intent_logic = IntentDetectionPropertyBusinessOrchestationLogic(
             logger=self.logger,
             model_name=model_name,
             temperature=temperature,
-            exports_dir="exports",  #
+            exports_dir="exports",  # keep as-is
             max_chars=2000,  # max chunk for LLM
         )
 
+        # ---------- LLM (single base instance) ----------
+        base_llm = ChatOpenAI(model_name=model_name, temperature=temperature)
 
-        # Build a prompt = system prompt + {context} + {question}
-        prompt_template = ChatPromptTemplate(
+        # ---------- PROMPTS (fixed) ----------
+        # 1) ANSWER prompt: expects chat_history as a LIST of messages (MessagesPlaceholder)
+        answer_prompt = ChatPromptTemplate(
+            messages=[
+                SystemMessagePromptTemplate.from_template(self.prompt_bot.system_prompt + "\n{context}"),
+                # MessagesPlaceholder(variable_name="chat_history"),   # ❌ rompe con CRC
+                HumanMessagePromptTemplate.from_template("Chat history:\n{chat_history}\n\n{question}"),
+            ],
+            input_variables=["context", "question", "chat_history"],
+        )
+
+        # 2) QUESTION GENERATOR prompt: expects chat_history as a FLATTENED STRING (NO MessagesPlaceholder)
+        qgen_prompt = ChatPromptTemplate(
             messages=[
                 SystemMessagePromptTemplate.from_template(
-                    # Context is appended to system so the model treats it as authoritative input.
-                    prompt_bot.system_prompt + "\n{context}"
+                    "[QGEN] Rephrase the user's question for retrieval. "
+                    "chat_history is provided as FLATTENED TEXT.\n\n"
+                    "Chat history:\n{chat_history}"
                 ),
                 HumanMessagePromptTemplate.from_template("{question}"),
             ],
-            input_variables=["context", "question"],
+            input_variables=["chat_history", "question"],  # plain text placeholders
         )
 
-        # Base LLM chain using the full prompt (system + context + question)
-        llm_chain = LLMChain(
-            llm=ChatOpenAI(model_name=model_name, temperature=temperature),
-            prompt=prompt_template,
-        )
-
-        # Combine retrieved docs into the {context} variable of the LLM chain
+        # ---------- CHAINS ----------
+        # Answer chain (StuffDocumentsChain) using the ANSWER prompt
+        llm_chain = LLMChain(llm=base_llm, prompt=answer_prompt)
         combine_docs_chain = StuffDocumentsChain(
             llm_chain=llm_chain,
             document_variable_name="context",
         )
 
-        # Optional: question reformulation. We reuse same prompt/LLM for simplicity.
-        question_generator = LLMChain(
-            llm=ChatOpenAI(model_name=model_name, temperature=temperature),
-            prompt=prompt_template,
+        # Question generator chain using the QGEN prompt
+        question_generator = LLMChain(llm=base_llm, prompt=qgen_prompt)
+
+        # ---------- MEMORY (Level 1 session buffer) ----------
+        memory = ConversationBufferMemory(
+            memory_key="chat_history",
+            return_messages=True,  # MUST be True so answer prompt gets a list of messages
         )
 
-        # Final QA chain with conversation memory
+        # ---------- Conversational Retrieval Chain ----------
         self.chain = ConversationalRetrievalChain(
             retriever=self.retriever,
             combine_docs_chain=combine_docs_chain,
-            memory=ConversationBufferMemory(
-                memory_key="chat_history", return_messages=True
-            ),
             question_generator=question_generator,
+            memory=memory,
         )
 
+        # ---------- Optional guardrails (keep commented; enable if you want strict checks) ----------
+        try:
+             self._assert_crc_contract(answer_prompt, qgen_prompt, memory)  # hard fail if someone breaks the contract
+             self._log_crc_contract(answer_prompt, qgen_prompt, memory, model_name, temperature)  # one-time contract log
+        except Exception as e:
+             self.logger.exception("crc_contract_warning", extra={"error": str(e)})
+
     # ---------- Internal helper ----------
+
+    def _assert_crc_contract(self, answer_prompt, qgen_prompt, memory):
+        """Hard guarantees aligned with current CRC design:
+           both prompts receive chat_history as FLATTENED STRING."""
+        # ANSWER: must NOT use MessagesPlaceholder('chat_history')
+        assert not any(
+            type(m).__name__ == "MessagesPlaceholder" and getattr(m, "variable_name", "") == "chat_history"
+            for m in answer_prompt.messages
+        ), "Answer prompt must NOT use MessagesPlaceholder('chat_history'); it expects a flattened string."
+
+        # QGEN: must NOT use MessagesPlaceholder('chat_history')
+        assert not any(
+            type(m).__name__ == "MessagesPlaceholder" and getattr(m, "variable_name", "") == "chat_history"
+            for m in qgen_prompt.messages
+        ), "QGen prompt must NOT use MessagesPlaceholder('chat_history'); it expects a flattened string."
+
+        # Memory can still return messages; CRC will flatten internally.
+        assert getattr(memory, "return_messages", True) in (True, False), \
+            "ConversationBufferMemory misconfigured."
+
+    def _log_crc_contract(self, answer_prompt, qgen_prompt, memory, model_name: str, temperature: float):
+        ans_has_mp = any(type(m).__name__ == "MessagesPlaceholder" for m in answer_prompt.messages)
+        qgen_has_mp = any(type(m).__name__ == "MessagesPlaceholder" for m in qgen_prompt.messages)
+        self.logger.info("crc_contract", extra={
+            "answer_uses_messagesplaceholder": ans_has_mp,  # debería ser False
+            "qgen_uses_messagesplaceholder": qgen_has_mp,  # debería ser False
+            "memory_return_messages": getattr(memory, "return_messages", None),
+            "model": model_name,
+            "temperature": temperature,
+        })
+
+    def _eval_memory(self):
+        try:
+            if hasattr(self.chain, "memory") and hasattr(self.chain.memory, "chat_memory"):
+                msgs = self.chain.memory.chat_memory.messages
+                self.logger.info(
+                    "mem_snapshot",
+                    extra={
+                        "count": len(msgs),
+                        "last2": [getattr(m, "content", "") for m in msgs[-2:]],
+                    },
+                )
+        except Exception:
+            pass
 
     def _has_relevant_context(self, question: str) -> bool:
         """
@@ -172,7 +239,7 @@ class HybridBot:
 
 
 
-
+        self._eval_memory()
         # Default metrics scaffold
         self.last_metrics = {
             "mode": "fallback",
@@ -301,9 +368,24 @@ class HybridBot:
             self.logger.error("retriever_error", extra={"error": str(ex)})
         return docs, best_score
 
-    def _safe_fallback(self,uq: str):
+    def _safe_fallback(self, uq: str):
+        """
+        Wrapper around fallback to ensure robustness AND update memory.
+        This way, even when we fall back, the conversation history remains consistent.
+        """
         try:
             ans, it, fl = self._fallback(uq)
+
+            # --- NEW: persist the turn into memory ---
+            try:
+                if hasattr(self.chain, "memory") and hasattr(self.chain.memory, "chat_memory"):
+                    self.chain.memory.chat_memory.add_user_message(uq)
+                    self.chain.memory.chat_memory.add_ai_message(ans)
+            except Exception:
+                # Never let memory errors crash the fallback
+                pass
+            # -----------------------------------------
+
             return ans, it, fl, "fallback"
         except Exception as ex_fb:
             error_id = str(uuid.uuid4())[:8]
@@ -312,12 +394,46 @@ class HybridBot:
             return (f"Sorry, I couldn't generate a fallback answer (error {error_id}).",
                     None, "FALLBACK_ERROR", "fallback")
 
+    def _render_history(self, max_msgs: int = 8) -> str:
+        """
+        Convert the chain's chat_history into a compact string.
+        This allows us to inject past dialogue into the fallback path,
+        so the model has access to what the user already said.
+        """
+        try:
+            msgs = getattr(self.chain.memory, "chat_memory", None)
+            if not msgs:
+                return ""
+            lines = []
+            for m in msgs.messages[-max_msgs:]:
+                role = "User" if m.type == "human" else "Assistant"
+                lines.append(f"{role}: {m.content}")
+            return "\n".join(lines)
+        except Exception:
+            return ""
+
     def _fallback(self, user_query: str) -> Tuple[str, Optional[str], Optional[str]]:
         """
         Prompt-only fallback path.
+        Now enriched with conversation history (Level 1 memory).
         """
         try:
-            result = self.prompt_bot.handle(user_query)
+            # Render history from memory
+            history = self._render_history()
+
+            # If we have history, inject it into the user input
+            if history:
+                user_in = (
+                    "Use the following conversation history to remember details "
+                    "the user already mentioned in this session.\n\n"
+                    f"{history}\n\n"
+                    f"New question: {user_query}"
+                )
+            else:
+                user_in = user_query
+
+            # Pass enriched input to the prompt-only bot
+            result = self.prompt_bot.handle(user_in)
         except Exception as ex:
             self.logger.error(f"fallback_execution_error: {ex} | query={user_query}")
             return "An error occurred while generating the fallback response.", None, None
@@ -329,8 +445,8 @@ class HybridBot:
         RAG path using chain.run() after clearing memory if needed.
         """
         try:
-            if hasattr(self.chain, "memory"):
-                self.chain.memory.clear()
+            #if hasattr(self.chain, "memory"):
+                #self.chain.memory.clear()
             result = self.chain.run(user_query)
         except Exception as ex:
             self.logger.error(f"rag_execution_error: {ex} | query={user_query}")
