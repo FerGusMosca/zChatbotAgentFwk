@@ -8,6 +8,7 @@ from typing import Callable, Iterable, Optional, Dict
 
 import httpx
 from selectolax.parser import HTMLParser
+from selenium.common import SessionNotCreatedException
 
 from selenium.webdriver.common.by import By
 import undetected_chromedriver as uc
@@ -58,6 +59,7 @@ class DownloadZonapropPropertyDemo:
         # Fetch mode & headless flags
         self.fetch_mode = (EnvDeployReader.get("ZP_FETCH_MODE") or "http").strip().lower()
         self.headless = (str(EnvDeployReader.get("SELENIUM_HEADLESS") or "true").lower() == "true")
+        self.uc_version_main = EnvDeployReader.get("UC_VERSION_MAIN")
 
         # Debug opts (keep minimal in prod)
         self.debug_browser = not self.headless
@@ -152,7 +154,7 @@ class DownloadZonapropPropertyDemo:
     # ----------------------- Fetching -------------------------
 
     def _make_driver(self):
-        """Create a single undetected-chromedriver instance with sane defaults."""
+        """Create a undetected-chromedriver instance; auto-retry with version_main that matches local Chrome."""
         opts = uc.ChromeOptions()
         if self.headless:
             opts.add_argument("--headless=new")
@@ -165,16 +167,39 @@ class DownloadZonapropPropertyDemo:
         if ua:
             opts.add_argument(f"--user-agent={ua}")
 
-        driver = uc.Chrome(options=opts)
-        driver.set_window_size(1366, 900)
+        # helper: arranca uc con o sin version_main
+        def _boot(ver: int | None):
+            if ver is None:
+                return uc.Chrome(options=opts)
+            return uc.Chrome(options=opts, version_main=ver)
 
-        # Extra header (helps with WAF heuristics)
+        # 1) si viene forzado por config, usarlo
+        forced_ver = None
+        try:
+            if self.uc_version_main:
+                forced_ver = int(str(self.uc_version_main).strip())
+        except Exception:
+            forced_ver = None
+
+        try:
+            driver = _boot(forced_ver)
+        except SessionNotCreatedException as e:
+            # 2) si falla por mismatch, detectar la versión de Chrome instalada y reintentar
+            m = re.search(r"Current browser version is (\d+)", str(e))
+            if not m:
+                raise
+            local_ver = int(m.group(1))
+            self.logger.warning("uc_retry_with_version_main", extra={"version_main": local_ver})
+            driver = _boot(local_ver)
+
+        driver.set_window_size(1366, 900)
         try:
             driver.execute_cdp_cmd(
                 "Network.setExtraHTTPHeaders", {"headers": {"Referer": "https://www.google.com/"}}
             )
         except Exception:
             pass
+
         return driver
 
     def _get_with_selenium(self, url: str, driver=None) -> Optional[str]:

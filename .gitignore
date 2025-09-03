@@ -45,3 +45,7 @@ config/token.json
 debug/
 logs/
 
+last-commit.patch
+*.patch
+exports/
+exports\debug\
