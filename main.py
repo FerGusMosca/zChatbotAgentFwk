@@ -1,11 +1,11 @@
 # main.py
 import argparse
+import importlib
 import logging
 import os
 from pathlib import Path
 import time
-import asyncio
-import sys
+from common.config.settings import get_settings
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -14,8 +14,6 @@ from fastapi.staticfiles import StaticFiles
 from common.util.app_logger import AppLogger
 from common.util.settings.env_deploy_reader import EnvDeployReader
 from controllers import chat_controller
-from logic.intents.demos.intents_execution.outbound_sales.hooks.wa_sales_agent import install_wa_sales_agent
-
 
 
 
@@ -49,9 +47,17 @@ except FileNotFoundError:
 
 
 # ---------- FastAPI App ----------
+def _load_webhooks(app):
+
+    if get_settings().webhook is not None:
+        webhook_logic = get_settings().webhook
+        module = importlib.import_module(webhook_logic.split(",")[0])
+        class_name = webhook_logic.split(",")[1]
+        cls = getattr(module, class_name)
+        cls(app)
 
 app = FastAPI(title="zChatbotAgentFwk")
-#install_wa_sales_agent(app) #UNCOMMENT for websales hook
+_load_webhooks(app)
 
 # Templates & static use absolute paths to avoid chdir side effects
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -59,6 +65,9 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 
 
 # ---------- Middleware ----------
+
+
+
 
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):

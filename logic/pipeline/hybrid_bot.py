@@ -1,3 +1,4 @@
+import importlib
 import uuid
 from datetime import datetime
 from typing import Optional, List, Tuple
@@ -17,16 +18,9 @@ from langchain_core.prompts import MessagesPlaceholder
 from common.config.settings import settings
 
 from common.util.app_logger import AppLogger
-from logic.intents.demos.intente_detection.intent_detection_logic_property_download import \
-    IntentDetectionLogicPropertyDownload
 from logic.intents.demos.intente_detection.intent_detection_outbound_sales import IntentDetectionLogicOutboundSales
-from logic.intents.demos.intente_detection.intent_detection_property_business_orchestation import \
-    IntentDetectionPropertyBusinessOrchestationLogic
-from logic.intents.demos.intents_execution.outbound_sales.outbound_sales_intent_logic import OutboundSalesIntentLogic
 
-from logic.telemetry.advanced_dynamic_topic_extractor_llm import AdvancedDynamicTopicExtractorLLM
-from logic.telemetry.dyncamic_topic_extractor_llm import DynamicTopicExtractorLLM
-
+from common.config.settings import get_settings
 
 class HybridBot:
     """
@@ -57,24 +51,10 @@ class HybridBot:
         self.logger.info(f"Loading HybridBot for profile: {settings.bot_profile}")
 
         # --- Custom loggers (keep your commented variants) ---
-        # self.custom_logger = CustomLoggingLogicAugustInvestments()  # Comment this if turning off the example
-        # self.custom_logger = CustomLoggingLogic()
-        # self.custom_logger = DynamicTopicExtractorLLM()
-        self.custom_logger = AdvancedDynamicTopicExtractorLLM()
+        self._load_custom_logger()
 
         # --- Intent logic (keep your commented variants) ---
-        # self.intent_logic = IntentDetectionLogicMoneyTransfer(self.logger, model_name=model_name, temperature=temperature)
-        # self.intent_logic = IntentDetectionLogicPropertyDownload(self.logger)
-        '''
-        self.intent_logic = IntentDetectionPropertyBusinessOrchestationLogic(
-            logger=self.logger,
-            model_name=model_name,
-            temperature=temperature,
-            exports_dir="exports",  # keep as-is
-            max_chars=2000,  # max chunk for LLM
-        )
-        '''
-        self.intent_logic=IntentDetectionLogicOutboundSales(self.logger)
+        self._intent_detection_logic()
 
         # ---------- LLM (single base instance) ----------
         base_llm = ChatOpenAI(model_name=model_name, temperature=temperature)
@@ -136,6 +116,21 @@ class HybridBot:
              self.logger.exception("crc_contract_warning", extra={"error": str(e)})
 
     # ---------- Internal helper ----------
+
+    def _load_custom_logger(self):
+        custom_logger = get_settings().custom_logger
+        module = importlib.import_module(custom_logger.split(",")[0])
+        class_name=custom_logger.split(",")[1]
+        cls = getattr(module, class_name)
+        self.custom_logger = cls()
+
+    def _intent_detection_logic(self):
+        custom_intent_detection_logic = get_settings().intent_detection_logic
+        module = importlib.import_module(custom_intent_detection_logic.split(",")[0])
+        class_name = custom_intent_detection_logic.split(",")[1]
+        cls = getattr(module, class_name)
+        self.intent_logic = cls(self.logger)
+        pass
 
     def _assert_crc_contract(self, answer_prompt, qgen_prompt, memory):
         """Hard guarantees aligned with current CRC design:

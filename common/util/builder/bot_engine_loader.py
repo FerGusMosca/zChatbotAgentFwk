@@ -10,6 +10,7 @@ from logic.pipeline.hybrid_bot import HybridBot
 from logic.pipeline.prompt_based_chatbot import PromptBasedChatbot
 from common.util.loader.prompt_loader import PromptLoader
 from pathlib import Path
+import importlib
 load_dotenv()
 
 _HYBRID_BOT_CACHE: Dict[Tuple[str, str], HybridBot] = {}  # (client_id, session_id) -> bot

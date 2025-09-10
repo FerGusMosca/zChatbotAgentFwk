@@ -55,6 +55,19 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("TWILIO_WHATSAPP_FROM", "twilio_whatsapp_from"))
 
+
+    custom_logger: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("CUSTOM_LOGGER", "custom_logger"))
+
+    intent_detection_logic: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("INTENT_DETECTION_LOGIC", "intent_detection_logic"))
+
+    webhook: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("WEBHOOK", "WEBHOOK"))
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
