@@ -72,7 +72,8 @@ def load_hybrid_bot(
     *,
     session_id: Optional[str] = None,
     cache_scope: str = "session",
-    force_reload: bool = False
+    force_reload: bool = False,
+    prompt_name=None,
 ) -> HybridBot:
     """
     Load or reuse a HybridBot instance.
@@ -128,7 +129,8 @@ def load_hybrid_bot(
 
     # --- Load prompt (prompt name comes from env or defaults) ---
     prompts_path = repo_root / "prompts"
-    prompt_name = os.getenv("ZBOT_PROMPT_NAME", "generic_prompt")  # e.g., 'generic_inmob'
+    prompt_name = prompt_name or os.getenv("ZBOT_PROMPT_NAME", "generic_prompt")
+    print(f"bot_engine_loader: Found prompt: {prompt_name}")
     prompt_loader = PromptLoader(str(prompts_path), prompt_name=prompt_name)
     prompt_bot = PromptBasedChatbot(prompt_loader, prompt_name=prompt_name)
 

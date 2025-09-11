@@ -3,23 +3,23 @@
     "name": "covered_qra",
     "client_id": "demo_client",
     "prompt_name": "generic",
-    "question": "¿Cuál es el evento relevante de este trimestre?",
+    "question": "¿Que pasa el 1 de agosto?",
     "expected_mode": "rag"
   },
   {
-    "name": "ooc_president",
+    "name": "world_cup",
     "client_id": "demo_client",
     "prompt_name": "generic",
-    "question": "¿Quién es el presidente de Guatemala?",
+    "question": "¿Quién ganó el ultimo mundial?",
     "expected_mode": "fallback"
   },
    {
-    "name": "capital_portugal",
+    "name": "hombre_luna",
     "client_id": "demo_client",
     "prompt_name": "generic",
-    "question": "¿Cuál es la capital de Portugal?",
+    "question": "¿Quien fue el primer hombre en pisar la luna?",
     "expected_mode": "fallback",
-    "expected_answer": "Lisboa"
+    "expected_answer": "Armstrong"
   },
   {
     "name": "goalkeeper_boca",

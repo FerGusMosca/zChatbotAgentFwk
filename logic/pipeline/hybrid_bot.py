@@ -296,7 +296,7 @@ class HybridBot:
         try:
             docs, best_score = self._retrieve_context(user_query)
             docs = docs or []
-            best_score = best_score if isinstance(best_score, (int, float)) else None
+            #best_score = best_score if isinstance(best_score, (int, float)) else None
             self.last_metrics["docs_found"] = len(docs)
             self.last_metrics["best_score"] = best_score
         except Exception as ex_ret:
@@ -352,6 +352,7 @@ class HybridBot:
     def _retrieve_context(self, user_query: str) -> Tuple[List, Optional[float]]:
         """
         Run vector retrieval and return (docs, best_score).
+        FAISS devuelve distancias (menor = mejor). Convertimos a similitud.
         """
         docs = []
         best_score = None
@@ -360,13 +361,24 @@ class HybridBot:
             if vs and hasattr(vs, "similarity_search_with_score"):
                 pairs = vs.similarity_search_with_score(query=user_query, k=self.top_k)
                 docs = [doc for doc, _ in pairs]
+
                 if pairs:
-                    raw = float(pairs[0][1])
-                    best_score = raw if 0.0 <= raw <= 1.0 else (1.0 / (1.0 + raw))
+                    # Log raw FAISS distances
+                    for d, s in pairs:
+                        self.logger.info(
+                            f"[RetrieveContext] doc={d.page_content[:60]}... | raw_dist={s}"
+                        )
+                    # Take best (lowest distance)
+                    raw = min(s for _, s in pairs)
+                    # Convert distance to similarity (1 / (1 + dist))
+                    best_score = 1.0 / (1.0 + raw)
+                    self.logger.info(f"[RetrieveContext] best_raw={raw} | best_score={best_score}")
             else:
                 docs = self.retriever.get_relevant_documents(user_query)
+
         except Exception as ex:
             self.logger.error("retriever_error", extra={"error": str(ex)})
+
         return docs, best_score
 
     def _safe_fallback(self, uq: str):
