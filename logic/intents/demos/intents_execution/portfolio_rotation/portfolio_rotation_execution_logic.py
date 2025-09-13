@@ -31,7 +31,7 @@ class PortfolioRotationExecutionLogic:
 
         # Prompt for formatting portfolio messages
         self._msg_prompt: ChatPromptTemplate = IntentPromptLoader.get_prompt(
-            "portfolio_rotation_msg"
+            EnvDeployReader.get("CONVERSATION_PROMPT")
         )
 
     def _twilio_client(self) -> Client:
@@ -55,20 +55,20 @@ class PortfolioRotationExecutionLogic:
         clean_num = clean_num.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
         return f"whatsapp:{clean_num}"
 
-
-
-    def execute(self, contact: Dict[str, str],rec_text:str) -> str:
+    def execute(self, contact: Dict[str, str], rec_text: str, user_message: str = "") -> str:
         """
         Build and send portfolio rotation message to a given contact.
         contact: {"name": ..., "phone": ...}
+        rec_text: weekly recommendation text
+        user_message: last message received from the client (optional)
         """
         try:
-
             # --- Build message with LLM ---
-            # Prepare prompt messages with variables injected (contact name + recommendation text)
+            # Prepare prompt messages with injected variables (contact name + recommendation + user input)
             msgs = self._msg_prompt.format_messages(
                 contact_name=contact["name"],
-                recommendation=rec_text.strip()
+                recommendation=rec_text.strip(),
+                user_message=user_message.strip()
             )
             resp = self.llm.invoke(msgs)
             body = getattr(resp, "content", "").strip()
@@ -78,14 +78,12 @@ class PortfolioRotationExecutionLogic:
 
             # --- Send via Twilio ---
             to = self._ensure_wa_prefix(contact["phone"])
-
-
             client = self._twilio_client()
             self.logger.info(f"[twilio_send_debug] to={to}, from={self.wa_from}, body={body[:50]}")
             msg = client.messages.create(from_=self.wa_from, to=to, body=body)
 
             return json.dumps({
-                "answer": f"✅ Portfolio rotation enviada a {contact['name']} ({contact['phone']})",
+                "answer": f"✅ Portfolio rotation sent to {contact['name']} ({contact['phone']})",
                 "intent": self.INTENT_NAME,
                 "sid": msg.sid,
             }, ensure_ascii=False)
@@ -94,6 +92,7 @@ class PortfolioRotationExecutionLogic:
             if self.logger:
                 self.logger.exception("portfolio_rotation_send_error", extra={"error": str(ex)})
             return json.dumps({
-                "answer": f"❌ Error enviando portfolio rotation a {contact.get('name')}",
+                "answer": f"❌ Error sending portfolio rotation to {contact.get('name')}",
                 "intent": self.INTENT_NAME
             }, ensure_ascii=False)
+

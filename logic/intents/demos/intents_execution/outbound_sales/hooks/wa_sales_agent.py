@@ -15,6 +15,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from common.util.app_logger import AppLogger
 from common.util.loader.intent_prompt_loader import IntentPromptLoader
+from common.util.settings.env_deploy_reader import EnvDeployReader
 
 # ---------------------------------------------------------------------------
 # Module-level logger (do NOT override __name__)
@@ -60,7 +61,7 @@ def _load_system_md(name: str) -> str:
         raise
 
 
-system_md = _load_system_md("wa_sales_agent_system")
+system_md = _load_system_md(EnvDeployReader.get("CONVERSATION_PROMPT"))
 
 SALES_AGENT_PROMPT = ChatPromptTemplate.from_messages(
     [
