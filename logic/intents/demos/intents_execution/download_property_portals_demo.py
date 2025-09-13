@@ -5,6 +5,7 @@ from typing import Dict, Optional
 import os
 from pathlib import Path
 
+from common.util.loader.find_folder import FindFolder
 from common.util.uploader.google_drive_upload import GoogleDriveUpload
 from logic.intents.base_intent_logic_demo import BaseIntentLogicDemo
 from logic.intents.demos.intents_execution.real_state_parsers.download_argenprop_property_demo import (
@@ -105,15 +106,8 @@ class DownloadPropertyPortalsIntentLogicDemo(BaseIntentLogicDemo):
         token_name = (EnvDeployReader.get("GOOGLE_TOKEN_FILE", "token.json") or "").strip()
 
         # ---- Discover ./config robustly (supports running from subfolders) ----
-        def find_config_dir(start: Path) -> Path:
-            for p in [start, *start.parents]:
-                cand = p / "config"
-                if cand.exists():
-                    return cand
-            return start / "config"
-
         cwd = Path.cwd()
-        config_dir = find_config_dir(cwd)
+        config_dir = FindFolder.find_config_dir(cwd)
 
         # ---- Candidate paths (explicit + fallback glob) ----
         explicit_client = (config_dir / client_secret_name) if client_secret_name else None
@@ -141,7 +135,7 @@ class DownloadPropertyPortalsIntentLogicDemo(BaseIntentLogicDemo):
                          (folder_id or "")[-10:], str(file_path))
 
         if not folder_id:
-            raise ValueError("DRIVE_FOLDER_ID is empty (set it in .env_deploy or pass drive_folder_id).")
+            raise ValueError("DRIVE_FOLDER_ID is empty (set it in .env_deploy_* or pass drive_folder_id).")
         if not client_path or not client_path.exists():
             raise FileNotFoundError(f"Google client secret not found: {client_path!r}")
 

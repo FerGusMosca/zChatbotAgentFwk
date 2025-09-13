@@ -68,6 +68,12 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("WEBHOOK", "WEBHOOK"))
 
+    deploy_file: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DEPLOY_FILE", "DEPLOY_FILE"))
+
+    #
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

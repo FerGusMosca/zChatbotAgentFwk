@@ -19,7 +19,7 @@ from controllers import chat_controller
 
 # ---------- Boot / CLI ----------
 
-
+EnvDeployReader.load(get_settings().deploy_file)
 BASE_DIR = Path(__file__).resolve().parent
 logger = AppLogger.get_logger(__name__)
 
@@ -117,7 +117,8 @@ app.include_router(whatsapp_router, prefix="/whatsapp")
 if __name__ == "__main__":
     import uvicorn
 
-    EnvDeployReader.load()
+
+
     logging.getLogger(__name__).info(
         "env loaded from %s | ZP_FETCH_MODE=%s | HEADLESS=%s",
         EnvDeployReader._path,

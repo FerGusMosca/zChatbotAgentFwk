@@ -16,7 +16,7 @@ def build_logger() -> logging.Logger:
 
 if __name__ == "__main__":
     logger = build_logger()
-    EnvDeployReader.load()
+    EnvDeployReader.load(".env_deploy_properties")
     logging.getLogger(__name__).info(
         "env loaded from %s | ZP_FETCH_MODE=%s | HEADLESS=%s",
         EnvDeployReader._path,

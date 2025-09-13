@@ -29,7 +29,7 @@ class DownloadZonapropPropertyDemo:
     - Parsing: robust CSS selectors.
     - Filtering: fully delegated to `listing_validator`.
 
-    .env_deploy flags
+    .env_deploy_* flags
     -----------------
     - PAGES_TO_DOWNLOAD      -> max pages to scan
     - ZP_FETCH_MODE          -> "selenium" | "http" (default "http")
