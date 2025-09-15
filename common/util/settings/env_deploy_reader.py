@@ -5,7 +5,7 @@ import os, json
 class EnvDeployReader:
     _config = {}
     _path = None
-    _cache_file = Path(".env_deploy_cache.json")
+    _cache_file = Path("config/.env_deploy_cache.json")
 
     @classmethod
     def _find_file(cls, env_file: str):

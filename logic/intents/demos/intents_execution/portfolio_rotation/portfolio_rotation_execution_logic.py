@@ -8,8 +8,10 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from twilio.rest import Client
 
+from common.util.formatter.whatsapp_utils import WhatsAppUtils
 from common.util.settings.env_deploy_reader import EnvDeployReader
 from common.util.loader.intent_prompt_loader import IntentPromptLoader
+from logic.intents.demos.intents_execution.hooks.generic_wa_hook import set_conversation_context
 
 
 class PortfolioRotationExecutionLogic:
@@ -72,12 +74,20 @@ class PortfolioRotationExecutionLogic:
             )
             resp = self.llm.invoke(msgs)
             body = getattr(resp, "content", "").strip()
+            to=self._ensure_wa_prefix(contact["phone"])
+
+            # 🔹 Save context for WhatsApp hook (so conversation can continue there)
+            set_conversation_context(
+                WhatsAppUtils.extract_number(to),
+                {
+                    "initial_prompt": [m.content for m in msgs],  # store full prompt texts
+                }
+            )
 
             # Debug log to verify what the LLM produced
             self.logger.info(f"[portfolio_rotation_llm_body] generated={body[:120]}")
 
             # --- Send via Twilio ---
-            to = self._ensure_wa_prefix(contact["phone"])
             client = self._twilio_client()
             self.logger.info(f"[twilio_send_debug] to={to}, from={self.wa_from}, body={body[:50]}")
             msg = client.messages.create(from_=self.wa_from, to=to, body=body)
