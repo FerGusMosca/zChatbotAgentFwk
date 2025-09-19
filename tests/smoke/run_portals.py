@@ -1,4 +1,4 @@
-# test_run_portals.py
+# run_portals.py
 import logging
 
 from common.util.settings.env_deploy_reader import EnvDeployReader

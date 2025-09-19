@@ -72,6 +72,20 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("DEPLOY_FILE", "DEPLOY_FILE"))
 
+    cache_enabled: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("CACHE_ENABLED", "CACHE_ENABLED"))
+
+    cache_type: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("CACHE_TYPE", "CACHE_TYPE"))
+
+    redis_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("REDIS_URL", "REDIS_URL"))
+
+
+
     #
 
 @lru_cache

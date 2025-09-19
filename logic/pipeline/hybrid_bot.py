@@ -18,6 +18,7 @@ from langchain_core.prompts import MessagesPlaceholder
 from common.config.settings import settings
 
 from common.util.app_logger import AppLogger
+from common.util.cache.cache_manager import CacheManager
 from logic.intents.demos.intente_detection.intent_detection_outbound_sales import IntentDetectionLogicOutboundSales
 
 from common.config.settings import get_settings
@@ -49,6 +50,9 @@ class HybridBot:
         self.facts_store = {}  # {session_id: {"user_name": "...", "neighborhood_pref": "...", ...}}
 
         self.logger.info(f"Loading HybridBot for profile: {settings.bot_profile}")
+
+        # --- Cache manager ---
+        self.cache = CacheManager()
 
         # --- Custom loggers (keep your commented variants) ---
         self._load_custom_logger()
@@ -427,42 +431,66 @@ class HybridBot:
 
     def _fallback(self, user_query: str) -> Tuple[str, Optional[str], Optional[str]]:
         """
-        Prompt-only fallback path.
-        Now enriched with conversation history (Level 1 memory).
+        Prompt-only fallback path + cache check
         """
-        try:
-            # Render history from memory
-            history = self._render_history()
+        cache_key = f"fb:{user_query.strip().lower()}"
 
-            # If we have history, inject it into the user input
+        # 1) Try cache first
+        cached = self.cache.get(cache_key)
+        if cached:
+            self.logger.info("cache_hit_fallback", extra={"query": user_query, "key": cache_key})
+            return self._parse_result(cached)
+
+        # 2) Generate normally
+        try:
+            history = self._render_history()
             if history:
                 user_in = (
                     "Use the following conversation history to remember details "
-                    "the user already mentioned in this session.\n\n"
+                    "already mentioned in this session.\n\n"
                     f"{history}\n\n"
                     f"New question: {user_query}"
                 )
             else:
                 user_in = user_query
 
-            # Pass enriched input to the prompt-only bot
             result = self.prompt_bot.handle(user_in)
+            self.logger.info("cache_miss_fallback", extra={"query": user_query, "key": cache_key})
+
+            # 3) Store result in cache
+            self.cache.set(cache_key, result, expiry=300)  # 5 min TTL
         except Exception as ex:
-            self.logger.error(f"fallback_execution_error: {ex} | query={user_query}")
+            self.logger.error("fallback_execution_error", extra={"query": user_query, "error": str(ex)})
             return "An error occurred while generating the fallback response.", None, None
 
         return self._parse_result(result)
 
     def _rag(self, user_query: str, docs, best_score: float) -> Tuple[str, Optional[str], Optional[str]]:
         """
-        RAG path using chain.run() after clearing memory if needed.
+        RAG path + cache check
         """
+        cache_key = f"rag:{user_query.strip().lower()}"
+
+        # 1) Try cache first
+        cached = self.cache.get(cache_key)
+        if cached:
+            self.logger.info("cache_hit_rag", extra={"query": user_query, "key": cache_key})
+            return self._parse_result(cached)
+
+        # 2) Generate normally
         try:
-            #if hasattr(self.chain, "memory"):
-                #self.chain.memory.clear()
             result = self.chain.run(user_query)
+            self.logger.info("cache_miss_rag", extra={
+                "query": user_query,
+                "key": cache_key,
+                "docs_used": len(docs),
+                "best_score": best_score,
+            })
+
+            # 3) Store result
+            self.cache.set(cache_key, result, expiry=600)  # 10 min TTL
         except Exception as ex:
-            self.logger.error(f"rag_execution_error: {ex} | query={user_query}")
+            self.logger.error("rag_execution_error", extra={"query": user_query, "error": str(ex)})
             return "An error occurred while generating the RAG response.", None, None
 
         return self._parse_result(result)
