@@ -183,13 +183,27 @@ async def wa_webhook(request: Request) -> Response:
     # -------- Persist memory & reply TwiML --------
     if body:
         history.append({"role": "user", "content": body})
-    history.append({"role": "assistant", "content": reply})
-    set_conversation_context(WhatsAppUtils.extract_number(from_wa), ctx)
+    if reply != "DONT_SEND":
+        history.append({"role": "assistant", "content": reply})
+        set_conversation_context(WhatsAppUtils.extract_number(from_wa), ctx)
 
-    twiml = MessagingResponse()
-    twiml.message(reply)
+        twiml = MessagingResponse()
+        twiml.message(reply)
+        return Response(content=str(twiml), media_type="application/xml")
+    else:
+        # Log when a reply is intentionally skipped due to "DONT_SEND"
+        LOG.info(
+            "wa.llm.skip"+"- LLM returned DONT_SEND → no reply will be sent",
+            extra={
+                "from_tail": from_wa[-6:],  # last 6 digits of WA number (anonymized)
+                "body": body[:80],  # first 80 chars of the user message
+                "reason": "LLM returned DONT_SEND → no reply will be sent",
+                "conversation_state": "terminated"
+            },
+        )
+        # Return an empty TwiML response to stop Twilio retries
+        return Response(content=str(MessagingResponse()), media_type="application/xml")
 
-    return Response(content=str(twiml), media_type="application/xml")
 
 # ---------------------------------------------------------------------------
 # Installation helper (call once at startup; hardcoded path for now)
