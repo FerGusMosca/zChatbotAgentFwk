@@ -63,7 +63,9 @@ class GoogleContactFinder:
     def find_contact(self, name: str) -> Optional[Dict[str, Any]]:
         """
         Search Google Contacts for the closest match by name that has a phone number.
-        Uses fuzzy matching to handle partial names or nicknames.
+        Rules:
+          1. If the search string appears anywhere in displayName (case-insensitive) → direct match.
+          2. Otherwise fallback to fuzzy matching (difflib).
         """
         try:
             # Query Google People API for up to 10 possible matches
@@ -76,40 +78,54 @@ class GoogleContactFinder:
             if not contacts:
                 return None
 
-            # Collect candidate display names
+            # Collect candidates
             candidates = []
             for c in contacts:
                 person = c.get("person", {})
                 display = person.get("names", [{}])[0].get("displayName", "")
-                candidates.append((display, person))
+                if display:
+                    candidates.append((display, person))
 
-            # Extract just names for fuzzy matching
-            display_names = [c[0] for c in candidates if c[0]]
-
-            # Pick the closest name to the requested one
-            best = difflib.get_close_matches(
-                name.lower(), [d.lower() for d in display_names], n=1, cutoff=0.5
-            )
-
-            if not best:
+            if not candidates:
                 return None
 
-            # Retrieve the person object corresponding to the best match
-            best_name = best[0]
+            # 🔍 Step 1: direct substring match (case insensitive)
             for display, person in candidates:
-                if display.lower() == best_name:
-                    phones = person.get("phoneNumbers", [])
-                    for p in phones:
-                        if p.get("value"):
-                            return {
-                                "name": display,
-                                "phone": p.get("value"),
-                                "email": (person.get("emailAddresses", [{}])[0].get("value")),
-                                "resourceName": person.get("resourceName"),
-                            }
+                if name.lower() in display.lower():  # DNI or any partial text inside the name
+                    self.logger.info(f"[GoogleContactFinder] Substring match for '{name}' -> {display}")
+                    return {
+                        "name": display,
+                        "phone": (person.get("phoneNumbers", [{}])[0].get("value")),
+                        "email": (person.get("emailAddresses", [{}])[0].get("value")),
+                        "resourceName": person.get("resourceName"),
+                        "match": "substring",
+                    }
+
+            # 🔍 Step 2: fallback to fuzzy match
+            display_names = [c[0] for c in candidates]
+            best = difflib.get_close_matches(name.lower(), [d.lower() for d in display_names], n=1, cutoff=0.5)
+
+            if best:
+                best_name = best[0]
+                for display, person in candidates:
+                    if display.lower() == best_name:
+                        phones = person.get("phoneNumbers", [])
+                        for p in phones:
+                            if p.get("value"):
+                                self.logger.info(f"[GoogleContactFinder] Fuzzy match for '{name}' -> {display}")
+                                return {
+                                    "name": display,
+                                    "phone": p.get("value"),
+                                    "email": (person.get("emailAddresses", [{}])[0].get("value")),
+                                    "resourceName": person.get("resourceName"),
+                                    "match": "fuzzy",
+                                }
 
             return None
 
         except Exception as ex:
             self.logger.error(f"[GoogleContactFinder] error searching contact {name}: {ex}")
             return None
+
+
+
