@@ -27,11 +27,11 @@ class GoogleContactFinder:
         cwd = Path.cwd()
         config_dir = FindFolder.find_config_dir(cwd)
 
-        client_secret = f"{config_dir}/{EnvDeployReader.get('GOOGLE_CLIENT_SECRET').strip()}"
-        token_path = f"{config_dir}/{EnvDeployReader.get('GOOGLE_TOKEN_CONTACT_FILE').strip()}"
+        client_secret = Path(config_dir) / EnvDeployReader.get("GOOGLE_CLIENT_SECRET").strip()
+        token_path    = Path(config_dir) / EnvDeployReader.get("GOOGLE_TOKEN_CONTACT_FILE").strip()
 
-        self.client_secret_path = Path(client_secret)
-        self.token_path = Path(token_path)
+        self.client_secret_path = client_secret
+        self.token_path = token_path
 
         self.logger = logger or logging.getLogger(__name__)
         self.service = self._build_service()
