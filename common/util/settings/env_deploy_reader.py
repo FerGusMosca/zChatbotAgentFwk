@@ -23,6 +23,14 @@ class EnvDeployReader:
 
     @classmethod
     def load(cls, env_file: str):
+        # 1) If the variable already exists in os.environ, skip file loading
+        if env_file in os.environ:
+            cls._config.clear()
+            # Optionally cache all current environment variables
+            cls._config.update(os.environ)
+            return
+
+        # 2) If not in os.environ, try to locate the file on disk
         path = cls._find_file(env_file)
         if not path:
             raise FileNotFoundError(f"Config '{env_file}' not found")
@@ -39,7 +47,7 @@ class EnvDeployReader:
                 v = v.split("#", 1)[0].strip()
                 cls._config[k.strip()] = v
 
-        # persist config to cache
+        # Persist config to cache
         cls._cache_file.write_text(json.dumps(cls._config), encoding="utf-8")
 
     @classmethod
