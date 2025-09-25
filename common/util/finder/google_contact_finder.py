@@ -34,6 +34,12 @@ class GoogleContactFinder:
         self.token_path = token_path
 
         self.logger = logger or logging.getLogger(__name__)
+        self.logger.info("[GoogleContactFinder] running OAuth flow for Contacts API")
+        self.logger.info(f"[GoogleContactFinder] cwd={cwd}")
+        self.logger.info(f"[GoogleContactFinder] resolved config_dir={config_dir}")
+        self.logger.info(f"[GoogleContactFinder] client_secret_path={self.client_secret_path}")
+        self.logger.info(f"[GoogleContactFinder] token_path={self.token_path}")
+
         self.service = self._build_service()
 
     def _get_credentials(self) -> Credentials:
