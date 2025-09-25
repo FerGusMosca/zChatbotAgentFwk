@@ -32,12 +32,20 @@ class GoogleDriveDownload:
         cwd = Path.cwd()
         config_dir = FindFolder.find_config_dir(cwd)
 
-        client_secret =f"{config_dir}\{ EnvDeployReader.get('GOOGLE_CLIENT_SECRET').strip()}"
-        token_path = f"{config_dir}\{EnvDeployReader.get('GOOGLE_TOKEN_DRIVE_FILE').strip()}"
+        # Build clean paths
+        client_secret = Path(config_dir) / EnvDeployReader.get("GOOGLE_CLIENT_SECRET").strip()
+        token_path = Path(config_dir) / EnvDeployReader.get("GOOGLE_TOKEN_DRIVE_FILE").strip()
 
-        self.client_secret_path = Path( client_secret)
-        self.token_path = Path( token_path)
-        pass
+        self.client_secret_path = client_secret
+        self.token_path = token_path
+
+        # Debug logs
+        if self.log:
+            self.log.info(f"[GoogleContactFinder] cwd={cwd}")
+            self.log.info(f"[GoogleContactFinder] config_dir={config_dir}")
+            self.log.info(f"[GoogleContactFinder] client_secret_path={self.client_secret_path}")
+            self.log.info(f"[GoogleContactFinder] token_path={self.token_path}")
+            self.log.info("[GoogleContactFinder] OAuth flow initialized for Drive API")
 
     def _get_credentials(self):
         from google.oauth2.credentials import Credentials
