@@ -5,7 +5,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from typing import Dict, Tuple, Optional
-from common.config.settings import settings
+from common.config.settings import settings, get_settings
 from logic.pipeline.hybrid_bot import HybridBot
 from logic.pipeline.prompt_based_chatbot import PromptBasedChatbot
 from common.util.loader.prompt_loader import PromptLoader
@@ -26,7 +26,7 @@ def load_bot_for_client(client_name: str):
     Use case:
     - Useful for stylistic assistants or copilots that don't need knowledge retrieval.
     """
-    prompt_name = os.getenv("ZBOT_PROMPT_NAME", "generic_prompt")
+    prompt_name = get_settings().chat_prompt
     base_dir = os.path.dirname(os.path.abspath(__file__))
     loader = PromptLoader(os.path.join(base_dir, "../prompts"))
     return PromptBasedChatbot(loader, prompt_name=prompt_name)

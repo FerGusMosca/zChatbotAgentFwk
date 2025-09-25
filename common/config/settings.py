@@ -84,7 +84,9 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("REDIS_URL", "REDIS_URL"))
 
-
+    chat_prompt: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("CHAT_PROMPT", "CHAT_PROMPT"))
 
     #
 
