@@ -27,6 +27,7 @@ def load_bot_for_client(client_name: str):
     - Useful for stylistic assistants or copilots that don't need knowledge retrieval.
     """
     prompt_name = get_settings().chat_prompt
+    print(f"Loading prompt name {prompt_name}...")
     base_dir = os.path.dirname(os.path.abspath(__file__))
     loader = PromptLoader(os.path.join(base_dir, "../prompts"))
     return PromptBasedChatbot(loader, prompt_name=prompt_name)

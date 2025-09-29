@@ -8,7 +8,8 @@ from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import docx2txt
-
+import json
+from langchain.schema import Document
 from common.config.settings import get_settings
 
 load_dotenv()
@@ -30,36 +31,98 @@ def _split_docs(docs: List[Document]) -> List[Document]:
             chunks.append(Document(page_content=p, metadata=meta))
     return chunks
 
-def load_documents_from_folder(folder_path: str) -> List[Document]:
-    docs: List[Document] = []
-    for filename in os.listdir(folder_path):
-        full_path = os.path.join(folder_path, filename)
-        if not os.path.isfile(full_path):
-            continue
+def load_json_curated(file_path: str) -> list[Document]:
+    """
+    Load a curated JSON file (sentiment or competition) into a list of LangChain Documents.
+    Metadata includes symbol, year, and category.
+    """
+    docs = []
+    with open(file_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-        if filename.lower().endswith(".pdf"):
-            loader = PyPDFLoader(full_path)
-            for d in loader.load():
-                d.metadata.setdefault("source", filename)
-                docs.append(d)
+    symbol = data.get("symbol")
+    year = data.get("year")
 
-        elif filename.lower().endswith(".txt"):
-            loader = TextLoader(full_path, encoding="utf-8")
-            for d in loader.load():
-                d.metadata.setdefault("source", filename)
-                docs.append(d)
+    # Detect category based on filename convention
+    filename = os.path.basename(file_path).lower()
+    if "sentiment" in filename:
+        category = "sentiment"
+        # Build text content from sentiment fields
+        text = " ".join(
+            [p["sent"] for p in data.get("top_positive", [])] +
+            [n["sent"] for n in data.get("top_negative", [])] +
+            data.get("forward_snippets", [])
+        )
+    elif "competition" in filename:
+        category = "competition"
+        # Use competition summary if available
+        text = data.get("competition_summary", "")
+    else:
+        category = "generic_json"
+        text = json.dumps(data)
 
-        elif filename.lower().endswith(".docx"):
-            try:
-                raw = docx2txt.process(full_path)
-                if raw.strip():
-                    docs.append(Document(page_content=raw, metadata={"source": filename}))
-                else:
-                    print(f"⚠️ Empty DOCX file: {filename}")
-            except Exception as e:
-                print(f"❌ Error loading DOCX {filename}: {e}")
-        else:
-            print(f"❌ Unsupported file format: {filename}")
+    if text.strip():
+        docs.append(Document(
+            page_content=text,
+            metadata={"symbol": symbol, "year": year, "category": category}
+        ))
+    return docs
+
+def load_documents_from_folder(folder_path: str) -> list[Document]:
+    """
+    Recursive loader: walks through all subfolders and loads supported files.
+    """
+    docs: list[Document] = []
+    for root, _, files in os.walk(folder_path):
+        for filename in files:
+            full_path = os.path.join(root, filename)
+            if filename.lower().endswith(".pdf"):
+                loader = PyPDFLoader(full_path)
+                for d in loader.load():
+                    d.metadata.setdefault("source", filename)
+                    docs.append(d)
+
+            elif filename.lower().endswith(".txt"):
+                loader = TextLoader(full_path, encoding="utf-8")
+                for d in loader.load():
+                    d.metadata.setdefault("source", filename)
+                    docs.append(d)
+
+            elif filename.lower().endswith(".docx"):
+                try:
+                    raw = docx2txt.process(full_path)
+                    if raw.strip():
+                        docs.append(Document(page_content=raw, metadata={"source": filename}))
+                except Exception as e:
+                    print(f"❌ Error loading DOCX {filename}: {e}")
+            elif filename.lower().endswith(".json"):
+                try:
+                    with open(full_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+
+                    # Handle different possible JSON structures
+                    if isinstance(data, str):
+                        text = data
+                    elif isinstance(data, list):
+                        # Join list items into a single text block
+                        text = "\n".join(
+                            json.dumps(item) if isinstance(item, dict) else str(item)
+                            for item in data
+                        )
+                    elif isinstance(data, dict):
+                        # Dump dict as a string
+                        text = json.dumps(data)
+                    else:
+                        text = str(data)
+
+                    docs.append(Document(page_content=text, metadata={"source": filename}))
+
+                except Exception as e:
+                    print(f"❌ Error loading JSON {filename}: {e}")
+
+
+            else:
+                print(f"❌ Unsupported file format: {filename}")
     return docs
 
 def build_vectorstore(client_id: str):
