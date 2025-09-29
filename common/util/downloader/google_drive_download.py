@@ -57,24 +57,23 @@ class GoogleDriveDownload:
             self.log.info(f"drive.token.use path={self.token_path}")
             creds = Credentials.from_authorized_user_file(str(self.token_path), self.scopes)
 
-        try:
-            if not creds or not creds.valid:
+        # Always check and refresh/regenerate if needed
+        if not creds or not creds.valid:
+            try:
                 if creds and creds.expired and creds.refresh_token:
                     self.log.info("drive.token.refresh")
                     creds.refresh(Request())
                 else:
                     raise RefreshError("invalid_or_missing_token")
-        except RefreshError as ex:
-            self.log.warning(f"drive.token.invalid -> regenerating | {ex}")
-            # 🔥 borrar token corrupto
-            Path(self.token_path).unlink(missing_ok=True)
-            # 🔑 relanzar OAuth
-            flow = InstalledAppFlow.from_client_secrets_file(
-                str(self.client_secret_path), self.scopes
-            )
-            creds = flow.run_local_server(port=0)
+            except Exception as ex:
+                self.log.warning(f"drive.token.invalid -> regenerating | {ex}")
+                # 🚀 Always regenerate OAuth token
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    str(self.client_secret_path), self.scopes
+                )
+                creds = flow.run_local_server(port=0)
 
-        # guardar token fresco
+        # 💾 Always overwrite token file
         Path(self.token_path).parent.mkdir(parents=True, exist_ok=True)
         Path(self.token_path).write_text(creds.to_json(), encoding="utf-8")
 

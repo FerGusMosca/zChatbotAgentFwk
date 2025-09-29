@@ -43,23 +43,33 @@ class GoogleContactFinder:
         self.service = self._build_service()
 
     def _get_credentials(self) -> Credentials:
-        """Return credentials, creating token file if needed."""
+        """Return credentials, always regenerating token.json if expired or invalid."""
         creds = None
         if self.token_path.exists():
+            self.logger.info(f"[GoogleContactFinder] token.use path={self.token_path}")
             creds = Credentials.from_authorized_user_file(str(self.token_path), self.SCOPES)
 
-        # Si no hay credenciales válidas → refrescar o pedir login
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                self.logger.info("[GoogleContactFinder] refreshing expired token")
-                creds.refresh(Request())
-            else:
-                self.logger.info("[GoogleContactFinder] running OAuth flow for Contacts API")
-                flow = InstalledAppFlow.from_client_secrets_file(str(self.client_secret_path), self.SCOPES)
-                creds = flow.run_local_server(port=0)
-            # persistir token
-            self.token_path.parent.mkdir(parents=True, exist_ok=True)
-            self.token_path.write_text(creds.to_json(), encoding="utf-8")
+        try:
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    # Try to refresh if possible
+                    self.logger.info("[GoogleContactFinder] refreshing expired token")
+                    creds.refresh(Request())
+                else:
+                    # Force regeneration if no valid token
+                    raise Exception("invalid_or_missing_token")
+        except Exception as ex:
+            self.logger.warning(f"[GoogleContactFinder] token.invalid -> regenerating | {ex}")
+            # Delete corrupted/expired token
+            self.token_path.unlink(missing_ok=True)
+            # Launch OAuth flow to get a new one
+            flow = InstalledAppFlow.from_client_secrets_file(str(self.client_secret_path), self.SCOPES)
+            creds = flow.run_local_server(port=0)
+
+        # Always overwrite the token with the fresh one
+        self.token_path.parent.mkdir(parents=True, exist_ok=True)
+        self.token_path.write_text(creds.to_json(), encoding="utf-8")
+
         return creds
 
     def _build_service(self):
