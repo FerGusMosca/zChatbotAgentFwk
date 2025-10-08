@@ -25,6 +25,7 @@ data/documents/
 # ⛔ secretos / credenciales
 config/*.json
 config/token.json
+config/deploy_config/
 *.pem
 *.p12
 *.p8
@@ -49,5 +50,5 @@ logs/
 
 last-commit.patch
 *.patch
-exports/
+exports\
 exports\debug\

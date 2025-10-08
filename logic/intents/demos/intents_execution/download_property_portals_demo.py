@@ -100,7 +100,7 @@ class DownloadPropertyPortalsIntentLogicDemo(BaseIntentLogicDemo):
         if not self.upload_to_drive:
             raise RuntimeError("Drive upload disabled (set upload_to_drive=True).")
 
-        # ---- Read .env_deploy (and trim whitespace) ----
+        # ---- Read .env_deploy_zz_lottery (and trim whitespace) ----
         folder_id = (EnvDeployReader.get("DRIVE_FOLDER_ID", self.drive_folder_id or "") or "").strip()
         client_secret_name = (EnvDeployReader.get("GOOGLE_CLIENT_SECRET", "") or "").strip()
         token_name = (EnvDeployReader.get("GOOGLE_TOKEN_FILE", "token.json") or "").strip()
