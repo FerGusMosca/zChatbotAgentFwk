@@ -1,12 +1,18 @@
 @echo off
-REM Movernos al directorio donde está este .bat (raíz del proyecto)
-cd /d %~dp0
+REM ============================================================
+REM  Script: build_vectorstore.bat
+REM  Purpose: Activate venv and build vectorstore index
+REM  Author: Fer
+REM ============================================================
 
-REM Activar el virtualenv
-call zz_deploy\venv\Scripts\activate
+REM Movernos al directorio raíz del proyecto (donde está este .bat)
+cd /d "%~dp0"
 
-REM Ejecutar el indexador desde la raíz
-python -m zz_deploy.tools.build_vectorstore
+REM Activar el entorno virtual
+call .\venv\Scripts\activate
 
-REM Mantener la consola abierta al terminar
+REM Ejecutar el indexador desde la carpeta tools
+python -m tools.build_vectorstore
+
+REM Mantener la consola abierta al finalizar
 pause
