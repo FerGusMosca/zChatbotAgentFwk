@@ -12,13 +12,15 @@ from common.config.settings import get_settings
 load_dotenv()
 
 def _clean(text: str) -> str:
+    """Remove invisible characters and normalize spaces."""
     return " ".join(text.replace("\u200b", "").split())
 
 def _split_docs(docs: List[Document]) -> List[Document]:
+    """Split documents into smaller chunks for embeddings."""
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=900,
-        chunk_overlap=150,
-        separators=["\n## ", "\n# ", "\n- ", "\n• ", "\n", " ", ""]
+        chunk_size=600,
+        chunk_overlap=80,
+        separators=[". ", "\n", " "]
     )
     chunks = []
     for d in docs:
@@ -30,32 +32,20 @@ def _split_docs(docs: List[Document]) -> List[Document]:
     return chunks
 
 def extract_metadata(file_path: str) -> dict:
+    """Extract metadata (symbol, date, type) from filename."""
     fname = os.path.basename(file_path)
     parts = fname.split("_")
 
-    meta = {"symbol": None, "year": None, "Period": None, "report_type": None}
+    meta = {"symbol": None, "date": None, "report_type": "news"}
 
-    if len(parts) > 1:
+    if len(parts) >= 2:
         meta["symbol"] = parts[0]
-        meta["year"] = parts[1]
-
-    for p in parts:
-        if p.upper().startswith("Q") and len(p) <= 3:
-            meta["Period"] = p.upper()
-
-    folder_name = Path(file_path).parent.name.lower()
-    if "q10" in folder_name:
-        meta["report_type"] = "10-Q"
-    elif "k10" in folder_name:
-        meta["report_type"] = "10-K"
-    elif "sentiment" in folder_name:
-        meta["report_type"] = "sentiment"
-    else:
-        meta["report_type"] = "other"
+        meta["date"] = parts[1].replace(".json", "")
 
     return meta
 
-def load_documents_from_folder(folder_path: str) -> list[Document]:
+def load_news_documents(folder_path: str) -> list[Document]:
+    """Load all .json files from a folder and extract news text."""
     docs = []
     total_files = 0
     processed_files = 0
@@ -71,24 +61,25 @@ def load_documents_from_folder(folder_path: str) -> list[Document]:
                 with open(full_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
 
-                # 🧠 Usar solo el campo curated_text si existe
+                text = ""
                 if isinstance(data, dict):
-                    text = data.get("curated_text")
-                    if not text:
-                        text = json.dumps({
-                            "symbol": data.get("symbol"),
-                            "year": data.get("year"),
-                            "Period": data.get("Period"),
-                            "metrics": data.get("metrics"),
-                            "top_positive": data.get("top_positive"),
-                            "top_negative": data.get("top_negative"),
-                            "forward_snippets": data.get("forward_snippets"),
-                        })
+                    # ✅ Case 1: structured news file with headlines array
+                    if "headlines" in data and isinstance(data["headlines"], list):
+                        headlines = [
+                            f"{h.get('title', '').strip()} ({h.get('source','')})"
+                            if isinstance(h, dict) else str(h)
+                            for h in data["headlines"]
+                        ]
+                        text = " ".join(headlines)
+
+                    # ✅ Case 2: fallback — use all stringified JSON
+                    else:
+                        text = json.dumps(data)
                 else:
                     text = str(data)
 
                 if not text or len(text.strip()) < 50:
-                    print(f"⚠️ Skipping {filename}: empty or too short text.")
+                    print(f"⚠️ Skipping {filename}: empty or too short.")
                     continue
 
                 metadata = extract_metadata(full_path)
@@ -96,37 +87,33 @@ def load_documents_from_folder(folder_path: str) -> list[Document]:
                 docs.append(Document(page_content=text, metadata=metadata))
                 processed_files += 1
 
-                # ✅ Log individual
-                print(f"✅ [{processed_files}] Indexed: {filename} | "
-                      f"symbol={metadata.get('symbol')} | "
-                      f"year={metadata.get('year')} | "
-                      f"period={metadata.get('Period')} | "
-                      f"type={metadata.get('report_type')}")
+                print(f"✅ [{processed_files}] Indexed: {filename} | symbol={metadata.get('symbol')}")
 
             except Exception as e:
                 print(f"❌ Error loading {filename}: {e}")
 
-    print(f"📊 Summary: {processed_files}/{total_files} JSON files indexed successfully.")
+    print(f"📊 Summary: {processed_files}/{total_files} news files indexed successfully.")
     return docs
 
-
-def build_vectorstore(client_id: str):
+def build_vectorstore_news(client_id: str):
+    """Build FAISS vectorstore for pure news files."""
     client_id = (client_id or "").strip()
     repo_root = Path(__file__).resolve().parents[1]
     doc_path = repo_root / "data" / "documents" / client_id
     vectorstore_path = repo_root / "vectorstores" / client_id
 
     if not doc_path.exists():
-        raise FileNotFoundError(f"❌ Docs folder not found: {doc_path}")
+        raise FileNotFoundError(f"❌ News folder not found: {doc_path}")
 
-    print(f"📂 Loading documents recursively from: {doc_path}")
-    raw_docs = load_documents_from_folder(str(doc_path))
+    print(f"📂 Loading news documents from: {doc_path}")
+    raw_docs = load_news_documents(str(doc_path))
 
     documents = _split_docs(raw_docs)
     print(f"🧩 Produced {len(documents)} chunks for embedding.")
 
     embeddings = OpenAIEmbeddings()
     vectordb = FAISS.from_documents(documents, embeddings)
+
     vectorstore_path.mkdir(parents=True, exist_ok=True)
     vectordb.save_local(str(vectorstore_path))
 
@@ -137,4 +124,4 @@ def build_vectorstore(client_id: str):
 
 if __name__ == "__main__":
     client_id = get_settings().bot_profile
-    build_vectorstore(client_id)
+    build_vectorstore_news(client_id)
