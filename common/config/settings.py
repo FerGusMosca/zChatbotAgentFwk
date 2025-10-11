@@ -88,6 +88,10 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("CHAT_PROMPT", "CHAT_PROMPT"))
 
+    bot_logic: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("BOT_LOGIC", "BOT_LOGIC"))
+
     #
 
 @lru_cache
