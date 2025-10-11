@@ -92,6 +92,10 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("BOT_LOGIC", "BOT_LOGIC"))
 
+    index_file_root_path: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("INDEX_FILES_ROOT_PATH", "INDEX_FILES_ROOT_PATH"))
+
     #
 
 @lru_cache
