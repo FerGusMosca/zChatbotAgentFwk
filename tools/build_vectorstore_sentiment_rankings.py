@@ -1,5 +1,6 @@
 import os
 import json
+import pandas as pd
 from pathlib import Path
 from typing import List
 from dotenv import load_dotenv
@@ -11,9 +12,13 @@ from common.config.settings import get_settings
 
 load_dotenv()
 
+
+# ========== HELPERS =============================================================
+
 def _clean(text: str) -> str:
     """Remove invisible characters and normalize spaces."""
     return " ".join(text.replace("\u200b", "").split())
+
 
 def _split_docs(docs: List[Document]) -> List[Document]:
     """Split documents into smaller chunks for embeddings."""
@@ -32,72 +37,106 @@ def _split_docs(docs: List[Document]) -> List[Document]:
     return chunks
 
 
-def load_sentiment_documents(folder_path: str) -> list[Document]:
-    """Load all sentiment JSON files (consolidated + ranking)."""
+# ========== LOADERS =============================================================
+
+def load_sentiment_rankings(folder_path: str) -> List[Document]:
+    """Load sentiment ranking data from CSV (quantitative layer)."""
+    docs = []
+    csv_files = [f for f in os.listdir(folder_path) if f.endswith(".csv")]
+    total = 0
+    for csv_file in csv_files:
+        csv_path = os.path.join(folder_path, csv_file)
+        df = pd.read_csv(csv_path)
+        for _, row in df.iterrows():
+            content = (
+                f"Symbol: {row['symbol']}. Year: {row['year']}. ReportType: {row['report_type']}. "
+                f"MD&A Sentiment: {row['sentiment_mdna']}, Outlook Sentiment: {row['sentiment_outlook']}, "
+                f"Forward Ratio: {row['forward_ratio']}, Hedge Ratio: {row['hedge_ratio']}, "
+                f"Optimism Score: {row['optimism_score']}."
+            )
+            docs.append(
+                Document(
+                    page_content=content,
+                    metadata={
+                        "symbol": row["symbol"],
+                        "year": row["year"],
+                        "report_type": row["report_type"],
+                        "source": csv_file,
+                        "type": "ranking"
+                    },
+                )
+            )
+            total += 1
+    print(f"✅ Indexed {total} ranking entries from CSV.")
+    return docs
+
+
+def load_sentiment_contexts(folder_path: str) -> List[Document]:
+    """Load contextual data from JSON summaries (qualitative layer)."""
     docs = []
     total_files = 0
-    processed_files = 0
+    processed = 0
 
     for root, _, files in os.walk(folder_path):
         for filename in files:
             total_files += 1
             if not filename.lower().endswith(".json"):
                 continue
-
-            full_path = os.path.join(root, filename)
+            path = os.path.join(root, filename)
             try:
-                with open(full_path, "r", encoding="utf-8") as f:
+                with open(path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-
-                # Detect consolidated summary (list of dicts)
-                if isinstance(data, list) and all(isinstance(x, dict) for x in data):
+                if isinstance(data, list):
                     for entry in data:
-                        symbol = entry.get("symbol")
-                        metrics = entry.get("metrics", {})
-                        text = entry.get("curated_text", "")
+                        text = entry.get("curated_text") or json.dumps(entry)
+                        if not text or len(text.strip()) < 50:
+                            continue
                         content = (
-                            f"Symbol: {symbol}. Year: {entry.get('year')}. "
+                            f"Symbol: {entry.get('symbol')}. Year: {entry.get('year')}. "
                             f"ReportType: {entry.get('report_type')}. "
-                            f"MD&A Sentiment: {metrics.get('mdna_sentiment')}, "
-                            f"Outlook Sentiment: {metrics.get('outlook_sentiment')}, "
-                            f"Forward Ratio: {metrics.get('forward_ratio')}, "
-                            f"Hedge Ratio: {metrics.get('hedge_ratio')}. "
                             f"Full text: {text}"
                         )
-                        docs.append(Document(page_content=content, metadata={
-                            "symbol": symbol,
-                            "year": entry.get("year"),
-                            "report_type": entry.get("report_type"),
-                            "source": filename
-                        }))
-                        processed_files += 1
+                        docs.append(
+                            Document(
+                                page_content=content,
+                                metadata={
+                                    "symbol": entry.get("symbol"),
+                                    "year": entry.get("year"),
+                                    "report_type": entry.get("report_type"),
+                                    "source": filename,
+                                    "type": "context"
+                                },
+                            )
+                        )
+                        processed += 1
                 else:
                     continue
-
-                print(f"✅ [{processed_files}] Indexed: {filename}")
-
             except Exception as e:
-                print(f"❌ Error loading {filename}: {e}")
-
-    print(f"📊 Summary: {processed_files}/{total_files} sentiment files indexed successfully.")
+                print(f"❌ Error reading {filename}: {e}")
+    print(f"✅ Indexed {processed}/{total_files} contextual JSON files.")
     return docs
 
 
-def build_vectorstore_sentiment(client_id: str):
-    """Build FAISS vectorstore for sentiment ranking + summaries."""
+# ========== MAIN BUILDER =============================================================
+
+def build_vectorstore_sentiment_hybrid(client_id: str):
+    """Hybrid Vectorstore combining rankings (CSV) + contextual summaries (JSON)."""
     client_id = (client_id or "").strip()
     repo_root = Path(__file__).resolve().parents[1]
     doc_path = repo_root / "data" / "documents" / client_id
-    vectorstore_path = repo_root / "vectorstores" / client_id
+    vectorstore_path = repo_root / "vectorstores" / f"{client_id}_hybrid"
 
     if not doc_path.exists():
-        raise FileNotFoundError(f"❌ Sentiment folder not found: {doc_path}")
+        raise FileNotFoundError(f"❌ Folder not found: {doc_path}")
 
-    print(f"📂 Loading sentiment documents from: {doc_path}")
-    raw_docs = load_sentiment_documents(str(doc_path))
+    print(f"📂 Loading hybrid sentiment documents from: {doc_path}")
+    rank_docs = load_sentiment_rankings(str(doc_path))
+    context_docs = load_sentiment_contexts(str(doc_path))
 
-    documents = _split_docs(raw_docs)
-    print(f"🧩 Produced {len(documents)} chunks for embedding.")
+    all_docs = rank_docs + context_docs
+    print(f"🧩 Combined total: {len(all_docs)} documents.")
+
+    documents = _split_docs(all_docs)
 
     embeddings = OpenAIEmbeddings()
     vectordb = FAISS.from_documents(documents, embeddings)
@@ -105,12 +144,12 @@ def build_vectorstore_sentiment(client_id: str):
     vectorstore_path.mkdir(parents=True, exist_ok=True)
     vectordb.save_local(str(vectorstore_path))
 
-    if documents:
-        print(f"✅ Example metadata sample: {documents[0].metadata}")
+    print(f"✅ Example metadata sample: {documents[0].metadata}")
+    print(f"✅ Hybrid vectorstore saved to: {vectorstore_path}")
 
-    print(f"✅ Vectorstore saved to: {vectorstore_path}")
 
+# ========== ENTRY POINT =============================================================
 
 if __name__ == "__main__":
     client_id = get_settings().bot_profile
-    build_vectorstore_sentiment(client_id)
+    build_vectorstore_sentiment_hybrid(client_id)
