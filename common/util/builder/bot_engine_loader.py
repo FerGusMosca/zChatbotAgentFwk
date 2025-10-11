@@ -67,6 +67,32 @@ def load_qa_chain_for_client(client_id: str = None):
 
     return qa_chain
 
+def _load_bot_logic(vectordb, prompt_bot, model_name, temperature, top_k):
+    """
+    Dynamically load and instantiate the bot logic defined in .env (BOT_LOGIC).
+    Expected format: 'module.path.to.file,ClassName'
+    Example: BOT_LOGIC=logic.pipeline.hybrid_bot,HybridBot
+    """
+    bot_logic = get_settings().bot_logic
+    if not bot_logic:
+        raise ValueError("❌ BOT_LOGIC not defined in .env or settings.")
+
+    module_path, class_name = bot_logic.split(",")
+    module = importlib.import_module(module_path)
+    cls = getattr(module, class_name)
+
+    print(f"✅ Loaded bot logic: {class_name} from {module_path}")
+
+    # instantiate dynamically
+    return cls(
+        vectordb=vectordb,
+        prompt_bot=prompt_bot,
+        retrieval_score_threshold=get_settings().retrieval_score_threshold,
+        model_name=model_name,
+        temperature=temperature,
+        top_k=top_k,
+    )
+
 
 def load_hybrid_bot(
     client_id: Optional[str] = None,
@@ -140,11 +166,11 @@ def load_hybrid_bot(
     temperature = float(os.getenv("OPENAI_TEMPERATURE", "0.0"))
     top_k = int(os.getenv("TOP_K", "4"))
 
-    # --- Instantiate HybridBot ---
-    bot = HybridBot(
+
+
+    bot = _load_bot_logic(
         vectordb=vectordb,
         prompt_bot=prompt_bot,
-        retrieval_score_threshold=settings.retrieval_score_threshold,
         model_name=model_name,
         temperature=temperature,
         top_k=top_k,
