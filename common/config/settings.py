@@ -27,6 +27,12 @@ class Settings(BaseSettings):
         default="demo_client",
         validation_alias=AliasChoices("BOT_PROFILE", "bot_profile"),
     )
+
+    bot_profile_root_path: str = Field(
+        default="demo_client",
+        validation_alias=AliasChoices("BOT_PROFILE_ROOT_PATH", "bot_profile_root_path"),
+    )
+
     faiss_index_path: str = Field(
         default="./vectorstores",
         validation_alias=AliasChoices("FAISS_INDEX_PATH", "faiss_index_path"),
@@ -92,7 +98,7 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("BOT_LOGIC", "BOT_LOGIC"))
 
-    index_file_root_path: str | None = Field(
+    index_files_root_path: str | None = Field(
         default=None,
         validation_alias=AliasChoices("INDEX_FILES_ROOT_PATH", "INDEX_FILES_ROOT_PATH"))
 

@@ -55,7 +55,7 @@ def extract_file_metadata(path: str) -> dict:
 
 def load_file_index_documents(base_folder: str) -> list[Document]:
     docs = []
-    base_root = Path(get_settings().index_file_root_path or base_folder).resolve()
+    base_root = Path(get_settings().index_files_root_path or base_folder).resolve()
 
     for root, _, files in os.walk(base_folder):
         for f in files:

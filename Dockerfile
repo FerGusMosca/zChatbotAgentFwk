@@ -1,18 +1,15 @@
-# Imagen base con Python
-FROM python:3.11-slim
+FROM python:3.10-slim
 
-# Set working dir
 WORKDIR /app
 
-# Copiar requirements y instalar dependencias
-COPY requirements.txt .
+# Copy only the app code
+COPY . /app
+
+# Install deps
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar el resto del código
-COPY . .
+# Expose port if needed (FastAPI?)
+EXPOSE 8080
 
-# Exponer el puerto (lo tenés en .env como 8000)
-EXPOSE 8000
-
-# Comando de arranque (ajustá si usás FastAPI/Flask)
+# Default command
 CMD ["python", "main.py"]

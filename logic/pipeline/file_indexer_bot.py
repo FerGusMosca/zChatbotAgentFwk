@@ -154,7 +154,7 @@ class FileIndexerBot:
             resolved_path = Path(path_meta)
             if not resolved_path.exists():
                 # allow relative path fallback
-                base = Path(get_settings().index_file_root_path)
+                base = Path(get_settings().index_files_root_path)
                 resolved_path = base / path_meta
             if not resolved_path.exists():
                 self.logger.warning(f"[FileIndexerBot] ⚠️ Resolved path not found: {resolved_path}")

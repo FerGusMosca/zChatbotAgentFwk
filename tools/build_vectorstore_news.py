@@ -11,9 +11,11 @@ from common.config.settings import get_settings
 
 load_dotenv()
 
+
 def _clean(text: str) -> str:
     """Remove invisible characters and normalize spaces."""
     return " ".join(text.replace("\u200b", "").split())
+
 
 def _split_docs(docs: List[Document]) -> List[Document]:
     """Split documents into smaller chunks for embeddings."""
@@ -31,6 +33,7 @@ def _split_docs(docs: List[Document]) -> List[Document]:
             chunks.append(Document(page_content=p, metadata=meta))
     return chunks
 
+
 def extract_metadata(file_path: str) -> dict:
     """Extract metadata (symbol, date, type) from filename."""
     fname = os.path.basename(file_path)
@@ -43,6 +46,7 @@ def extract_metadata(file_path: str) -> dict:
         meta["date"] = parts[1].replace(".json", "")
 
     return meta
+
 
 def load_news_documents(folder_path: str) -> list[Document]:
     """Load all .json files from a folder and extract news text."""
@@ -63,7 +67,6 @@ def load_news_documents(folder_path: str) -> list[Document]:
 
                 text = ""
                 if isinstance(data, dict):
-                    # ✅ Case 1: structured news file with headlines array
                     if "headlines" in data and isinstance(data["headlines"], list):
                         headlines = [
                             f"{h.get('title', '').strip()} ({h.get('source','')})"
@@ -71,8 +74,6 @@ def load_news_documents(folder_path: str) -> list[Document]:
                             for h in data["headlines"]
                         ]
                         text = " ".join(headlines)
-
-                    # ✅ Case 2: fallback — use all stringified JSON
                     else:
                         text = json.dumps(data)
                 else:
@@ -95,18 +96,28 @@ def load_news_documents(folder_path: str) -> list[Document]:
     print(f"📊 Summary: {processed_files}/{total_files} news files indexed successfully.")
     return docs
 
-def build_vectorstore_news(client_id: str):
+
+def build_vectorstore_news():
     """Build FAISS vectorstore for pure news files."""
-    client_id = (client_id or "").strip()
-    repo_root = Path(__file__).resolve().parents[1]
-    doc_path = repo_root / "data" / "documents" / client_id
-    vectorstore_path = repo_root / "vectorstores" / client_id
+    settings = get_settings()
+    client_id = settings.bot_profile.strip()
+
+    # 🔹 Input root = INDEX_FILES_ROOT_PATH
+    base_docs_path = Path(settings.index_files_root_path).expanduser().resolve()
+    doc_path = base_docs_path / client_id
+
+    # 🔹 Output root = BOT_PROFILE_ROOT_PATH
+    base_vectorstore_path = Path(settings.bot_profile_root_path).expanduser().resolve()
+    vectorstore_path = base_vectorstore_path / client_id
 
     if not doc_path.exists():
         raise FileNotFoundError(f"❌ News folder not found: {doc_path}")
 
     print(f"📂 Loading news documents from: {doc_path}")
     raw_docs = load_news_documents(str(doc_path))
+    if not raw_docs:
+        print("⚠️ No documents found.")
+        return
 
     documents = _split_docs(raw_docs)
     print(f"🧩 Produced {len(documents)} chunks for embedding.")
@@ -122,6 +133,6 @@ def build_vectorstore_news(client_id: str):
 
     print(f"✅ Vectorstore saved to: {vectorstore_path}")
 
+
 if __name__ == "__main__":
-    client_id = get_settings().bot_profile
-    build_vectorstore_news(client_id)
+    build_vectorstore_news()

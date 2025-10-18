@@ -15,11 +15,11 @@ class FileContentExtractor:
     def get_file_content(relative_path: str) -> Optional[str]:
         """
         Returns the text content of the file located under:
-        {index_file_root_path}/data/documents/{bot_profile}/{relative_path}
+        {index_files_root_path}/data/documents/{bot_profile}/{relative_path}
         """
         try:
             base_root = (
-                Path(get_settings().index_file_root_path)
+                Path(get_settings().index_files_root_path)
                 / "data"
                 / "documents"
                 / get_settings().bot_profile
