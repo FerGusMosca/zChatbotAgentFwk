@@ -12,7 +12,6 @@ from common.config.settings import get_settings
 
 load_dotenv()
 
-
 # ========== HELPERS =============================================================
 
 def _clean(text: str) -> str:
@@ -40,35 +39,59 @@ def _split_docs(docs: List[Document]) -> List[Document]:
 # ========== LOADERS =============================================================
 
 def load_sentiment_rankings(folder_path: str) -> List[Document]:
-    """Load sentiment ranking data from CSV (quantitative layer)."""
+    """Load sentiment ranking data from CSVs, recursively across subfolders."""
     docs = []
-    csv_files = [f for f in os.listdir(folder_path) if f.endswith(".csv")]
     total = 0
-    for csv_file in csv_files:
-        csv_path = os.path.join(folder_path, csv_file)
-        df = pd.read_csv(csv_path)
-        for _, row in df.iterrows():
-            content = (
-                f"Symbol: {row['symbol']}. Year: {row['year']}. ReportType: {row['report_type']}. "
-                f"MD&A Sentiment: {row['sentiment_mdna']}, Outlook Sentiment: {row['sentiment_outlook']}, "
-                f"Forward Ratio: {row['forward_ratio']}, Hedge Ratio: {row['hedge_ratio']}, "
-                f"Optimism Score: {row['optimism_score']}."
-            )
-            docs.append(
-                Document(
-                    page_content=content,
-                    metadata={
-                        "symbol": row["symbol"],
-                        "year": row["year"],
-                        "report_type": row["report_type"],
-                        "source": csv_file,
-                        "type": "ranking"
-                    },
-                )
-            )
-            total += 1
-    print(f"✅ Indexed {total} ranking entries from CSV.")
+
+    for root, _, files in os.walk(folder_path):
+        for file in files:
+            if not file.lower().endswith(".csv"):
+                continue
+
+            csv_path = os.path.join(root, file)
+            try:
+                df = pd.read_csv(csv_path)
+                for _, row in df.iterrows():
+                    symbol = row.get("symbol")
+                    year = row.get("year")
+                    report_type = row.get("report_type")
+                    mdna = row.get("sentiment_mdna")
+                    outlook = row.get("sentiment_outlook")
+                    forward = row.get("forward_ratio")
+                    hedge = row.get("hedge_ratio")
+                    optimism = row.get("optimism_score")
+
+                    # 🧠 Semantically rich text for embeddings
+                    content = (
+                        f"This document summarizes financial sentiment indicators for {symbol} "
+                        f"in its {year} {report_type} filings. "
+                        f"The Management Discussion & Analysis (MD&A) sentiment score is {mdna}. "
+                        f"The outlook sentiment score is {outlook}. "
+                        f"The forward ratio is {forward}, while the hedge ratio is {hedge}. "
+                        f"The overall optimism score is {optimism}."
+                    )
+
+                    docs.append(
+                        Document(
+                            page_content=content,
+                            metadata={
+                                "symbol": symbol,
+                                "year": year,
+                                "report_type": report_type,
+                                "source": file,
+                                "path": root,
+                                "type": "ranking",
+                            },
+                        )
+                    )
+                    total += 1
+            except Exception as e:
+                print(f"❌ Error reading {csv_path}: {e}")
+
+    print(f"✅ Indexed {total} ranking entries from CSV (recursive).")
     return docs
+
+
 
 
 def load_sentiment_contexts(folder_path: str) -> List[Document]:
@@ -109,8 +132,6 @@ def load_sentiment_contexts(folder_path: str) -> List[Document]:
                             )
                         )
                         processed += 1
-                else:
-                    continue
             except Exception as e:
                 print(f"❌ Error reading {filename}: {e}")
     print(f"✅ Indexed {processed}/{total_files} contextual JSON files.")
@@ -119,12 +140,19 @@ def load_sentiment_contexts(folder_path: str) -> List[Document]:
 
 # ========== MAIN BUILDER =============================================================
 
-def build_vectorstore_sentiment_hybrid(client_id: str):
+def build_vectorstore_sentiment_hybrid():
     """Hybrid Vectorstore combining rankings (CSV) + contextual summaries (JSON)."""
-    client_id = (client_id or "").strip()
+    settings = get_settings()
+
+    # Build full client_id path (root + profile)
+    bot_profile = settings.bot_profile
+    bot_root_path = settings.bot_profile_root_path
+    client_id = str(Path(bot_root_path) / bot_profile)
+
+    # Use the same structure as HybridBot loader
     repo_root = Path(__file__).resolve().parents[1]
-    doc_path = repo_root / "data" / "documents" / client_id
-    vectorstore_path = repo_root / "vectorstores" / f"{client_id}_hybrid"
+    doc_path = repo_root / "data" / "documents" / bot_profile
+    vectorstore_path = Path(client_id).expanduser().resolve()
 
     if not doc_path.exists():
         raise FileNotFoundError(f"❌ Folder not found: {doc_path}")
@@ -141,6 +169,7 @@ def build_vectorstore_sentiment_hybrid(client_id: str):
     embeddings = OpenAIEmbeddings()
     vectordb = FAISS.from_documents(documents, embeddings)
 
+    # Save directly to the full path
     vectorstore_path.mkdir(parents=True, exist_ok=True)
     vectordb.save_local(str(vectorstore_path))
 
@@ -151,5 +180,4 @@ def build_vectorstore_sentiment_hybrid(client_id: str):
 # ========== ENTRY POINT =============================================================
 
 if __name__ == "__main__":
-    client_id = get_settings().bot_profile
-    build_vectorstore_sentiment_hybrid(client_id)
+    build_vectorstore_sentiment_hybrid()
