@@ -12,6 +12,10 @@ from common.config.settings import get_settings
 load_dotenv()
 
 
+# =====================================================================
+# HELPERS
+# =====================================================================
+
 def _clean_text(text: str) -> str:
     """Clean invisible chars and normalize spacing."""
     return " ".join(text.replace("\u200b", "").split())
@@ -53,11 +57,12 @@ def extract_file_metadata(path: str) -> dict:
     return meta
 
 
+# =====================================================================
+# LOAD FILES
+# =====================================================================
+
 def load_file_index_documents(base_folder: str) -> list[Document]:
-    """
-    Load competition JSON files from Q10 and K10 folders,
-    adding contextual metadata for each document.
-    """
+    """Load competition JSON files from Q10 and K10 folders."""
     docs = []
     base_root = Path(get_settings().index_files_root_path or base_folder).resolve()
 
@@ -71,7 +76,7 @@ def load_file_index_documents(base_folder: str) -> list[Document]:
             with open(full_path, "r", encoding="utf-8") as fp:
                 content = fp.read()
 
-            snippet = content[:2000]  # preview for embedding context
+            snippet = content[:2000]
             meta = extract_file_metadata(full_path)
             meta["filename"] = f
             meta["path"] = rel_path
@@ -94,12 +99,25 @@ def load_file_index_documents(base_folder: str) -> list[Document]:
     return docs
 
 
-def build_vectorstore_competition_indexer(client_id: str):
-    """Build vectorstore to locate competition files efficiently by semantic or metadata similarity."""
-    repo_root = Path(__file__).resolve().parents[1]
+# =====================================================================
+# MAIN BUILDER
+# =====================================================================
 
-    # 🔧 Traverse both Q10 and K10 competition folders automatically
-    base_docs_path = repo_root / "data" / "documents" / client_id
+def build_vectorstore_competition_indexer():
+    """
+    Build FAISS vectorstore for competition summaries.
+    ✅ Input:
+        data/documents/<bot_profile>/Q10_competition_summary_report
+        data/documents/<bot_profile>/K10_competition_summary_report
+    ✅ Output:
+        BOT_PROFILE_ROOT_PATH/<bot_profile>
+    """
+    settings = get_settings()
+    client_id = settings.bot_profile
+    docs_root = Path(settings.index_files_root_path).expanduser().resolve()
+    bot_root_path = Path(settings.bot_profile_root_path).expanduser().resolve()
+
+    base_docs_path = docs_root / client_id
     all_docs = []
 
     for subfolder in ["Q10_competition_summary_report", "K10_competition_summary_report"]:
@@ -117,13 +135,20 @@ def build_vectorstore_competition_indexer(client_id: str):
 
     split_docs = _split_docs(all_docs)
     embeddings = OpenAIEmbeddings()
-    vect_path = repo_root / "vectorstores" / f"{client_id}"
+
+    # ✅ Save FAISS in BOT_PROFILE_ROOT_PATH/<client_id>
+    vect_path = bot_root_path / client_id
     vect_path.mkdir(parents=True, exist_ok=True)
+
     vectordb = FAISS.from_documents(split_docs, embeddings)
     vectordb.save_local(str(vect_path))
+
     print(f"✅ Vectorstore saved to: {vect_path}")
 
 
+# =====================================================================
+# ENTRY POINT
+# =====================================================================
+
 if __name__ == "__main__":
-    client_id = get_settings().bot_profile
-    build_vectorstore_competition_indexer(client_id)
+    build_vectorstore_competition_indexer()
