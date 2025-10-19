@@ -20,8 +20,6 @@ class FileContentExtractor:
         try:
             base_root = (
                 Path(get_settings().index_files_root_path)
-                / "data"
-                / "documents"
                 / get_settings().bot_profile
             )
             full_path = base_root / relative_path

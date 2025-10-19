@@ -12,6 +12,10 @@ from common.config.settings import get_settings
 load_dotenv()
 
 
+# =====================================================================
+# HELPERS
+# =====================================================================
+
 def _clean_text(text: str) -> str:
     """Clean invisible chars and normalize spacing."""
     return " ".join(text.replace("\u200b", "").split())
@@ -53,7 +57,12 @@ def extract_file_metadata(path: str) -> dict:
     return meta
 
 
+# =====================================================================
+# LOAD FILES
+# =====================================================================
+
 def load_file_index_documents(base_folder: str) -> list[Document]:
+    """Load JSON files recursively and create semantic document entries."""
     docs = []
     base_root = Path(get_settings().index_files_root_path or base_folder).resolve()
 
@@ -90,13 +99,25 @@ def load_file_index_documents(base_folder: str) -> list[Document]:
     return docs
 
 
+# =====================================================================
+# MAIN BUILDER
+# =====================================================================
 
-def build_vectorstore_file_indexer(client_id: str):
-    """Build vectorstore to locate files efficiently by semantic or metadata similarity."""
-    repo_root = Path(__file__).resolve().parents[1]
+def build_vectorstore_file_indexer():
+    """
+    Build FAISS vectorstore for semantic file retrieval.
+    ✅ Input:
+        data/documents/<bot_profile>/Q10_sentiment_summary_report
+        data/documents/<bot_profile>/K10_sentiment_summary_report
+    ✅ Output:
+        BOT_PROFILE_ROOT_PATH/<bot_profile>
+    """
+    settings = get_settings()
+    client_id = settings.bot_profile  # 👈 tomado dinámicamente
+    docs_root = Path(settings.index_files_root_path).expanduser().resolve()
+    bot_root_path = Path(settings.bot_profile_root_path).expanduser().resolve()
 
-    # 🔧 Ajuste: recorrer ambas carpetas Q10 y K10 automáticamente
-    base_docs_path = repo_root / "data" / "documents" / client_id
+    base_docs_path = docs_root / client_id
     all_docs = []
 
     for subfolder in ["Q10_sentiment_summary_report", "K10_sentiment_summary_report"]:
@@ -114,15 +135,20 @@ def build_vectorstore_file_indexer(client_id: str):
 
     split_docs = _split_docs(all_docs)
     embeddings = OpenAIEmbeddings()
-    vect_path = repo_root / "vectorstores" / f"{client_id}"
+
+    # ✅ Save FAISS in BOT_PROFILE_ROOT_PATH/<client_id>
+    vect_path = bot_root_path / client_id
     vect_path.mkdir(parents=True, exist_ok=True)
+
     vectordb = FAISS.from_documents(split_docs, embeddings)
     vectordb.save_local(str(vect_path))
+
     print(f"✅ Vectorstore saved to: {vect_path}")
 
 
-
+# =====================================================================
+# ENTRY POINT
+# =====================================================================
 
 if __name__ == "__main__":
-    client_id = get_settings().bot_profile
-    build_vectorstore_file_indexer(client_id)
+    build_vectorstore_file_indexer()
