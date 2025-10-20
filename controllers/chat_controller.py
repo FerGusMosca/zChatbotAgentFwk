@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 import time
-
+from pathlib import Path
 from common.config.settings import get_settings
 from common.util.app_logger import AppLogger
 from common.util.builder.bot_engine_loader import load_hybrid_bot
@@ -35,12 +35,22 @@ async def ask_question(request: Request):
         if not question:
             raise HTTPException(status_code=400, detail="Missing 'question' in request body")
 
-        client_id = get_settings().bot_profile
+        # 🧩 Load bot profile & root path
+        settings = get_settings()
+        bot_profile = settings.bot_profile
+        bot_root_path = settings.bot_profile_root_path
+
+        # 🧠 Build full path for the client_id
+
+        client_id = str(Path(bot_root_path) / bot_profile)
+
+        # 🔹 Load bot directly from full path
         hybrid_bot = load_hybrid_bot(client_id)
         answer = hybrid_bot.handle(question)
 
         latency_ms = int((time.time() - start) * 1000)
 
+        # 📊 Log metrics
         try:
             _log_chat_metrics(question, latency_ms, hybrid_bot)
         except Exception as log_ex:
@@ -53,3 +63,5 @@ async def ask_question(request: Request):
     except Exception as e:
         logger.error("chat_error", extra={"error": str(e)})
         return JSONResponse(status_code=500, content={"error": "Internal error"})
+
+

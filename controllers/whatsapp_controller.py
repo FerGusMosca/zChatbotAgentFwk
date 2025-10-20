@@ -1,5 +1,8 @@
+from anyio import Path
 from fastapi import APIRouter, Request
 from starlette.responses import JSONResponse
+
+from common.config.settings import get_settings
 from common.integrations.twilio_adapter import TwilioAdapter
 from urllib.parse import parse_qs
 from common.util.app_logger import AppLogger
@@ -9,7 +12,11 @@ router = APIRouter()
 logger = AppLogger.get_logger(__name__)
 
 # Load a single instance of the HybridBot (reused for each request)
-bot = load_hybrid_bot()
+settings = get_settings()
+bot_profile = settings.bot_profile
+bot_root_path = settings.bot_profile_root_path
+client_id = str(Path(bot_root_path) / bot_profile)
+bot = load_hybrid_bot(client_id)
 
 @router.post("/webhook")
 async def whatsapp_webhook(request: Request):

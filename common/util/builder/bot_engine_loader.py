@@ -5,97 +5,20 @@ from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from typing import Dict, Tuple, Optional
-from common.config.settings import settings, get_settings
+from common.config.settings import get_settings
 from logic.pipeline.hybrid_bot import HybridBot
 from logic.pipeline.prompt_based_chatbot import PromptBasedChatbot
 from common.util.loader.prompt_loader import PromptLoader
 from pathlib import Path
 import importlib
+
 load_dotenv()
 
 _HYBRID_BOT_CACHE: Dict[Tuple[str, str], HybridBot] = {}  # (client_id, session_id) -> bot
-def load_bot_for_client(client_name: str):
-    """
-    Loads a chatbot that uses only prompt-based behavior.
-
-    This bot:
-    - Does NOT use FAISS or any vector database.
-    - Does NOT answer content-specific questions.
-    - Only responds using predefined prompts (e.g., tone, role, structure).
-
-    Use case:
-    - Useful for stylistic assistants or copilots that don't need knowledge retrieval.
-    """
-    prompt_name = get_settings().chat_prompt
-    print(f"Loading prompt name {prompt_name}...")
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    loader = PromptLoader(os.path.join(base_dir, "../prompts"))
-    return PromptBasedChatbot(loader, prompt_name=prompt_name)
-
-
-def load_qa_chain_for_client(client_id: str = None):
-    """
-    Loads a simple QA bot using only FAISS and memory (RAG-style).
-
-    This bot:
-    - Uses a trained FAISS vector store to retrieve knowledge.
-    - Uses LangChain memory to retain conversational context.
-    - Does NOT use prompts for style.
-    - Does NOT fallback to general OpenAI completion when no match is found.
-
-    Use case:
-    - Good for pure knowledge-retrieval chatbots without behavioral customization.
-    """
-    client_id = client_id or settings.bot_profile
-    print(f"🤖 Loading QA bot for client: {client_id}")
-
-    vectorstore_path = f"vectorstores/{client_id}"
-    vectordb = FAISS.load_local(
-        vectorstore_path,
-        OpenAIEmbeddings(),
-        allow_dangerous_deserialization=True
-    )
-
-    llm = ChatOpenAI(temperature=0)
-    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-
-    qa_chain = ConversationalRetrievalChain.from_llm(
-        llm=llm,
-        retriever=vectordb.as_retriever(),
-        memory=memory
-    )
-
-    return qa_chain
-
-def _load_bot_logic(vectordb, prompt_bot, model_name, temperature, top_k):
-    """
-    Dynamically load and instantiate the bot logic defined in .env (BOT_LOGIC).
-    Expected format: 'module.path.to.file,ClassName'
-    Example: BOT_LOGIC=logic.pipeline.hybrid_bot,HybridBot
-    """
-    bot_logic = get_settings().bot_logic
-    if not bot_logic:
-        raise ValueError("❌ BOT_LOGIC not defined in .env or settings.")
-
-    module_path, class_name = bot_logic.split(",")
-    module = importlib.import_module(module_path)
-    cls = getattr(module, class_name)
-
-    print(f"✅ Loaded bot logic: {class_name} from {module_path}")
-
-    # instantiate dynamically
-    return cls(
-        vectordb=vectordb,
-        prompt_bot=prompt_bot,
-        retrieval_score_threshold=get_settings().retrieval_score_threshold,
-        model_name=model_name,
-        temperature=temperature,
-        top_k=top_k,
-    )
 
 
 def load_hybrid_bot(
-    client_id: Optional[str] = None,
+    client_id: str,
     *,
     session_id: Optional[str] = None,
     cache_scope: str = "session",
@@ -105,79 +28,76 @@ def load_hybrid_bot(
     """
     Load or reuse a HybridBot instance.
 
-    cache_scope:
-        "session" (default) → use (client_id, session_id) as cache key.
-        "client"            → use only client_id as cache key.
-    force_reload:
-        True → force rebuild and replace the instance in cache.
+    ✅ client_id must be the FULL PATH to the vectorstore directory.
+    ✅ Prompts always loaded from repo's /prompts directory.
     """
-    client_id = client_id or settings.bot_profile
-    print(f"🤖 Loading hybrid bot for client: {client_id}")
+
+    if not client_id:
+        raise ValueError("❌ 'client_id' must be provided explicitly — no fallback allowed.")
+
+    print(f"🤖 Loading hybrid bot strictly for client_id (full path): {client_id}")
 
     # --- Cache key resolution ---
     if cache_scope == "session":
-        if not session_id:
-            # If no session_id provided, fall back to client-level cache
-            cache_key = (client_id, "__DEFAULT__")
-        else:
-            cache_key = (client_id, session_id)
+        cache_key = (client_id, session_id or "__DEFAULT__")
     else:
-        # Client-level cache only (all sessions share the same bot)
         cache_key = (client_id, "__CLIENT__")
 
-    # --- Reuse existing bot if found ---
     if not force_reload and cache_key in _HYBRID_BOT_CACHE:
         return _HYBRID_BOT_CACHE[cache_key]
 
-    # --- Normal (re)construction path ---
-    # Walk upwards to find repo root (must contain /vectorstores and /prompts)
-    current = Path(__file__).resolve()
-    for parent in [current, *current.parents]:
-        if (parent / "vectorstores").exists() and (parent / "prompts").exists():
-            repo_root = parent
-            break
-    else:
-        # Fallback: one level up from this file (legacy behavior)
-        repo_root = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    # --- Load FAISS index using the full path directly ---
+    vectorstore_path = Path(client_id).expanduser().resolve()
 
-    # --- Load FAISS index for this client ---
-    vectorstore_path = repo_root / "vectorstores" / client_id
+    if not vectorstore_path.exists():
+        raise FileNotFoundError(f"❌ Vectorstore not found at: {vectorstore_path}")
+
     emb = OpenAIEmbeddings()
     vectordb = FAISS.load_local(
         str(vectorstore_path),
         emb,
         allow_dangerous_deserialization=True
     )
+
     try:
         ntotal = getattr(getattr(vectordb, "index", None), "ntotal", None)
         print(f"[VDB] path={vectorstore_path} | ntotal={ntotal}")
     except Exception:
         pass
 
-    # --- Load prompt (prompt name comes from env or defaults) ---
+    # --- Load prompt ---
+    repo_root = Path(__file__).resolve().parents[3]
     prompts_path = repo_root / "prompts"
-    prompt_name = get_settings().chat_prompt
-    print(f"Loading prompt name {prompt_name}...")
+    prompt_name = prompt_name or get_settings().chat_prompt
+    print(f"🧠 Loading prompt '{prompt_name}' from {prompts_path}")
     prompt_loader = PromptLoader(str(prompts_path), prompt_name=prompt_name)
     prompt_bot = PromptBasedChatbot(prompt_loader, prompt_name=prompt_name)
 
-    # --- Model configuration (from env or defaults) ---
+    # --- Model configuration ---
     model_name = os.getenv("OPENAI_MODEL_NAME", "gpt-4o")
     temperature = float(os.getenv("OPENAI_TEMPERATURE", "0.0"))
     top_k = int(os.getenv("TOP_K", "4"))
 
+    # --- Dynamic bot logic instantiation ---
+    bot_logic = get_settings().bot_logic
+    if not bot_logic:
+        raise ValueError("❌ BOT_LOGIC not defined in .env or settings.")
+    module_path, class_name = bot_logic.split(",")
+    module = importlib.import_module(module_path)
+    cls = getattr(module, class_name)
+    print(f"✅ Loaded bot logic: {class_name} from {module_path}")
 
-
-    bot = _load_bot_logic(
+    bot = cls(
         vectordb=vectordb,
         prompt_bot=prompt_bot,
+        retrieval_score_threshold=get_settings().retrieval_score_threshold,
         model_name=model_name,
         temperature=temperature,
         top_k=top_k,
     )
 
-    # --- Save in cache for reuse ---
+    # --- Cache instance ---
     _HYBRID_BOT_CACHE[cache_key] = bot
+    print(f"✅ Hybrid bot ready for {client_id} (cached under {cache_scope})")
+
     return bot
-
-
