@@ -102,6 +102,10 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("INDEX_FILES_ROOT_PATH", "INDEX_FILES_ROOT_PATH"))
 
+    port: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("PORT", "PORT"))
+
     #
 
 @lru_cache

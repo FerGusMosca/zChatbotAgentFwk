@@ -126,7 +126,7 @@ if __name__ == "__main__":
         EnvDeployReader.get("SELENIUM_HEADLESS", "<none>")
     )
     # Use 0.0.0.0 if you want to test from other devices in your LAN
-    port= int( EnvDeployReader.get("PORT"))
+    port= int( get_settings().port)
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
 
 
