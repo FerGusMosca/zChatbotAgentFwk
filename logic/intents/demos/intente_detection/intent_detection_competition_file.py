@@ -83,7 +83,8 @@ class IntentDetectionCompetitionFile:
         folder = (
             self.K10_base_folder if report_type in ("K10", "10K") else self.Q10_base_folder
         )
-        path = f"{folder}\\{year}\\{symbol}_{year}_{period}_competition.json"
+        from pathlib import Path
+        path = str(Path(folder) / year / f"{symbol}_{year}_{period}_competition.json")
 
         if self.logger:
             self.logger.info(f"[IntentDetection] ✅ Path resolved: {path}")
