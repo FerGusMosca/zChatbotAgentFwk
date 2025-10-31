@@ -6,7 +6,7 @@ from pathlib import Path
 from common.config.settings import get_settings
 from common.util.app_logger import AppLogger
 from common.util.builder.bot_engine_loader import load_hybrid_bot
-
+from fastapi import WebSocket, WebSocketDisconnect
 router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
 logger = AppLogger.get_logger(__name__)
 
@@ -23,6 +23,18 @@ def _log_chat_metrics(question: str, latency_ms: int, bot) -> None:
         "len_q": len(question or ""),
     }
     logger.info("chat_metrics %s", json.dumps(payload, ensure_ascii=False))
+
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            question = await websocket.receive_text()
+            hybrid_bot = load_hybrid_bot(str(Path(get_settings().bot_profile_root_path) / get_settings().bot_profile))
+            answer = hybrid_bot.handle(question)
+            await websocket.send_text(answer)
+    except WebSocketDisconnect:
+        print("🔌 Client disconnected")
 
 @router.post("/ask")
 async def ask_question(request: Request):
