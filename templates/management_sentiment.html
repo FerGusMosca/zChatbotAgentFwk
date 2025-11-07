@@ -1,11 +1,192 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
 <meta charset="UTF-8">
-<link rel="stylesheet" href="/static/css/main.css">
 <title>Management Sentiment</title>
+<link rel="stylesheet" href="/static/css/main.css">
+<style>
+  body {
+    background-color: #0e1117;
+    color: #e0e0e0;
+    font-family: "Inter", sans-serif;
+  }
+
+  .content {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 60px 20px;
+    min-height: auto;
+  }
+
+  .panel {
+    background-color: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 20px;
+    padding: 50px 60px;
+    width: 1200px;
+    max-width: 95%;
+    box-shadow: 0 15px 40px rgba(0,0,0,0.7);
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  h3 {
+    color: #58a6ff;
+    margin-bottom: 35px;
+    font-size: 28px;
+    font-weight: 600;
+  }
+
+  form {
+    display: grid;
+    grid-template-columns: 3fr 1.2fr 1fr 1.2fr 160px;
+    grid-template-areas: "symbol report quarter year button";
+    gap: 20px;
+    align-items: center;
+    margin-bottom: 40px;
+  }
+
+  input[name="symbol"] { grid-area: symbol; }
+  select[name="report"] { grid-area: report; }
+  select[name="quarter"] { grid-area: quarter; }
+  input[name="year"] { grid-area: year; }
+  button { grid-area: button; justify-self: end; }
+
+  input, select {
+    background-color: #21262d;
+    border: none;
+    border-radius: 10px;
+    color: #e6edf3;
+    padding: 16px 20px;
+    font-size: 15px;
+    transition: all 0.2s;
+  }
+
+  input:focus, select:focus {
+    outline: 2px solid #58a6ff;
+    outline-offset: -2px;
+  }
+
+  input::placeholder {
+    color: #8b949e;
+  }
+
+  button {
+    background-color: #2ea043;
+    color: white;
+    font-weight: bold;
+    padding: 16px 32px;
+    border-radius: 10px;
+    min-width: 140px;
+  }
+
+  button:hover {
+    background-color: #3fb950;
+    transform: translateY(-1px);
+  }
+
+  button.loading::after {
+    content: " 🔄";
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* TABLA DE RESULTADOS */
+  #result table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 12px;
+    margin-top: 20px;
+    background: transparent;
+  }
+
+  #result th {
+    background: transparent !important;
+    color: #58a6ff;
+    font-weight: 600;
+    text-align: left;
+    padding: 0 0 8px 0;
+    font-size: 16px;
+    border-bottom: 1px solid #30363d;
+  }
+
+  #result td {
+    background-color: #0d1117;
+    padding: 20px 24px;
+    vertical-align: top;
+    border-radius: 10px;
+  }
+
+  /* Confianza - Grande */
+  #result tr:nth-child(1) th { padding-bottom: 12px; }
+  #result tr:nth-child(1) td {
+    font-size: 24px;
+    font-weight: bold;
+    color: #79c0ff;
+  }
+
+  /* Fuente - Pequeña */
+  #result tr:nth-child(2) th {
+    font-size: 13px;
+    color: #8b949e;
+    padding-bottom: 4px;
+  }
+
+  #result tr:nth-child(2) td {
+    font-size: 13px;
+    color: #c9d1d9;
+    text-align: left;
+  }
+
+  /* Temas Clave - AHORA MÁS PEQUEÑO */
+  #result tr:nth-child(3) th {
+    padding-top: 20px;
+  }
+
+  #result tr:nth-child(3) td ul {
+    margin: 0;
+    padding-left: 20px;
+    text-align: left;
+  }
+
+  #result tr:nth-child(3) td li {
+    margin-bottom: 7px;           /* menos espacio entre ítems */
+    line-height: 1.35;            /* más compacto */
+    font-size: 13.5px !important; /* <<<< TEXTO MÁS PEQUEÑO */
+    color: #e6edf3;
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 1000px) {
+    .panel {
+      padding: 40px 30px;
+      width: 100%;
+    }
+    form {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "symbol"
+        "report"
+        "quarter"
+        "year"
+        "button";
+      gap: 18px;
+    }
+    button { justify-self: stretch; }
+    #result td { padding: 16px; }
+    #result tr:nth-child(3) td li {
+      font-size: 13px !important; /* aún más chico en móvil */
+    }
+  }
+</style>
 </head>
 <body>
+
 <nav class="navbar">
   <ul>
     <li><a href="/">Home</a></li>
@@ -16,17 +197,62 @@
 <div class="content">
   <div class="panel">
     <h3>Management Sentiment</h3>
-    <form action="/management_sentiment/analyze" method="post">
-      <input name="symbol" type="text" placeholder="Symbol (e.g. AAPL)">
-      <select name="report">
+    <form id="sentimentForm" action="/management_sentiment/analyze" method="post">
+      <input name="symbol" type="text" placeholder="Símbolo (e.g. MSFT)" required>
+      <select name="report" id="report">
         <option value="K10">K10</option>
         <option value="Q10">Q10</option>
       </select>
-      <input name="year" type="number" placeholder="Year (e.g. 2024)">
-      <button type="submit">Search</button>
+      <select name="quarter" id="quarter">
+        <option value="Q1">Q1</option>
+        <option value="Q2">Q2</option>
+        <option value="Q3">Q3</option>
+        <option value="Q4">Q4</option>
+      </select>
+      <input name="year" type="number" placeholder="Año (e.g. 2024)" min="1900" max="2030" required>
+      <button type="submit">Buscar</button>
     </form>
-
+    <div id="result"></div>
   </div>
 </div>
+
+<script>
+  const reportSel = document.getElementById('report');
+  const quarterSel = document.getElementById('quarter');
+
+  function updateLayout() {
+    const isQ10 = reportSel.value === 'Q10';
+    quarterSel.style.display = isQ10 ? 'block' : 'none';
+    quarterSel.style.gridArea = 'quarter';
+  }
+
+  reportSel.addEventListener('change', updateLayout);
+  window.addEventListener('resize', updateLayout);
+  updateLayout();
+
+  const form = document.getElementById('sentimentForm');
+  const btn = form.querySelector('button');
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    btn.classList.add('loading');
+    try {
+      const res = await fetch(form.action, { method: 'POST', body: new FormData(form) });
+      const data = await res.json();
+      const parsed = JSON.parse(data.bot_response);
+
+      document.getElementById('result').innerHTML = `
+        <table>
+          <tr><th>Confianza</th><td>${parsed.Confidence || 'N/D'}</td></tr>
+          <tr><th>Fuente</th><td>${parsed.Source || 'N/D'}</td></tr>
+          <tr><th>Temas Clave</th><td><ul>${(parsed.KeyTopics || []).map(t => `<li>${t}</li>`).join('') || 'N/D'}</ul></td></tr>
+        </table>`;
+    } catch (err) {
+      document.getElementById('result').innerHTML = `<p style="color:#f85149; font-weight:bold;">Error: ${err.message}</p>`;
+    } finally {
+      btn.classList.remove('loading');
+    }
+  });
+</script>
 </body>
 </html>
