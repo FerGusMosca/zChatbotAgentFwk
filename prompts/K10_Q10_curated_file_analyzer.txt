@@ -35,5 +35,11 @@ while risk mentions are limited.
 📘 Remember:
 - Treat everything after “Contenido del archivo:” as the only valid data source.
 - Never assume, never extrapolate from outside the file.
-- Format the answer strictly as a JSON with fields: Confidence, Source, KeyTopics.
 - Always respond in Spanish, maintaining a clear, factual, and professional tone.
+
+⚠️ Output rule (strict):
+Respond only with a valid JSON object, no markdown, no explanations.
+The JSON must have exactly these fields:
+{"Confidence": "...", "Source": "...", "KeyTopics": ["...", "...", "..."]}
+Each field must be written in Spanish and properly quoted.
+Do not include any extra text before or after the JSON.
