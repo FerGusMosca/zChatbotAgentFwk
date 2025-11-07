@@ -1,0 +1,193 @@
+/* ==================================================================
+   MAIN.CSS - Complete GitHub-Dark Theme for zzLotteryTicket UI
+   Updated: November 07, 2025
+   Fixes:
+     • Sidebar buttons no longer break or look ugly (auto-width + word-wrap)
+     • Form controls have generous spacing and padding
+     • Fully responsive on mobile, tablet and desktop
+   ================================================================== */
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: #0D1117;        /* GitHub dark background */
+  color: #E0E0E0;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ====================== NAVBAR (top menu) ====================== */
+.navbar {
+  display: flex;
+  justify-content: center;
+  background: #0D1117;
+  padding: 15px 0;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+}
+.navbar ul {
+  display: flex;
+  list-style: none;
+  gap: 30px;
+  margin: 0;
+  padding: 0;
+}
+.navbar a {
+  color: #58A6FF;
+  text-decoration: none;
+  font-weight: bold;
+}
+.navbar a:hover {
+  color: #1F6FEB;
+}
+
+/* ====================== MAIN LAYOUT ====================== */
+.main-container {
+  display: flex;
+  flex: 1;
+  height: 100vh;
+}
+
+/* ====================== SIDEBAR (left menu) ====================== */
+.sidebar {
+  /* No fixed width → auto-adapts to longest text */
+  min-width: 280px;           /* Decent minimum width */
+  max-width: 380px;           /* Prevents it from becoming too wide on large screens */
+  background: #161B22;
+  padding: 30px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;       /* Makes children fill the width */
+  border-right: 1px solid #30363D;
+  box-sizing: border-box;
+}
+
+.sidebar h2 {
+  color: #58A6FF;
+  font-size: 20px;
+  margin-bottom: 30px;
+  border-bottom: 1px solid #30363D;
+  padding-bottom: 12px;
+  text-align: center;
+}
+
+/* Menu list */
+.menu {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.menu li {
+  margin: 16px 0;
+  background: #21262D;
+  border-radius: 10px;
+  overflow: hidden;                 /* Prevents text from leaking */
+  transition: all 0.25s ease;
+}
+
+.menu li:hover {
+  background: #30363D;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.menu a {
+  display: block;
+  padding: 16px 20px;               /* Generous internal space */
+  text-decoration: none;
+  color: #E0E0E0;
+  font-weight: 600;
+  font-size: 15px;
+  word-wrap: break-word;            /* Breaks long words if necessary */
+  hyphens: auto;
+}
+
+/* ====================== CONTENT AREA ====================== */
+.content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+  font-size: 26px;
+  font-weight: 600;
+  color: #C9D1D9;
+  margin: 0 60px;
+}
+
+/* ====================== PANEL (form container) ====================== */
+.panel {
+  background: #161B22;
+  padding: 30px 40px;
+  border-radius: 10px;
+  box-shadow: 0 0 15px rgba(0,0,0,0.7);
+  width: 800px;
+  max-width: 95%;
+  text-align: center;
+  margin-top: 60px;
+}
+
+.panel h3 {
+  color: #58A6FF;
+  font-size: 24px;
+  margin-bottom: 25px;
+}
+
+/* ====================== FORM (Management Sentiment) ====================== */
+form {
+  display: grid;
+  grid-template-columns: 2.5fr 1fr 1fr 120px;   /* Symbol gets more space */
+  gap: 30px;                                    /* Big margin between controls */
+  align-items: center;
+  max-width: 100%;
+}
+
+input, select {
+  width: 100%;
+  padding: 14px 18px;               /* Comfortable internal padding */
+  border: none;
+  border-radius: 6px;
+  background: #21262D;
+  color: #E0E0E0;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+input::placeholder {
+  color: #8B949E;
+}
+
+button {
+  padding: 14px 20px;
+  background: #2EA043;              /* GitHub green */
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #3FB950;
+}
+
+/* ====================== RESPONSIVE TWEAKS ====================== */
+@media (max-width: 900px) {
+  .main-container {
+    flex-direction: column;
+  }
+  .sidebar {
+    min-width: auto;
+    max-width: none;
+    padding: 20px;
+    border-right: none;
+    border-bottom: 1px solid #30363D;
+  }
+  form {
+    grid-template-columns: 1fr;
+  }
+  .panel {
+    width: 90%;
+    padding: 20px;
+  }
+}
