@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import httpx
 from common.config.settings import settings
-
+import websockets
 class ManagementSentimentController:
     def __init__(self):
         self.router = APIRouter(prefix="/management_sentiment")
@@ -18,6 +18,8 @@ class ManagementSentimentController:
 
     async def analyze(self, symbol: str = Form(...), report: str = Form(...), year: int = Form(...)):
         prompt = f"Analizá el Q3 {year} del {report} de {symbol}"
-        async with httpx.AsyncClient() as client:
-            r = await client.post(settings.management_sentiment_url, json={"prompt": prompt})
-        return JSONResponse({"message": "Request sent", "bot_response": r.text})
+        uri = settings.management_sentiment_url
+        async with websockets.connect(uri) as ws:
+            await ws.send(prompt)
+            response = await ws.recv()
+        return JSONResponse({"message": "ok", "bot_response": response})
