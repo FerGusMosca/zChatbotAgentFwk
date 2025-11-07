@@ -9,7 +9,7 @@ class Settings(BaseSettings):
 
     management_sentiment_url: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("DEPLOY_FILE", "MANAGEMENT_SENTIMENT_URL"))
+        validation_alias=AliasChoices("MANAGEMENT_SENTIMENT_URL", "MANAGEMENT_SENTIMENT_URL"))
 
 
     deploy_file: str | None = Field(

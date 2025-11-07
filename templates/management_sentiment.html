@@ -16,15 +16,16 @@
 <div class="content">
   <div class="panel">
     <h3>Management Sentiment</h3>
-    <form>
-      <input type="text" placeholder="Symbol (e.g. AAPL)">
-      <select>
+    <form action="/management_sentiment/analyze" method="post">
+      <input name="symbol" type="text" placeholder="Symbol (e.g. AAPL)">
+      <select name="report">
         <option value="K10">K10</option>
         <option value="Q10">Q10</option>
       </select>
-      <input type="number" placeholder="Year (e.g. 2024)">
+      <input name="year" type="number" placeholder="Year (e.g. 2024)">
       <button type="submit">Search</button>
     </form>
+
   </div>
 </div>
 </body>

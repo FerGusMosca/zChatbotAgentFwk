@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Request, Form
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
+import httpx
+from common.config.settings import settings
 
 class ManagementSentimentController:
     def __init__(self):
@@ -9,6 +11,13 @@ class ManagementSentimentController:
         templates_path = Path(__file__).parent.parent / "templates"
         self.templates = Jinja2Templates(directory=templates_path)
         self.router.get("/", response_class=HTMLResponse)(self.main_page)
+        self.router.post("/analyze")(self.analyze)
 
     async def main_page(self, request: Request):
         return self.templates.TemplateResponse("management_sentiment.html", {"request": request})
+
+    async def analyze(self, symbol: str = Form(...), report: str = Form(...), year: int = Form(...)):
+        prompt = f"Analizá el Q3 {year} del {report} de {symbol}"
+        async with httpx.AsyncClient() as client:
+            r = await client.post(settings.management_sentiment_url, json={"prompt": prompt})
+        return JSONResponse({"message": "Request sent", "bot_response": r.text})
