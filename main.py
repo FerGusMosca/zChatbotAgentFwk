@@ -57,6 +57,7 @@ def _load_webhooks(app):
         cls(app)
 
 app = FastAPI(title="zChatbotAgentFwk")
+app.include_router(chat_controller.router)
 _load_webhooks(app)
 
 # Templates & static use absolute paths to avoid chdir side effects
