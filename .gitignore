@@ -1,6 +1,6 @@
 # venv / env
 venv/
-.env
+config/depoy_config/zz_lottery_ticket/.env
 *.env
 .env_*
 .env.*
