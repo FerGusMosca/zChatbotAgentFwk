@@ -25,4 +25,4 @@ jobs:
         context: .
         file: ./Dockerfile   # O ./Dockerfile.lottery si lo separás
         push: true
-        tags: alienzimzum/zzchatbot-lottery:latest
+        tags: alienzimzum/zzchatbot-lottery-ui:latest
