@@ -3,7 +3,7 @@ name: Build & Push Docker Image (Lottery RAG)
 on:
   push:
     branches:
-      - zzLotteryTicket
+      - zzLotteryTicketUI
 
 jobs:
   build:
