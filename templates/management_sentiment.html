@@ -18,7 +18,10 @@
 <div class="content">
   <div class="panel">
     <h3>Management Sentiment</h3>
-    <form id="sentimentForm" action="/management_sentiment/analyze" method="post">
+    <form id="sentimentForm"
+      action="/management_sentiment/analyze"
+      method="POST"
+      novalidate>
       <input name="symbol" type="text" placeholder="Symbol (e.g. MSFT)" required>
       <select name="report" id="report">
         <option value="K10">K10</option>
