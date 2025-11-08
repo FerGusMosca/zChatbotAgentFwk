@@ -1,8 +1,10 @@
-// static/js/sentiment.js — Management Sentiment logic (FULL FILE)
-
+// static/js/sentiment.js — Management Sentiment logic (FULL FILE, UPDATED FORMAT)
 /*
-  Handles the Management Sentiment search form, validation,
-  and rendering of the bot’s JSON response.
+  Handles the Management Sentiment form:
+  - Validates inputs
+  - Sends POST request
+  - Parses the bot’s JSON (new format with 6 fields)
+  - Renders clean HTML blocks for each section
 */
 
 const reportSel = document.getElementById('report');
@@ -12,7 +14,7 @@ const btn = form.querySelector('button');
 const errorMsg = document.getElementById('errorMsg');
 const resultDiv = document.getElementById('result');
 
-/* Show or hide the "Quarter" field based on report type */
+/* Show or hide quarter field depending on report type */
 function updateLayout() {
   const isQ10 = reportSel.value === 'Q10';
   quarterSel.style.display = isQ10 ? 'block' : 'none';
@@ -22,19 +24,14 @@ reportSel.addEventListener('change', updateLayout);
 window.addEventListener('resize', updateLayout);
 updateLayout();
 
-/* Form submit handler */
+/* --- Submit handler --- */
 form.addEventListener('submit', async e => {
   e.preventDefault();
-
-  // Clear old messages
   errorMsg.classList.remove('show');
   errorMsg.textContent = '';
-
-  // Show temporary placeholder
   resultDiv.innerHTML =
-    '<div class="loading-placeholder" style="padding:14px;color:#9aa4b2">Loading...</div>';
+    '<div class="loading-placeholder" style="padding:14px;color:#9aa4b2">⏳ Loading...</div>';
 
-  // Basic validation
   const symbol = form.symbol.value.trim().toUpperCase();
   const year = form.year.value;
   const report = form.report.value;
@@ -47,10 +44,7 @@ form.addEventListener('submit', async e => {
     return;
   }
 
-  // Add loading state
   btn.classList.add('loading');
-
-  // Prepare FormData (remove quarter for K10)
   const formData = new FormData(form);
   if (report !== 'Q10') formData.delete('quarter');
 
@@ -73,33 +67,49 @@ form.addEventListener('submit', async e => {
     const data = await res.json();
     if (!data.bot_response) throw new Error('Missing bot_response field');
 
-    // Robust parsing (handles string or object)
+    // Parse safely
     let parsed;
     try {
       parsed = (typeof data.bot_response === 'string')
         ? JSON.parse(data.bot_response)
         : data.bot_response;
     } catch (e) {
-      throw new Error('Invalid JSON in bot_response: ' + e.message);
+      throw new Error('Invalid JSON format in bot_response: ' + e.message);
     }
 
-    // Render result
-    const confidence = parsed.Confidence || 'N/A';
-    const source = parsed.Source || 'N/A';
-    const topics = Array.isArray(parsed.KeyTopics)
-      ? parsed.KeyTopics.map(t => `<li>${t}</li>`).join('')
-      : '<li>No topics found</li>';
+    /* Render the structured result */
+    const conf = parsed.Confidence || 'N/A';
+    const tone = parsed.GeneralTone || 'N/A';
+    const risk = parsed.RiskFocus || 'N/A';
+    const positivos = Array.isArray(parsed.PositivosClaves)
+      ? parsed.PositivosClaves.map(t => `<li>${t}</li>`).join('')
+      : '<li>No positive points</li>';
+    const riesgos = Array.isArray(parsed.RiesgosPrincipales)
+      ? parsed.RiesgosPrincipales.map(t => `<li>${t}</li>`).join('')
+      : '<li>No risks listed</li>';
+    const futuro = parsed.PerspectivaFutura || 'N/A';
 
     resultDiv.innerHTML = `
-      <div class="confidence ${confidence.toLowerCase()}">
-        Confidence: <strong>${confidence}</strong>
+      <div class="confidence">
+        <strong>Confianza:</strong> ${conf}
       </div>
-      <div class="source">
-        Source: ${source}
+      <div class="general-tone">
+        <strong>Tono General:</strong> ${tone}
       </div>
-      <div class="key-topics">
-        <h3>Key Topics</h3>
-        <ul>${topics}</ul>
+      <div class="risk-focus">
+        <strong>Enfoque de Riesgo:</strong> ${risk}
+      </div>
+      <div class="positivos">
+        <h3>✅ Positivos Clave</h3>
+        <ul>${positivos}</ul>
+      </div>
+      <div class="riesgos">
+        <h3>⚠️ Riesgos Principales</h3>
+        <ul>${riesgos}</ul>
+      </div>
+      <div class="futuro">
+        <h3>📈 Perspectiva Futura</h3>
+        <p>${futuro}</p>
       </div>
     `;
   } catch (err) {
