@@ -7,17 +7,17 @@ from common.config.settings import settings
 from common.util.app_logger import AppLogger
 
 
-class ManagementSentimentController:
+class ManagementCompetitionController:
     def __init__(self):
-        self.router = APIRouter(prefix="/management_sentiment")
+        self.router = APIRouter(prefix="/management_competition")
         base_path = Path(__file__).parent.parent
         self.templates = Jinja2Templates(directory=base_path / "templates")
         self.questions_path = base_path / "static" / "questions"
-        self.logger = AppLogger.get_logger("ManagementSentimentController")
+        self.logger = AppLogger.get_logger("ManagementCompetitionController")
 
         @self.router.get("/", response_class=HTMLResponse)
         async def main_page(request: Request):
-            return self.templates.TemplateResponse("management_sentiment.html", {"request": request})
+            return self.templates.TemplateResponse("management_competition.html", {"request": request})
 
         @self.router.post("/analyze")
         async def analyze(
@@ -26,12 +26,12 @@ class ManagementSentimentController:
             year: int = Form(...),
             quarter: str = Form(None)
         ):
-            # 📄 Load template
-            question_file = self.questions_path / "management_sentiment_question.txt"
+            # 📄 Load question template
+            question_file = self.questions_path / "competition_question.txt"
             with open(question_file, "r", encoding="utf-8") as f:
                 template_text = f.read()
 
-            # 🔄 Fill variables
+            # 🔄 Replace placeholders
             prompt = template_text.format(
                 symbol=symbol,
                 report=report,
@@ -39,8 +39,8 @@ class ManagementSentimentController:
                 quarter=quarter or ""
             )
 
-            print(f"Invoking bot {settings.management_sentiment_url} w/ message: {prompt}")
-            uri = settings.management_sentiment_url
+            print(f"Invoking bot {settings.management_competition_url} w/ message: {prompt}")
+            uri = settings.management_competition_url
             async with websockets.connect(uri) as ws:
                 await ws.send(prompt)
                 response = await ws.recv()

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Management Competition</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/competition.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <ul>
+    <li><a href="/">Home</a></li>
+    <li><a href="/management_competition">Competition Analysis</a></li>
+  </ul>
+</nav>
+
+<div class="content">
+  <div class="panel">
+    <h3>Competition & Threat Analysis</h3>
+    <form id="competitionForm"
+      action="/management_competition/analyze"
+      method="POST"
+      novalidate>
+      <input name="symbol" type="text" placeholder="Symbol (e.g. GOOG)" required>
+      <select name="report" id="report">
+        <option value="K10">K10</option>
+        <option value="Q10">Q10</option>
+      </select>
+      <select name="quarter" id="quarter">
+        <option value="Q1">Q1</option>
+        <option value="Q2">Q2</option>
+        <option value="Q3">Q3</option>
+        <option value="Q4">Q4</option>
+      </select>
+      <input name="year" type="number" placeholder="Year (e.g. 2024)" min="1900" max="2030" required>
+      <button type="submit">
+        <span class="spinner"></span>
+        <span>Search</span>
+      </button>
+    </form>
+    <div class="error-msg" id="errorMsg"></div>
+    <div id="result"></div>
+  </div>
+</div>
+
+<script src="/static/js/competition.js"></script>
+</body>
+</html>

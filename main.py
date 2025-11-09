@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 import uvicorn
 
 from common.config.settings import get_settings
+from controllers.management_competition_controller import ManagementCompetitionController
 from controllers.management_sentiment_controller import ManagementSentimentController
 
 settings = get_settings()
@@ -19,6 +20,10 @@ async def main_page(request: Request):
 # ✅ Management Sentiment
 management_sentiment = ManagementSentimentController()
 app.include_router(management_sentiment.router)
+
+# ✅ Management Competition
+management_competition = ManagementCompetitionController()
+app.include_router(management_competition.router)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(settings.port))

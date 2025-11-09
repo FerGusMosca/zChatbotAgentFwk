@@ -12,6 +12,11 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("MANAGEMENT_SENTIMENT_URL", "MANAGEMENT_SENTIMENT_URL"))
 
 
+    management_competition_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MANAGEMENT_COMPETITION_URL", "MANAGEMENT_COMPETITION_URL"))
+
+
     deploy_file: str | None = Field(
         default=None,
         validation_alias=AliasChoices("DEPLOY_FILE", "DEPLOY_FILE"))
