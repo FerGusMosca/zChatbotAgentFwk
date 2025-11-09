@@ -6,6 +6,7 @@ import uvicorn
 
 from common.config.settings import get_settings
 from controllers.management_competition_controller import ManagementCompetitionController
+from controllers.management_news_indexed_controller import NewsIndexedController
 from controllers.management_sentiment_controller import ManagementSentimentController
 
 settings = get_settings()
@@ -24,6 +25,10 @@ app.include_router(management_sentiment.router)
 # ✅ Management Competition
 management_competition = ManagementCompetitionController()
 app.include_router(management_competition.router)
+
+# ✅ News Indexed
+news_indexed = NewsIndexedController()
+app.include_router(news_indexed.router)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(settings.port))

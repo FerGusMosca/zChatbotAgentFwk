@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>📰 News Summary (Indexed)</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/news_indexed.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <ul>
+    <li><a href="/">Home</a></li>
+    <li><a href="/management_sentiment">Management Sentiment</a></li>
+    <li><a href="/management_competition">Management Competition</a></li>
+    <li><a href="/management_news_indexed">News Summary (Indexed)</a></li>
+  </ul>
+</nav>
+
+<div class="content">
+  <div class="panel">
+    <h3>📰 News Summary (Indexed)</h3>
+    <form id="newsForm" action="/management_news_indexed/analyze" method="POST" novalidate>
+      <input name="symbol" type="text" placeholder="Símbolo (e.g. AAPL)" required>
+      <button type="submit">
+        <span class="spinner"></span>
+        <span>Search</span>
+      </button>
+    </form>
+    <div class="error-msg" id="errorMsg"></div>
+    <div id="result"></div>
+  </div>
+</div>
+
+<script src="/static/js/news_indexed.js"></script>
+</body>
+</html>
