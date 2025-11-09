@@ -1,1 +1,0 @@
-Analizá el {report} {quarter} {year} de {symbol}, identificando el tono general del management, los principales riesgos y las perspectivas futuras expresadas en el informe.

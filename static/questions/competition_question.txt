@@ -1,1 +1,0 @@
-Analizá el archivo de competencia del reporte {quarter} {year} del {report} de {symbol}, identificando los principales competidores, riesgos y amenazas.
