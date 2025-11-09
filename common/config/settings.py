@@ -16,6 +16,10 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("MANAGEMENT_COMPETITION_URL", "MANAGEMENT_COMPETITION_URL"))
 
+    sentiment_ranking_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SENTIMENT_RANKING_URL", "SENTIMENT_RANKING_URL"))
+
     news_indexed_url: str | None = Field(
         default=None,
         validation_alias=AliasChoices("NEWS_INDEXED_URL", "NEWS_INDEXED_URL"))

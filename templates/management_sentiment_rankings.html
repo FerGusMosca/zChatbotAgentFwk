@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Sentiment Rankings</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/sentiment_rankings.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <ul>
+    <li><a href="/">🏠 Home</a></li>
+    <li><a href="/management_sentiment_rankings" class="active">📊 Sentiment Rankings</a></li>
+  </ul>
+</nav>
+
+<div class="content">
+  <div class="panel">
+    <h3>📊 Sentiment Rankings (RAG Indexed)</h3>
+    <form id="rankingForm" action="/management_sentiment_rankings/analyze" method="POST" novalidate>
+      <textarea name="query" placeholder="Ejemplo: ¿Qué sectores muestran mayor optimismo en 2025?" required></textarea>
+      <button type="submit"><span>Search</span></button>
+    </form>
+    <div class="error-msg" id="errorMsg"></div>
+    <div id="result"></div>
+  </div>
+</div>
+
+<script src="/static/js/sentiment_rankings.js"></script>
+</body>
+</html>
