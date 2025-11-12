@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import websockets
-from common.config.settings import settings
+from common.config.settings import settings, get_settings
 from common.util.app_logger import AppLogger
 
 class ManagementSentimentRankingsController:
@@ -11,6 +11,7 @@ class ManagementSentimentRankingsController:
         self.router = APIRouter(prefix="/management_sentiment_rankings")
         templates_path = Path(__file__).parent.parent / "templates"
         self.templates = Jinja2Templates(directory=templates_path)
+        self.cs=get_settings().research_connection_string
 
         @self.router.get("/", response_class=HTMLResponse)
         async def main_page(request: Request):

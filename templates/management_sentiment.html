@@ -8,20 +8,25 @@
 </head>
 <body>
 
+<!-- NAVBAR – "View Calendar" added to the right side -->
 <nav class="navbar">
   <ul>
     <li><a href="/">Home</a></li>
     <li><a href="/management_sentiment">Management Sentiment</a></li>
+
+    <!-- Pushes the link to the far right -->
+    <li style="margin-left:auto;">
+      <a href="#" id="viewCalendarLink" style="color:#58A6FF;font-weight:600;text-decoration:none;">
+        View Calendar
+      </a>
+    </li>
   </ul>
 </nav>
 
 <div class="content">
   <div class="panel">
     <h3>Management Sentiment</h3>
-    <form id="sentimentForm"
-      action="/management_sentiment/analyze"
-      method="POST"
-      novalidate>
+    <form id="sentimentForm" action="/management_sentiment/analyze" method="POST" novalidate>
       <input name="symbol" type="text" placeholder="Symbol (e.g. MSFT)" required>
       <select name="report" id="report">
         <option value="K10">K10</option>
@@ -39,10 +44,34 @@
         <span>Search</span>
       </button>
     </form>
+
+    <!-- Error message shown only when needed -->
     <div class="error-msg" id="errorMsg"></div>
     <div id="result"></div>
   </div>
 </div>
+
+<script>
+  // "View Calendar" click handler
+  document.getElementById("viewCalendarLink").addEventListener("click", function (e) {
+    e.preventDefault();
+
+    const symbol = document.querySelector("input[name='symbol']").value.trim();
+    const year   = document.querySelector("input[name='year']").value.trim();
+
+    if (!symbol || !year) {
+      alert("⚠️ Please enter both Symbol and Year before viewing the calendar.");
+      return;
+    }
+
+    window.open(
+      `/calendar/view?symbol=${encodeURIComponent(symbol)}&year=${year}`,
+      "CalendarPopup",
+      "width=900,height=600,menubar=no,toolbar=no,scrollbars=yes,resizable=yes"
+    );
+  });
+</script>
+
 
 <script src="/static/js/sentiment.js"></script>
 </body>

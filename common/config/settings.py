@@ -35,6 +35,13 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("PORT", "PORT"))
 
+
+    research_connection_string: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("RESEARCH_CONNECTION_STRING", "RESEARCH_CONNECTION_STRING"))
+
+
+
     #
 
 @lru_cache

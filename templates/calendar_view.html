@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Calendar - {{ symbol }} {{ year }}</title>
+  <link rel="stylesheet" href="/static/css/calendar.css">
+</head>
+<body>
+  <div class="calendar-container">
+    <h2>📅 {{ symbol }} - K10/Q10 Release Dates - {{ year }}</h2>
+    {% if calendar %}
+    <table>
+      <tr><th>Quarter</th><th>Filing Date</th></tr>
+      <tr><td>Q1</td><td>{{ calendar.q1_filing_date.strftime('%Y-%m-%d') if calendar.q1_filing_date else '-' }}</td></tr>
+      <tr><td>Q2</td><td>{{ calendar.q2_filing_date.strftime('%Y-%m-%d') if calendar.q2_filing_date else '-' }}</td></tr>
+      <tr><td>Q3</td><td>{{ calendar.q3_filing_date.strftime('%Y-%m-%d') if calendar.q3_filing_date else '-' }}</td></tr>
+      <tr><td>K10</td><td>{{ calendar.k10_filing_date.strftime('%Y-%m-%d') if calendar.k10_filing_date else '-' }}</td></tr>
+    </table>
+    {% else %}
+    <p>No data available for this year.</p>
+    {% endif %}
+  </div>
+  <script src="/static/js/calendar.js"></script>
+</body>
+</html>

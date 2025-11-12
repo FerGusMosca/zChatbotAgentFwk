@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 import uvicorn
 
 from common.config.settings import get_settings
+from controllers.calendar_controller import CalendarController
 from controllers.management_competition_controller import ManagementCompetitionController
 from controllers.management_news_indexed_controller import NewsIndexedController
 from controllers.management_sentiment_controller import ManagementSentimentController
@@ -35,6 +36,10 @@ app.include_router(mgmt_sentiment_ranking.router)
 # ✅ Mgmt Sentiment Ranking
 mgmt_sentiment_ranking = ManagementSentimentRankingsController()
 app.include_router(mgmt_sentiment_ranking.router)
+
+# ✅ Calendar
+calendar = CalendarController()
+app.include_router(calendar.router)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(settings.port))
