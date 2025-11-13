@@ -5,8 +5,8 @@ class SentimentRankingFileDetection:
     """
     Robust detection for K10 / Q10 sentiment ranking files.
     Always returns a path RELATIVE to the profile, starting with:
-    - K10_sentiment_summary_report_rank\{year}\sentiment_summary_ranking_{year}.csv
-    - Q10_sentiment_summary_report_rank\{year}\sentiment_summary_ranking_{year}.csv
+    - K10_sentiment_summary_report_rank/{year}/sentiment_summary_ranking_{year}.csv
+    - Q10_sentiment_summary_report_rank/{year}/sentiment_summary_ranking_{year}.csv
     """
 
     K10_rank_folder = "K10_sentiment_summary_report_rank"
@@ -70,7 +70,7 @@ class SentimentRankingFileDetection:
             return None
 
         # ------------------------------------------------------------
-        # FOLDER (just the string — never a Path object)
+        # FOLDER
         # ------------------------------------------------------------
         folder = self.K10_rank_folder if rpt == "K10" else self.Q10_rank_folder
 
@@ -78,9 +78,9 @@ class SentimentRankingFileDetection:
             self.logger.info(f"[SRFD] Selected folder={folder}")
 
         # ------------------------------------------------------------
-        # FINAL RELATIVE PATH (STRING ONLY)
+        # FINAL PATH  **USANDO SLASHES**
         # ------------------------------------------------------------
-        final_path = f"{folder}\\{year}\\sentiment_summary_ranking_{year}.csv"
+        final_path = f"{folder}/{year}/sentiment_summary_ranking_{year}.csv"
 
         if self.logger:
             self.logger.info(f"[SRFD] ✅ Final resolved CSV path: {final_path}")
