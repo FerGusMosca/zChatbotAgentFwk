@@ -24,6 +24,12 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("NEWS_INDEXED_URL", "NEWS_INDEXED_URL"))
 
+    ranking_fallback_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("RANKING_FALLBACK_URL", "RANKING_FALLBACK_URL"))
+
+    #
+
 
     deploy_file: str | None = Field(
         default=None,
@@ -39,6 +45,9 @@ class Settings(BaseSettings):
     research_connection_string: str | None = Field(
         default=None,
         validation_alias=AliasChoices("RESEARCH_CONNECTION_STRING", "RESEARCH_CONNECTION_STRING"))
+
+
+
 
 
 

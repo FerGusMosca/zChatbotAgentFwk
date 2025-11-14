@@ -10,6 +10,7 @@ from controllers.management_competition_controller import ManagementCompetitionC
 from controllers.management_news_indexed_controller import NewsIndexedController
 from controllers.management_sentiment_controller import ManagementSentimentController
 from controllers.management_sentiment_rankings_controller import ManagementSentimentRankingsController
+from controllers.management_sentiment_rankings_fallback_controller import ManagementSentimentRankingsFallbackController
 
 settings = get_settings()
 app = FastAPI()
@@ -33,13 +34,19 @@ mgmt_sentiment_ranking = NewsIndexedController()
 app.include_router(mgmt_sentiment_ranking.router)
 
 
-# ✅ Mgmt Sentiment Ranking
+# ✅ Mgmt Sentiment Ranking -  RAG
 mgmt_sentiment_ranking = ManagementSentimentRankingsController()
 app.include_router(mgmt_sentiment_ranking.router)
+
+# ✅ Mgmt Sentiment Ranking -  Fallback
+mgmt_sentiment_ranking_fallback = ManagementSentimentRankingsFallbackController()
+app.include_router(mgmt_sentiment_ranking_fallback.router)
 
 # ✅ Calendar
 calendar = CalendarController()
 app.include_router(calendar.router)
+
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(settings.port))
