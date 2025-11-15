@@ -28,9 +28,9 @@ class ManagementCompetitionController:
         ):
             # 📄 Choose correct template file
             if report == "Q10" and quarter:
-                question_file = self.questions_path / "competition_question_Q10.txt"
+                question_file = self.questions_path / "management_competition_question_Q10.txt"
             else:
-                question_file = self.questions_path / "competition_question_K10.txt"
+                question_file = self.questions_path / "management_competition_question_K10.txt"
 
             with open(question_file, "r", encoding="utf-8") as f:
                 template_text = f.read()
