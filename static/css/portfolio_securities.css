@@ -44,3 +44,17 @@
     background: #444C56;
     cursor: not-allowed;
 }
+
+.csv-btn {
+    display: inline-block;
+    margin-bottom: 20px;
+    padding: 8px 14px;
+    background: #238636;
+    color: white;
+    border-radius: 6px;
+    font-weight: 600;
+    text-decoration: none;
+}
+.csv-btn:hover {
+    background: #2ea043;
+}

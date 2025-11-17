@@ -47,3 +47,34 @@ class PortfolioSecuritiesManager:
             page=page,
             page_size=page_size
         )
+
+    def get_full(self, portfolio_id: int):
+        conn = pyodbc.connect(self.connection_string)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "EXEC dbo.get_portfolio_securities @portfolio_id=?",
+            (portfolio_id,)
+        )
+
+        rows = cursor.fetchall()
+
+        items = [
+            PortfolioSecurity(
+                id=r.id,
+                portfolio_id=r.portfolio_id,
+                security_id=r.security_id,
+                ticker=r.ticker,
+                name=r.name,
+                cik=r.cik,
+                added_at=r.added_at,
+                is_active=r.is_active,
+                weight=r.weight
+            )
+            for r in rows
+        ]
+
+        cursor.close()
+        conn.close()
+        return items
+

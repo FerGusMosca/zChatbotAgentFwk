@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse
 from pathlib import Path
 
+from starlette.responses import StreamingResponse
 from starlette.templating import Jinja2Templates
 
 from common.config.settings import settings
@@ -9,6 +10,9 @@ from common.util.app_logger import AppLogger
 
 from data_access_layer.manager_portfolios import PortfolioManager
 from data_access_layer.manager_portfolio_securities import PortfolioSecuritiesManager
+import csv
+import io
+from fastapi.responses import StreamingResponse
 
 
 class PortfolioSecuritiesController:
@@ -50,3 +54,34 @@ class PortfolioSecuritiesController:
                     "page_data": page_data
                 }
             )
+
+        @self.router.get("/export_csv", response_class=StreamingResponse)
+        async def export_csv(portfolio_id: int):
+            items = self.ps_mgr.get_full(portfolio_id)
+
+            output = io.StringIO()
+            writer = csv.writer(output)
+
+            writer.writerow(["ID", "Ticker", "Name", "CIK", "Added", "Active", "Weight"])
+
+            for s in items:
+                writer.writerow([
+                    s.id,
+                    s.ticker,
+                    s.name,
+                    s.cik,
+                    s.added_at,
+                    s.is_active,
+                    s.weight
+                ])
+
+            output.seek(0)
+
+            return StreamingResponse(
+                iter([output.getvalue()]),
+                media_type="text/csv",
+                headers={
+                    "Content-Disposition": f"attachment; filename=portfolio_{portfolio_id}.csv"
+                }
+            )
+
