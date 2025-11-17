@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Portfolio Securities</title>
+
+    <!-- Main Global Styles -->
+    <link rel="stylesheet" href="/static/css/main.css">
+
+    <!-- Page-Specific Styles -->
+    <link rel="stylesheet" href="/static/css/portfolio_securities.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <ul>
+    <li><a href="/">Home</a></li>
+    <li><a href="/portfolio_securities" class="active">Portfolio Securities</a></li>
+  </ul>
+</nav>
+
+<div class="content">
+  <div class="panel">
+
+    <h3>Portfolio Securities</h3>
+
+    <!-- ================== FORM ================== -->
+    <form action="/portfolio_securities/load" method="POST" id="pfForm" class="pf-form">
+
+      <label for="portfolioSelect" class="pf-label">Select Portfolio:</label>
+
+      <select id="portfolioSelect" name="portfolio_id" required class="pf-select">
+        {% for p in portfolios %}
+          <option value="{{ p.id }}" {% if selected_portfolio == p.id %}selected{% endif %}>
+              {{ p.portfolio_code }} - {{ p.name }}
+          </option>
+        {% endfor %}
+      </select>
+
+      <input type="hidden" name="page" id="pageInput" value="{{ page_data.page if page_data else 1 }}">
+      <input type="hidden" name="page_size" value="20">
+
+      <button type="submit" class="pf-btn">Load</button>
+    </form>
+
+    <!-- ================== TABLE ================== -->
+    {% if page_data %}
+      <table class="styled-table" id="pfTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Ticker</th>
+            <th>Name</th>
+            <th>CIK</th>
+            <th>Added</th>
+            <th>Active</th>
+            <th>Weight</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in page_data.items %}
+          <tr>
+            <td>{{ s.id }}</td>
+            <td>{{ s.ticker }}</td>
+            <td>{{ s.name }}</td>
+            <td>{{ s.cik }}</td>
+            <td>{{ s.added_at }}</td>
+            <td>{{ s.is_active }}</td>
+            <td>{{ s.weight }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <!-- ================== PAGINATION ================== -->
+      <div class="pagination">
+        <button type="button"
+                onclick="goPage({{ page_data.page - 1 }})"
+                {% if page_data.page <= 1 %}disabled{% endif %}>
+          ◀ Prev
+        </button>
+
+        <span>
+            Page {{ page_data.page }} /
+            {{
+                (page_data.total_count // page_data.page_size)
+                + (1 if page_data.total_count % page_data.page_size > 0 else 0)
+            }}
+        </span>
+
+        <button type="button"
+                onclick="goPage({{ page_data.page + 1 }})"
+                {% if page_data.page * page_data.page_size >= page_data.total_count %}disabled{% endif %}>
+          Next ▶
+        </button>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<!-- ================== PAGE JS ================== -->
+<script src="/static/js/portfolio_securities.js"></script>
+
+</body>
+</html>
