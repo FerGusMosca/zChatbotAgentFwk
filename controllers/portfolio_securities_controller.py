@@ -9,10 +9,12 @@ from common.config.settings import settings
 from common.util.app_logger import AppLogger
 
 from data_access_layer.manager_portfolios import PortfolioManager
-from data_access_layer.manager_portfolio_securities import PortfolioSecuritiesManager
+
 import csv
 import io
 from fastapi.responses import StreamingResponse
+
+from data_access_layer.portfolio_securities_manager import PortfolioSecuritiesManager
 
 
 class PortfolioSecuritiesController:
@@ -84,4 +86,41 @@ class PortfolioSecuritiesController:
                     "Content-Disposition": f"attachment; filename=portfolio_{portfolio_id}.csv"
                 }
             )
+
+        @self.router.get("/search")
+        async def search(query: str):
+            if not query or len(query.strip()) < 2:
+                return []
+
+            items = self.ps_mgr.search(query)
+            return [
+                {
+                    "security_id": x.id,
+                    "ticker": x.ticker,
+                    "name": x.name,
+                    "cik": x.cik
+                }
+                for x in items
+            ]
+
+        @self.router.post("/add_single")
+        async def add_single(portfolio_id: int = Form(...), security_id: int = Form(...)):
+            try:
+                self.ps_mgr.add_single(portfolio_id, security_id)
+                return {"status": "ok"}
+            except Exception as ex:
+                return {"status": "error", "message": str(ex)}
+
+        @self.router.post("/import_csv")
+        async def import_csv(
+                portfolio_id: int = Form(...),
+                csv_text: str = Form(...)
+        ):
+            try:
+                result = self.ps_mgr.import_csv(portfolio_id, csv_text)
+                return {"status": "ok", "report": result}
+            except Exception as ex:
+                return {"status": "error", "message": str(ex)}
+
+
 
