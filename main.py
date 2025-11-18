@@ -16,7 +16,7 @@ from controllers.management_sentiment_rankings_fallback_controller import Manage
 
 # 🔥 NUEVO CONTROLLER
 from controllers.portfolio_securities_controller import PortfolioSecuritiesController
-
+from controllers.process_news_controller import ProcessNewsController
 
 settings = get_settings()
 app = FastAPI()
@@ -63,8 +63,12 @@ calendar = CalendarController()
 app.include_router(calendar.router)
 
 # Portfolio Securities
-portfolio_securities = PortfolioSecuritiesController()
-app.include_router(portfolio_securities.router)
+process_news = PortfolioSecuritiesController()
+app.include_router(process_news.router)
+
+# Process News
+process_news = ProcessNewsController()
+app.include_router(process_news.router)
 
 
 # ===========================

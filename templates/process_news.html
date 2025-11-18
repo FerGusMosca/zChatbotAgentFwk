@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Process News</title>
+
+    <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="stylesheet" href="/static/css/process_news.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <ul>
+    <li><a href="/">Home</a></li>
+    <li><a href="/process_news" class="active">Process News</a></li>
+  </ul>
+</nav>
+
+<div class="content">
+  <div class="panel">
+
+    <h3>📰 Process News</h3>
+
+    <!-- === FORM === -->
+     <form id="newsForm" onsubmit="runProcessNews(event)" class="simple-row">
+
+            <!-- SECURITY -->
+            <div class="block">
+                <label>Select Security:</label>
+                <input type="text" id="searchInput"
+                       placeholder="Ticker or Name..."
+                       oninput="searchTicker()">
+                <div id="searchResults" class="search-results"></div>
+            </div>
+
+            <!-- DATE -->
+            <div class="block">
+                <label>Select Date:</label>
+                <input type="date" id="dateInput" required>
+            </div>
+
+            <!-- BUTTON -->
+            <div class="block btn-block">
+                <button type="submit" class="green-btn" id="runBtn">
+                    Run News Processor
+                </button>
+            </div>
+
+            <input type="hidden" id="selectedSecurity">
+        </form>
+
+
+
+
+
+
+
+    <!-- === OUTPUT === -->
+    <div id="outputBox" class="output-box"></div>
+
+  </div>
+</div>
+
+<script src="/static/js/process_news.js"></script>
+
+</body>
+</html>

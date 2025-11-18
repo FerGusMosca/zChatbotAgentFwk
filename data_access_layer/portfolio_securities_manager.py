@@ -154,7 +154,7 @@ class PortfolioSecuritiesManager:
             # check existence BEFORE calling SP
             cursor.execute("""
                 SELECT COUNT(*) 
-                FROM portfolio_securities
+                FROM process_news
                 WHERE portfolio_id=? AND security_id=?
             """, (portfolio_id, security_id))
             existed = cursor.fetchone()[0] > 0

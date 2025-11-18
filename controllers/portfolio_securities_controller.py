@@ -19,7 +19,7 @@ from data_access_layer.portfolio_securities_manager import PortfolioSecuritiesMa
 
 class PortfolioSecuritiesController:
     def __init__(self):
-        self.router = APIRouter(prefix="/portfolio_securities")
+        self.router = APIRouter(prefix="/process_news")
 
         base = Path(__file__).parent.parent
         self.templates = Jinja2Templates(directory=base / "templates")
@@ -33,7 +33,7 @@ class PortfolioSecuritiesController:
         async def main_page(request: Request):
             portfolios = self.portfolio_mgr.get_all()
             return self.templates.TemplateResponse(
-                "portfolio_securities.html",
+                "process_news.html",
                 {"request": request, "portfolios": portfolios, "securities": []}
             )
 
@@ -48,7 +48,7 @@ class PortfolioSecuritiesController:
             page_data = self.ps_mgr.get_paged(portfolio_id, page, page_size)
 
             return self.templates.TemplateResponse(
-                "portfolio_securities.html",
+                "process_news.html",
                 {
                     "request": request,
                     "portfolios": portfolios,

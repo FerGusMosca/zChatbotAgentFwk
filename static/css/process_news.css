@@ -1,0 +1,106 @@
+/* PANEL */
+.panel {
+    width: 820px;
+    margin: 0 auto;
+    padding: 30px;
+}
+
+/* ===== LAYOUT SIMPLE EN FILA ===== */
+.simple-row {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 40px;
+    margin-top: 30px;
+}
+
+/* BLOQUES */
+.block {
+    display: flex;
+    flex-direction: column;
+    position: relative;    /* ⬅ Necesario para dropdown flotante */
+}
+
+.block label {
+    margin-bottom: 6px;
+    color: #c9d1d9;
+    font-weight: 600;
+}
+
+/* INPUTS */
+.block input[type="text"],
+.block input[type="date"] {
+    width: 220px;
+    padding: 8px 10px;
+    background: #161B22;
+    border: 1px solid #30363D;
+    border-radius: 6px;
+    color: #E6EDF3;
+    font-size: 15px;
+}
+
+/* ===== DROPDOWN FLOTANTE ===== */
+.search-results {
+    position: absolute;     /* ⬅ dropdown flota */
+    top: 42px;              /* ⬅ justo debajo del input */
+    left: 0;
+    width: 100%;
+
+    border: 1px solid #30363D;
+    max-height: 220px;
+    overflow-y: auto;
+    background: #0D1117;
+    border-radius: 6px;
+    padding: 3px 0;
+    z-index: 5000;          /* ⬅ se superpone a todo */
+}
+
+.search-results div {
+    padding: 8px;
+    border-bottom: 1px solid #21262D;
+    cursor: pointer;
+}
+
+.search-results div:hover {
+    background: #1C2128;
+}
+
+/* ===== BUTTON ===== */
+.btn-block {
+    display: flex;
+    align-items: flex-end;
+}
+
+.green-btn {
+    padding: 12px 22px;
+    background: #238636;
+    border-radius: 6px;
+    color: white;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    font-size: 15px;
+}
+
+.green-btn:hover {
+    background: #2ea043;
+}
+
+/* ===== OUTPUT BOX ===== */
+.output-box {
+    margin-top: 35px;
+    padding: 15px;
+    border: 1px solid #30363D;
+    background: #0D1117;
+    border-radius: 6px;
+    white-space: pre-wrap;
+    font-family: Consolas, monospace;
+    color: #58A6FF;
+    min-height: 40px;
+}
+
+.search-results:empty {
+    display: none;
+}
