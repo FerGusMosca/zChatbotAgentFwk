@@ -28,7 +28,15 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("RANKING_FALLBACK_URL", "RANKING_FALLBACK_URL"))
 
-    #
+    documents_path: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DOCUMENTS_PATH", "DOCUMENTS_PATH"))
+
+    commands_ini_path: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("COMMANDS_INI_PATH", "COMMANDS_INI_PATH"))
+
+
 
 
     deploy_file: str | None = Field(

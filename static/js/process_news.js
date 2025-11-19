@@ -1,61 +1,72 @@
+// ===== UI: search ticker =====
 async function searchTicker() {
     const q = document.getElementById("searchInput").value.trim();
     const box = document.getElementById("searchResults");
-    box.innerHTML = "";
 
     if (q.length < 2) {
-    box.innerHTML = "";
-    return;
-}
-
-    const res = await fetch(`/process_news/search?query=${encodeURIComponent(q)}`);
-    const data = await res.json();
-
-    if (!Array.isArray(data) || data.length === 0) {
-        box.innerHTML = "<div>No results</div>";
+        box.innerHTML = "";
         return;
     }
 
-    box.innerHTML = data.map(s => `
-        <div onclick="selectSecurity(${s.security_id}, '${s.ticker}')">
-            <b>${s.ticker}</b> — ${s.name}
-        </div>
-    `).join("");
+    const res = await fetch(`/process_news/search?query=${encodeURIComponent(q)}`);
+    const items = await res.json();
+
+    box.innerHTML = items.map(x =>
+        `<div class="result-item" onclick="selectSecurity('${x.ticker}')">
+            ${x.ticker} — ${x.name}
+        </div>`
+    ).join("");
 }
 
-function selectSecurity(id, ticker) {
-    document.getElementById("selectedSecurity").value = id;
+function selectSecurity(ticker) {
     document.getElementById("searchInput").value = ticker;
+    document.getElementById("selectedSecurity").value = ticker;
     document.getElementById("searchResults").innerHTML = "";
 }
 
-async function runProcessNews(evt) {
-    evt.preventDefault();
+// ===== RUN PROCESS WITH STREAMING =====
+async function runProcessNews(ev) {
+    ev.preventDefault();
 
-    const secId = document.getElementById("selectedSecurity").value;
-    const date = document.getElementById("dateInput").value;
-    const out = document.getElementById("outputBox");
-    const btn = document.getElementById("runBtn");
-
-    if (!secId) {
-        alert("Select a security.");
+    const symbol = document.getElementById("selectedSecurity").value.trim();
+    if (!symbol) {
+        alert("Select a security first.");
         return;
     }
 
-    btn.disabled = true;
-    btn.innerHTML = "⏳ Processing...";
+    const outputBox = document.getElementById("outputBox");
+    outputBox.textContent = "";
 
-    const res = await fetch("/process_news/run", {
+    const spinner = document.getElementById("spinner"); // simple text spinner
+    spinner.style.display = "block";
+
+    await new Promise(r => requestAnimationFrame(() => r()));
+
+    const formData = new FormData();
+    formData.append("symbol", symbol);
+
+    const resp = await fetch("/process_news/run_stream", {
         method: "POST",
-        body: new URLSearchParams({
-            security_id: secId,
-            date: date
-        })
+        body: formData
     });
 
-    const text = await res.text();
-    out.innerHTML = text;
+    if (!resp.body) {
+        outputBox.textContent = "❌ No stream received";
+        spinner.style.display = "none";
+        return;
+    }
 
-    btn.disabled = false;
-    btn.innerHTML = "Run News Processor";
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        outputBox.textContent += chunk;
+        outputBox.scrollTop = outputBox.scrollHeight;
+    }
+
+    spinner.style.display = "none";
 }
