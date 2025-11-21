@@ -83,7 +83,6 @@ class ProcessNewsController:
                 return PlainTextResponse(f"❌ Error preparing command: {ex}", status_code=500)
 
             async def stream_output():
-                yield "⌛ Starting...\n"
 
                 try:
                     self.logger.error(f"CMD: {cmd}")

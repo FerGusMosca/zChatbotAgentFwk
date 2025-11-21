@@ -133,3 +133,10 @@
   color: #E6EDF3;
   line-height: 1.45;
 }
+
+/* Universal spinner fix - NO TOUCH main.css EVER AGAIN */
+button.loading span:not(.spinner) {
+    position: absolute;   /* Removes text from document flow */
+    left: -9999px;        /* Extra insurance - text disappears completely */
+    opacity: 0;           /* Keeps fade effect */
+}

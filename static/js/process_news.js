@@ -37,8 +37,8 @@ async function runProcessNews(ev) {
     const outputBox = document.getElementById("outputBox");
     outputBox.textContent = "";
 
-    const spinner = document.getElementById("spinner"); // simple text spinner
-    spinner.style.display = "block";
+    const runBtn = document.getElementById("runBtn");
+    runBtn.classList.add("loading");   // show wheel
 
     await new Promise(r => requestAnimationFrame(() => r()));
 
@@ -62,11 +62,10 @@ async function runProcessNews(ev) {
     while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-
         const chunk = decoder.decode(value, { stream: true });
         outputBox.textContent += chunk;
         outputBox.scrollTop = outputBox.scrollHeight;
     }
 
-    spinner.style.display = "none";
+    runBtn.classList.remove("loading");   // hide wheel
 }

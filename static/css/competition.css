@@ -142,3 +142,10 @@
 #searchBtn.loading #loader {
   display: inline-block !important;
 }
+
+/* Universal spinner fix for Competition page - keeps main.css untouched */
+button.loading span:not(.spinner) {
+    position: absolute;   /* Removes text from document flow */
+    left: -9999px;        /* Extra safety - text completely disappears */
+    opacity: 0;           /* Maintains smooth fade-out */
+}

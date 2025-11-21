@@ -26,13 +26,16 @@
         </div>
 
         <div class="block btn-block">
-            <button type="submit" class="green-btn" id="runBtn">Run News Processor</button>
+            <button type="submit" class="green-btn" id="runBtn">
+                <span class="btn-text">Run News Processor</span>
+                <div class="spinner"></div>  <!-- Este ahora sí usa el spinner PRO del main.css -->
+            </button>
         </div>
 
         <input type="hidden" id="selectedSecurity" name="symbol">
     </form>
 
-    <div id="spinner" style="display:none;">⏳</div>
+
 
     <div id="outputBox" class="output-box"></div>
   </div>
