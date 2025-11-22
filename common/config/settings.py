@@ -36,7 +36,9 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("COMMANDS_INI_PATH", "COMMANDS_INI_PATH"))
 
-
+    docker_process_news_cmd: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DOCKER_CONTAINER_PROCESS_NEWS", "DOCKER_CONTAINER_PROCESS_NEWS"))
 
 
     deploy_file: str | None = Field(

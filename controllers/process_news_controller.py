@@ -62,10 +62,13 @@ class ProcessNewsController:
                 # Documents folder path from settings
                 documents_path = settings.documents_path
 
+
+                prcess_news_cmd_file =settings.docker_process_news_cmd
+
                 # Load command template
                 template_path = (
                         Path(__file__).parent.parent /
-                        "static" / "containers_cmds" / "process_news.txt"
+                        "static" / "containers_cmds" / prcess_news_cmd_file
                 )
                 template_raw = template_path.read_text()
 
