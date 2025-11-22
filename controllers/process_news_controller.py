@@ -19,6 +19,9 @@ class ProcessNewsController:
     def __init__(self):
         self.router = APIRouter(prefix="/process_news")
 
+        # Store last generated report in memory
+        self.last_output_file = None
+
         base = Path(__file__).parent.parent
         self.templates = Jinja2Templates(directory=base / "templates")
 
@@ -96,6 +99,21 @@ class ProcessNewsController:
                     for line in process.stdout:
                         print(">>>", line)
                         yield line
+
+                        # ===== Capture last JSON path =====
+                        # comment: detect "saved" event with JSON path
+                        if '"path":' in line:
+                            try:
+                                # comment: extract JSON string safely
+                                part = line.split('"path":', 1)[1]
+                                extracted = part.split('"')[1]  # first quoted string
+                                self.last_output_file = extracted
+                                self.logger.info(f"[OK] Extracted output file: {self.last_output_file}")
+                            except Exception as ex:
+                                self.logger.error(
+                                    f"[FAIL] Could not extract path from line: {line.strip()} | Error: {ex}"
+                                )
+
                 except Exception as ex:
                     yield f"\n❌ Runtime error: {ex}\n"
                 finally:
@@ -110,5 +128,35 @@ class ProcessNewsController:
 
 
 
+        @self.router.get("/download_last")
+        async def download_last():
+            # comment: send last generated report if available
+            if not self.last_output_file or not os.path.exists(self.last_output_file):
+                return PlainTextResponse("No report available.", status_code=404)
 
+            f = open(self.last_output_file, "rb")
+            filename = os.path.basename(self.last_output_file)
+            return StreamingResponse(
+                f,
+                media_type="application/octet-stream",
+                headers={
+                    "Content-Disposition": f"attachment; filename={filename}"
+                }
+            )
 
+        @self.router.get("/download_prompt")
+        async def download_prompt():
+            # comment: absolute path to prompt file
+            prompt_path = Path(__file__).parent.parent / "prompts" / "news_prompt.txt"
+
+            if not prompt_path.exists():
+                return PlainTextResponse("Prompt file not found.", status_code=404)
+
+            f = open(prompt_path, "rb")
+            return StreamingResponse(
+                f,
+                media_type="text/plain",
+                headers={
+                    "Content-Disposition": "attachment; filename=news_prompt.txt"
+                }
+            )

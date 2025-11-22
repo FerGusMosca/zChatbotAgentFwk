@@ -143,5 +143,25 @@
 }
 
 .output-box {
-    text-align: left;    /* Align text to the left */
+    text-align: left;    /* Align text to the left */,
+        margin-top: 35px;
+    padding: 15px;
+    border: 1px solid #30363D;
+    background: #0D1117;
+    border-radius: 6px;
+    white-space: pre-wrap;
+    font-family: Consolas, monospace;
+    color: #58A6FF;
+    min-height: 200px;   /* bigger */
+    max-height: 400px;   /* capped */
+    overflow-y: auto;    /* scroll */
+}
+
+.disabled-btn {
+    pointer-events: none;
+    opacity: 0.4;
+}
+.enabled-btn {
+    pointer-events: auto;
+    opacity: 1;
 }

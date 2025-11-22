@@ -63,8 +63,8 @@ calendar = CalendarController()
 app.include_router(calendar.router)
 
 # Portfolio Securities
-process_news = PortfolioSecuritiesController()
-app.include_router(process_news.router)
+portfolio_securities = PortfolioSecuritiesController()
+app.include_router(portfolio_securities.router)
 
 # Process News
 process_news = ProcessNewsController()

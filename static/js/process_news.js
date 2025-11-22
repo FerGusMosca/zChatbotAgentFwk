@@ -38,7 +38,7 @@ async function runProcessNews(ev) {
     outputBox.textContent = "";
 
     const runBtn = document.getElementById("runBtn");
-    runBtn.classList.add("loading");   // show wheel
+    runBtn.classList.add("loading");   // show spinner
 
     await new Promise(r => requestAnimationFrame(() => r()));
 
@@ -52,9 +52,17 @@ async function runProcessNews(ev) {
 
     if (!resp.body) {
         outputBox.textContent = "❌ No stream received";
-        spinner.style.display = "none";
+        runBtn.classList.remove("loading");
         return;
     }
+
+    // disable download button at start
+    const dl = document.getElementById("downloadBtn");  // correct ID
+    const dp = document.getElementById("downloadPromptBtn");
+    dl.classList.remove("enabled-btn");
+    dl.classList.add("disabled-btn");
+    dp.classList.remove("enabled-btn");
+    dp.classList.add("disabled-btn");
 
     const reader = resp.body.getReader();
     const decoder = new TextDecoder("utf-8");
@@ -62,10 +70,19 @@ async function runProcessNews(ev) {
     while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+
         const chunk = decoder.decode(value, { stream: false });
         outputBox.textContent += chunk;
         outputBox.scrollTop = outputBox.scrollHeight;
+
+        // ===== ENABLE DOWNLOAD ONLY WHEN "event": "saved" APPEARS =====
+        if (chunk.includes('"event": "saved"')) {
+            dl.classList.remove("disabled-btn");
+            dl.classList.add("enabled-btn");
+            dp.classList.remove("disabled-btn");
+            dp.classList.add("enabled-btn");
+        }
     }
 
-    runBtn.classList.remove("loading");   // hide wheel
+    runBtn.classList.remove("loading"); // hide spinner
 }
