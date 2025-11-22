@@ -94,6 +94,7 @@ class ProcessNewsController:
                         bufsize=1
                     )
                     for line in process.stdout:
+                        print(">>>", line)
                         yield line
                 except Exception as ex:
                     yield f"\n❌ Runtime error: {ex}\n"
@@ -104,7 +105,8 @@ class ProcessNewsController:
                     except:
                         pass
 
-            return StreamingResponse(stream_output(), media_type="text/plain")
+            return StreamingResponse(stream_output(), media_type="text/plain; charset=utf-8")  # comment: enable chunked streaming
+
 
 
 

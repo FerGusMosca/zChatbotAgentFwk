@@ -62,7 +62,7 @@ async function runProcessNews(ev) {
     while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
+        const chunk = decoder.decode(value, { stream: false });
         outputBox.textContent += chunk;
         outputBox.scrollTop = outputBox.scrollHeight;
     }

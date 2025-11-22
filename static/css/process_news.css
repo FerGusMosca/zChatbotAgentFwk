@@ -141,3 +141,7 @@
     left: -9999px;
     opacity: 0;
 }
+
+.output-box {
+    text-align: left;    /* Align text to the left */
+}
