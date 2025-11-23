@@ -17,6 +17,7 @@ from langchain_core.prompts import MessagesPlaceholder
 from common.config.settings import get_settings
 from common.util.app_logger import AppLogger
 from common.util.cache.cache_manager import CacheManager
+from common.util.loader.faiss_loader import FaissVectorstoreLoader
 
 
 class FileIndexerBot:
@@ -29,7 +30,7 @@ class FileIndexerBot:
 
     def __init__(
         self,
-        vectordb,
+        vector_store_path,
         prompt_bot,
         retrieval_score_threshold=0.4,
         model_name="gpt-4o",
@@ -38,6 +39,8 @@ class FileIndexerBot:
     ):
         self.logger = AppLogger.get_logger(__name__)
         self.prompt_bot = prompt_bot
+
+        vectordb = FaissVectorstoreLoader.load_legacy_faiss(vector_store_path)
         self.retriever = vectordb.as_retriever(search_kwargs={"k": top_k})
         self.retrieval_score_threshold = retrieval_score_threshold
         self.top_k = top_k

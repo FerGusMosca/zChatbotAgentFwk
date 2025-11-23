@@ -15,7 +15,7 @@ class IntentBasedFileIndexerBot:
 
     def __init__(
             self,
-            vectordb,
+            vector_store_path,
             prompt_bot,
             retrieval_score_threshold=0.4,
             model_name: str = "gpt-4o",
@@ -40,8 +40,8 @@ class IntentBasedFileIndexerBot:
         self.logger.info(f"Loading IntentBasedFileIndexerBot for profile: {settings.bot_profile}")
 
         # --- Log ignored args (compat only) ---
-        if vectordb is not None:
-            self.logger.warning("[IntentBasedFileIndexerBot] Ignoring vectordb (not used).")
+        if vector_store_path is not None:
+            self.logger.warning("[IntentBasedFileIndexerBot] Ignoring vector_store_path (not used).")
         if top_k is not None:
             self.logger.warning("[IntentBasedFileIndexerBot] Ignoring top_k (not used in this mode).")
 

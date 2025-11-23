@@ -52,18 +52,6 @@ def load_hybrid_bot(
     if not vectorstore_path.exists():
         raise FileNotFoundError(f"❌ Vectorstore not found at: {vectorstore_path}")
 
-    emb = OpenAIEmbeddings()
-    vectordb = FAISS.load_local(
-        str(vectorstore_path),
-        emb,
-        allow_dangerous_deserialization=True
-    )
-
-    try:
-        ntotal = getattr(getattr(vectordb, "index", None), "ntotal", None)
-        print(f"[VDB] path={vectorstore_path} | ntotal={ntotal}")
-    except Exception:
-        pass
 
     # --- Load prompt ---
     repo_root = Path(__file__).resolve().parents[3]
@@ -88,7 +76,7 @@ def load_hybrid_bot(
     print(f"✅ Loaded bot logic: {class_name} from {module_path}")
 
     bot = cls(
-        vectordb=vectordb,
+        vectorstore_path,
         prompt_bot=prompt_bot,
         retrieval_score_threshold=get_settings().retrieval_score_threshold,
         model_name=model_name,

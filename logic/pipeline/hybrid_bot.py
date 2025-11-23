@@ -19,6 +19,7 @@ from common.config.settings import settings
 
 from common.util.app_logger import AppLogger
 from common.util.cache.cache_manager import CacheManager
+from common.util.loader.faiss_loader import FaissVectorstoreLoader
 from logic.intents.demos.intente_detection.intent_detection_outbound_sales import IntentDetectionLogicOutboundSales
 
 from common.config.settings import get_settings
@@ -33,7 +34,7 @@ class HybridBot:
 
     def __init__(
             self,
-            vectordb,
+            vector_store_path,
             prompt_bot,
             retrieval_score_threshold=0.4,
             model_name: str = "gpt-4o",
@@ -41,6 +42,7 @@ class HybridBot:
             top_k: int = 4,
     ):
         # --- Core wiring ---
+        vectordb=FaissVectorstoreLoader.load_legacy_faiss(vector_store_path)
         self.retriever = vectordb.as_retriever(search_kwargs={"k": top_k})
         self.prompt_bot = prompt_bot
         self.logger = AppLogger.get_logger(__name__)
