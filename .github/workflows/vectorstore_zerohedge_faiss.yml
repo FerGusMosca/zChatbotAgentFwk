@@ -1,0 +1,27 @@
+name: Build ZeroHedge FAISS Vectorstore
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-faiss:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Build Docker image (zerohedge_faiss)
+        run: |
+          docker build \
+            -t zerohedge_faiss \
+            ./commands/vectorstore_cmd
+
+      - name: Run FAISS builder
+        run: |
+          docker run --rm \
+            -e BOT_PROFILE_ROOT_PATH="${{ secrets.BOT_PROFILE_ROOT_PATH }}" \
+            -e INDEX_FILES_ROOT_PATH="${{ secrets.INDEX_FILES_ROOT_PATH }}" \
+            -e BOT_PROFILE="${{ secrets.BOT_PROFILE }}" \
+            zerohedge_faiss \
+            "${{ secrets.VECTORSTORE_INPUT_FOLDER }}"
