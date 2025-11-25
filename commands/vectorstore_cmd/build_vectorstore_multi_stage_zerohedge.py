@@ -115,7 +115,7 @@ def main():
 
     # ========== Load settings ==========
     settings = get_settings()
-    documents_root = settings.index_file_root_path
+    documents_root = settings.index_files_root_path
     bot_profile_root = settings.bot_profile_root_path
     bot_profile = settings.bot_profile
 
