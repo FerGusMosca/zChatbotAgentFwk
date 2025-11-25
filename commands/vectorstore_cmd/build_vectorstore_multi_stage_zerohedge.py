@@ -190,7 +190,7 @@ def main():
     index = build_faiss_index(all_embeddings, logger)
 
     # ========== Save vectorstore ==========
-    out_dir = os.path.join(bot_profile_root, bot_profile)
+    out_dir = os.path.join(bot_profile_root, bot_profile,"ONLY_FAISS")
     os.makedirs(out_dir, exist_ok=True)
 
     faiss_path = os.path.join(out_dir, "index.faiss")
