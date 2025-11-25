@@ -1,3 +1,4 @@
+# .github/workflows/vectorstore_zerohedge_faiss.yml
 name: Build ZeroHedge FAISS Vectorstore
 
 on:
@@ -11,17 +12,16 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Build Docker image (zerohedge_faiss)
-        run: |
-          docker build \
-            -t alienzimzum/zerohedge_faiss:latest \
-            -f commands/vectorstore_cmd/Dockerfile \
-            .
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Push image
+      - name: Build & Push zerohedge_faiss
         uses: docker/build-push-action@v5
         with:
+          context: .
+          file: commands/vectorstore_cmd/Dockerfile
           push: true
           tags: alienzimzum/zerohedge_faiss:latest
-          file: commands/vectorstore_cmd/Dockerfile
-          context: .
