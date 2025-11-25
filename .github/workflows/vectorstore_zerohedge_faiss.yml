@@ -1,27 +1,50 @@
-# .github/workflows/vectorstore_zerohedge_faiss.yml
-name: Build ZeroHedge FAISS Vectorstore
+# .github/workflows/build-vectorstore.yml
+name: Build & Push zerohedge_faiss
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'commands/vectorstore_cmd/**'
+      - 'requirements.txt'           # si también está en raíz u otros lugares
+      - '.github/workflows/build-vectorstore.yml'
+  workflow_dispatch:               # permite ejecución manual
 
 jobs:
-  build-faiss:
+  build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write                # necesario si usas ghcr.io, si solo Docker Hub puedes quitarlo
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0              # asegura que todo el repo esté disponible
 
-      - name: Log in to Docker Hub
+      - name: Set up QEMU (multi-platform support opcional)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build & Push zerohedge_faiss
-        uses: docker/build-push-action@v5
+      # ──────────────────────────────────────────────────────────────
+      # Build & Push – perfectamente alineado con tu Dockerfile
+      # ──────────────────────────────────────────────────────────────
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
         with:
-          context: .
-          file: commands/vectorstore_cmd/Dockerfile
+          context: .                                      # <─ raíz del repo (crítico)
+          file: commands/vectorstore_cmd/Dockerfile       # <─ ubicación exacta
+          platforms: linux/amd64                          # linux/arm64 si quieres multi-arch
           push: true
           tags: alienzimzum/zerohedge_faiss:latest
+          cache-from: type=registry,ref=alienzimzum/zerohedge_faiss:latest
+          cache-to: type=inline
