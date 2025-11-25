@@ -1,28 +1,27 @@
 name: Build ZeroHedge FAISS Vectorstore
 
 on:
-  push:
-    branches:
-      - zzLotteryTicket
+  workflow_dispatch:
 
 jobs:
   build-faiss:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build Docker image (zerohedge_faiss)
+        run: |
+          docker build \
+            -t alienzimzum/zerohedge_faiss:latest \
+            -f commands/vectorstore_cmd/Dockerfile \
+            .
 
-      - name: Build and push ZeroHedge FAISS image
+      - name: Push image
         uses: docker/build-push-action@v5
         with:
-          context: ./commands/vectorstore_cmd
-          file: ./commands/vectorstore_cmd/Dockerfile
           push: true
           tags: alienzimzum/zerohedge_faiss:latest
+          file: commands/vectorstore_cmd/Dockerfile
+          context: .
