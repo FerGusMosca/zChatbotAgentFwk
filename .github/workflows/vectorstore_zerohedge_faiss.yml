@@ -1,6 +1,9 @@
 name: Build ZeroHedge FAISS Vectorstore
 
 on:
+  push:
+    branches:
+      - zzLotteryTicket
   workflow_dispatch:
 
 jobs:
@@ -12,14 +15,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Docker image (zerohedge_faiss)
-        run: |
-          docker build \
-            -t zerohedge_faiss \
-            ./commands/vectorstore_cmd
+        uses: docker/build-push-action@v5
+        with:
+          context: ./commands/vectorstore_cmd
+          file: ./commands/vectorstore_cmd/Dockerfile
+          push: false
+          tags: zerohedge_faiss:latest
 
       - name: Run FAISS builder
         run: |
           docker run --rm \
             --env-file .env \
-            zerohedge_faiss \
+            zerohedge_faiss:latest \
             "${{ secrets.VECTORSTORE_INPUT_FOLDER }}"
