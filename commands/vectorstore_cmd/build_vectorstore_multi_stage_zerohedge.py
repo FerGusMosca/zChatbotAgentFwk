@@ -130,7 +130,7 @@ def main():
         sys.exit(1)
 
     # ========== Prepare output logging ==========
-    log_root = os.path.join(settings.index_file_root_path, bot_profile, "FAISS_generation_logs")
+    log_root = os.path.join(settings.index_files_root_path, bot_profile, "FAISS_generation_logs")
     os.makedirs(log_root, exist_ok=True)
 
     log_file_path = os.path.join(
