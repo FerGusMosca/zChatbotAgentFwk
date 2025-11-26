@@ -6,6 +6,7 @@ from langchain_community.docstore import InMemoryDocstore
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
+
 import pickle
 import faiss
 

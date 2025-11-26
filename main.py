@@ -128,7 +128,8 @@ if __name__ == "__main__":
     )
     # Use 0.0.0.0 if you want to test from other devices in your LAN
     port= int( get_settings().port)
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False, timeout_keep_alive=120, workers=1)
+    # Increased timeout to 120s to support slow SSI + CrossEncoder (up to 25s total)
 
 
 
