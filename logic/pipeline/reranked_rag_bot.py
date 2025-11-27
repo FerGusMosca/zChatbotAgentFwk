@@ -31,8 +31,8 @@ from logic.pipeline.retrieval.util.retrieval.stages.cross_encoder_reranker impor
 from logic.pipeline.retrieval.util.retrieval.stages.salient_span_indexer import SalientSpanIndexer
 
 # === GLOBAL MODULE SWITCHES ===
-REWRITE_ON = False
-EXPAND_ON = False
+REWRITE_ON = True
+EXPAND_ON = True
 SSI_ON = False
 
 
