@@ -14,7 +14,7 @@ class PromptBasedChatbot:
         base_prompt = self.system_prompt
 
         # Simulated semantic search
-        retrieved_docs = [""]  # Vacio = sin respuesta útil
+        retrieved_docs = [""]
 
         if not retrieved_docs[0].strip():
             print("[DEBUG] No relevant context found. Escalating to OpenAI.")
