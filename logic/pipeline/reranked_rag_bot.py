@@ -21,6 +21,7 @@ from langchain_core.runnables import (
 
 from langchain_core.chat_history import InMemoryChatMessageHistory
 
+from common.enum.intents import Intent
 from common.util.loader.faiss_loader import FaissVectorstoreLoader
 from common.util.logger.logger import SimpleLogger
 from logic.pipeline.retrieval.util.retrieval.stages.query_classifier import QueryClassifier
@@ -147,32 +148,29 @@ class RerankedRagBot:
     # ==========================================================
     # INTENT FLAGS
     # ==========================================================
-    def _intent_to_flags(self, label: str):
-        """
-        Maps intent → pipeline module flags.
-        Global switches (REWRITE_ON, EXPAND_ON, SSI_ON) override everything.
-        """
+    def _intent_to_flags(self, intent: Intent) -> dict:
+        flags = {
+            "rewrite": True,
+            "expand": True,
+            "ssi": False,
+            "rerank": True
+        }
 
-        # Base flags by intent
-        if label == "broad_query":
-            f = {"rewrite": True, "expand": True, "ssi": False, "rerank": True}
-        elif label == "enumeration_query":
-            f = {"rewrite": False, "expand": False, "ssi": False, "rerank": True}
-        elif label == "specific_query":
-            f = {"rewrite": False, "expand": False, "ssi": True, "rerank": True}
-        elif label == "analytical_query":
-            f = {"rewrite": True, "expand": True, "ssi": True, "rerank": True}
-        elif label == "temporal_query":
-            f = {"rewrite": True, "expand": False, "ssi": False, "rerank": True}
-        else:
-            f = {"rewrite": False, "expand": False, "ssi": False, "rerank": True}
+        if intent == Intent.SPECIFIC:
+            flags["ssi"] = True
+            flags["expand"] = False
+        elif intent == Intent.TEMPORAL:
+            flags["expand"] = False
+        elif intent == Intent.ENUMERATION:
+            flags["rewrite"] = False
+            flags["expand"] = False
 
-        # === Global kill-switch overrides ===
-        f["rewrite"] = f["rewrite"] and REWRITE_ON
-        f["expand"] = f["expand"] and EXPAND_ON
-        f["ssi"] = f["ssi"] and SSI_ON
+        # Global overrides
+        flags["rewrite"] &= REWRITE_ON
+        flags["expand"] &= EXPAND_ON
+        flags["ssi"] &= SSI_ON
 
-        return f
+        return flags
 
     # ==========================================================
     # STAGES

@@ -11,13 +11,9 @@ class QueryExpander:
         self.logger = logger
 
     def expand(self, query: str) -> str:
-        prompt = f"""Generate 5 different search queries for this topic, each from a different angle:
-
-{query}
-
-Focus on: rates, commodities, banking, geopolitics, equities, inflation, Fed, China.
-
-Output ONLY the 5 queries, one per line, numbered 1-5."""
+        prompt = f"""Generate 5 different search queries for this topic, each from a different angle:{query}
+        Focus on: rates, commodities, banking, geopolitics, equities, inflation, Fed, China.
+        Output ONLY the 5 queries, one per line, numbered 1-5."""
 
         try:
             response = self.llm.invoke(prompt)
