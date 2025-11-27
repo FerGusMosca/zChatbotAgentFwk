@@ -54,6 +54,8 @@ def load_hybrid_bot(
 
 
     # --- Load prompt ---
+    settings=get_settings()
+
     repo_root = Path(__file__).resolve().parents[3]
     prompts_path = repo_root / "prompts"
     prompt_name = prompt_name or get_settings().chat_prompt
@@ -62,12 +64,12 @@ def load_hybrid_bot(
     prompt_bot = PromptBasedChatbot(prompt_loader, prompt_name=prompt_name)
 
     # --- Model configuration ---
-    model_name = os.getenv("OPENAI_MODEL_NAME", "gpt-4o")
-    temperature = float(os.getenv("OPENAI_TEMPERATURE", "0.0"))
-    top_k = int(os.getenv("TOP_K", "4"))
+    model_name = settings.model_name
+    temperature = settings.model_temperature
+    model_final_k=settings.model_final_k
 
     # --- Dynamic bot logic instantiation ---
-    bot_logic = get_settings().bot_logic
+    bot_logic = settings.bot_logic
     if not bot_logic:
         raise ValueError("❌ BOT_LOGIC not defined in .env or settings.")
     module_path, class_name = bot_logic.split(",")
@@ -81,7 +83,7 @@ def load_hybrid_bot(
         retrieval_score_threshold=get_settings().retrieval_score_threshold,
         model_name=model_name,
         temperature=temperature,
-        top_k=top_k,
+        top_k=model_final_k,
     )
 
     # --- Cache instance ---

@@ -77,13 +77,25 @@ class RerankedRagBot:
         self.top_k_fusion = kwargs.get("top_k_fusion", 10)
 
         # ===== Modules =====
-        self.rewriter = QueryRewriter(logger=self.logger)
-        self.expander = QueryExpander(logger=self.logger)
+        master_prompt = self.system_prompt
+        self.rewriter = QueryRewriter(
+            full_prompt=master_prompt,
+            logger=self.logger
+        )
+        self.expander = QueryExpander(
+            full_prompt=master_prompt,
+            logger=self.logger
+        )
+
         self.reranker = CrossEncoderReranker(top_k=top_k, logger_ref=self.logger)
         self.ssi = SalientSpanIndexer(top_k=top_k, logger_ref=self.logger)
 
         # ===== Query classifier =====
-        self.classifier = QueryClassifier(logger=self.logger)
+        self.classifier = QueryClassifier(
+            full_prompt=master_prompt,
+            logger=self.logger,
+            use_llm_fallback=True
+        )
 
         self.chat_store = {}
 

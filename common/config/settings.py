@@ -98,6 +98,18 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("BOT_LOGIC", "BOT_LOGIC"))
 
+    model_name: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MODEL_NAME", "MODEL_NAME"))
+
+    model_temperature: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MODEL_TEMPERATURE", "MODEL_TEMPERATURE"))
+
+    model_final_k: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("FINAL_K", "FINAL_K"))
+
     index_files_root_path: str | None = Field(
         default=None,
         validation_alias=AliasChoices("INDEX_FILES_ROOT_PATH", "INDEX_FILES_ROOT_PATH"))
