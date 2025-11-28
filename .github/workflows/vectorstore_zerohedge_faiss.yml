@@ -5,6 +5,7 @@ on:
     branches: [ zzLotteryTicket ]
     paths:
       - 'commands/vectorstore_cmd/**'
+      - 'common/config/FAISS_config/**'
       - '.github/workflows/**'
   workflow_dispatch:
 
