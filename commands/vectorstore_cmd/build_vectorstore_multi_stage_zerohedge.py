@@ -24,7 +24,7 @@ from common.config.settings import get_settings
 from pathlib import Path
 
 # From this file: build_...py → vectorstore_cmd → commands → project root
-CONFIG_PATH = Path("/app/common/config/FAISS_config/text-embedding-3-large.json")
+CONFIG_PATH = Path("/app/config/FAISS_config/text-embedding-3-large.json")
 
 if not CONFIG_PATH.exists():
     raise FileNotFoundError(f"[FATAL] Missing mandatory config: {CONFIG_PATH}")
