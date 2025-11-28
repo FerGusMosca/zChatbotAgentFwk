@@ -1,6 +1,6 @@
 # ===== reranked_rag_bot.py =====
 # All comments MUST be in English.
-
+from pathlib import Path
 import uuid
 from datetime import datetime
 from langchain.schema import Document
@@ -21,9 +21,11 @@ from langchain_core.runnables import (
 
 from langchain_core.chat_history import InMemoryChatMessageHistory
 
+from common.config.settings import get_settings
 from common.enum.intents import Intent
 from common.util.loader.faiss_loader import FaissVectorstoreLoader
 from common.util.logger.logger import SimpleLogger
+from logic.pipeline.retrieval.util.prompt_extractor.prompt_parser import PromptSectionExtractor
 from logic.pipeline.retrieval.util.retrieval.stages.query_classifier import QueryClassifier
 from logic.pipeline.retrieval.util.retrieval.stages.weighted_fusion import perform_weighted_fusion
 from logic.pipeline.retrieval.util.retrieval.stages.query_rewriting import QueryRewriter
@@ -102,7 +104,9 @@ class RerankedRagBot:
         # ===== Load FAISS =====
         try:
             self._log("init_start", {"vector_path": vector_store_path})
-            vectordb, meta = FaissVectorstoreLoader.load_faiss_rerankers(vector_store_path)
+
+            self.faiss_config_file=get_settings().faiss_config_file
+            vectordb, meta = FaissVectorstoreLoader.load_faiss_rerankers(vector_store_path,config_path=self.faiss_config_file)
             if vectordb is None:
                 raise RuntimeError("Failed to load FAISS vectorstore.")
 
@@ -132,11 +136,9 @@ class RerankedRagBot:
 
         # ===== BM25 retriever =====
         try:
-            self.bm25_retriever = BM25Retriever.from_texts(
-                texts=self.text_raw,
-                metadatas=self.docs_raw
-            )
+            self.bm25_retriever = BM25Retriever.from_documents([Document(page_content=t) for t in self.text_raw])
             self.bm25_retriever.k = self.top_k_bm25
+
         except Exception as ex:
             self._log("fatal_bm25_error", {"exception": str(ex)})
             raise
@@ -145,14 +147,7 @@ class RerankedRagBot:
         self.llm = ChatOpenAI(model_name=model_name, temperature=temperature)
 
         # ===== Prompt =====
-        self.answer_prompt = ChatPromptTemplate.from_messages([
-            SystemMessagePromptTemplate.from_template(
-                self.system_prompt + "\n\nContext:\n{context}"
-            ),
-            HumanMessagePromptTemplate.from_template(
-                "Chat history:\n{chat_history}\n\nQuestion:\n{question}"
-            ),
-        ])
+        self.answer_prompt = ChatPromptTemplate.from_template(PromptSectionExtractor.extract(self.system_prompt, "MAIN_LLM"))
 
         # DO NOT build pipeline here (dynamic!). Keep only runner wrapper.
         self._log("init_complete", {})
@@ -317,22 +312,13 @@ class RerankedRagBot:
 
     def stage_llm(self, batch):
         """LLM answering stage."""
-        self._log("stage_llm_start", {
-            "context_preview": batch["context"][:200],
-            "question": batch.get("question", "")
-        })
-
+        self._log("stage_llm_start", {"question": batch["question"]})
         chain = self.answer_prompt | self.llm | StrOutputParser()
         answer = chain.invoke({
             "context": batch["context"],
-            "chat_history": batch.get("chat_history", []),
-            "question": batch["question"],
+            "query": batch["question"]  # <--- query, no question
         })
-
-        self._log("stage_llm_done", {
-            "answer_preview": str(answer)[:200]
-        })
-
+        self._log("stage_llm_done", {"answer_preview": answer[:200]})
         return answer
 
     # ==========================================================

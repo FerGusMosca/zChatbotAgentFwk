@@ -110,6 +110,12 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("FINAL_K", "FINAL_K"))
 
+    faiss_config_file: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("FAISS_CONFIG_FILE", "FAISS_CONFIG_FILE"))
+
+
+
     index_files_root_path: str | None = Field(
         default=None,
         validation_alias=AliasChoices("INDEX_FILES_ROOT_PATH", "INDEX_FILES_ROOT_PATH"))

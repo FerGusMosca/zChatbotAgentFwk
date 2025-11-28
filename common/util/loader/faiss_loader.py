@@ -6,7 +6,7 @@ from langchain_community.docstore import InMemoryDocstore
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
-
+import json
 import pickle
 import faiss
 
@@ -110,25 +110,36 @@ class FaissVectorstoreLoader:
             return None
 
     @staticmethod
-    def load_faiss_rerankers(path: str):
+    def load_faiss_rerankers(faiss_path: str, config_path: str):
         """
-        Load FAISS vectorstore for the rerankers pipeline.
-        Uses the exact embedding model that built the index:
-        text-embedding-3-large with dimensions=1024 (1024-d vectors).
-        All comments in English.
+        Load FAISS vectorstore strictly according to the given config_path JSON.
+        Throws exceptions if any attribute is unexpected.
         """
         try:
-            faiss_path = os.path.join(path, "index.faiss")
-            meta_path = os.path.join(path, "index.pkl")
+            meta_path = os.path.join(faiss_path, "index.pkl")
+            index_file = os.path.join(faiss_path, "index.faiss")
 
-            if not (os.path.exists(faiss_path) and os.path.exists(meta_path)):
-                print("[FAISS-RERANKERS] Missing index.faiss or index.pkl")
-                return None, None
+            if not (os.path.exists(index_file) and os.path.exists(meta_path) and os.path.exists(config_path)):
+                raise FileNotFoundError("[FAISS-RERANKERS] index.faiss, index.pkl or config missing")
 
-            # Load raw FAISS index
-            index = faiss.read_index(faiss_path)
+            # === Load config ===
+            with open(config_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
 
-            # Load pickle metadata
+            # === Validate config strictly ===
+            if cfg.get("embedding_model") != "text-embedding-3-large":
+                raise ValueError(f"Unsupported embedding_model: {cfg.get('embedding_model')}")
+            if cfg.get("dimensions") != 1024:
+                raise ValueError(f"Unsupported dimensions: {cfg.get('dimensions')}")
+            if cfg.get("index_type") != "IndexFlatIP":
+                raise ValueError(f"Unsupported index_type: {cfg.get('index_type')}")
+            if not cfg.get("built_with_normalization", False):
+                raise ValueError("Index must be built with normalization")
+
+            # === Load FAISS index ===
+            index = faiss.read_index(index_file)
+
+            # === Load metadata ===
             with open(meta_path, "rb") as f:
                 meta = pickle.load(f)
 
@@ -136,50 +147,46 @@ class FaissVectorstoreLoader:
             metadata = meta["metadata"]
             id_map_raw = meta["index_to_docstore_id"]
 
-            # Build docstore with string keys
-            docstore_dict = {
-                str(i): Document(page_content=chunks[i], metadata=metadata[i])
-                for i in range(len(chunks))
-            }
+            # === Ensure docstore matches index.ntotal ===
+            docstore_dict = {}
+            for fid in range(index.ntotal):
+                if fid < len(chunks) and fid < len(metadata):
+                    docstore_dict[str(fid)] = Document(page_content=chunks[fid], metadata=metadata[fid])
+                else:
+                    docstore_dict[str(fid)] = Document(page_content="[[MISSING CHUNK]]", metadata={})
 
-            # Convert id_map keys to int → str
+            # === Build id_map ===
             id_map = {int(k): str(v) for k, v in id_map_raw.items()}
-
-            # Safety: fill missing IDs (should never happen but keeps LangChain happy)
             for fid in range(index.ntotal):
                 if fid not in id_map:
                     id_map[fid] = str(fid)
-                    docstore_dict[str(fid)] = Document(
-                        page_content="[[MISSING CHUNK]]", metadata={}
-                    )
 
             print(f"[FAISS-RERANKERS] Loaded {index.ntotal} vectors, dim={index.d}")
 
-            # Correct embedding model (the one used when the index was built)
-            from langchain_openai import OpenAIEmbeddings
+            # === Embedding function according to config ===
             correct_emb = OpenAIEmbeddings(
-                model="text-embedding-3-large",
-                dimensions=1024  # forces 1024-d output
+                model=cfg["embedding_model"],
+                dimensions=cfg["dimensions"]
             )
 
-            # LangChain in-memory docstore
-            docstore = InMemoryDocstore(docstore_dict)
+            # === Apply normalization if built with normalization ===
+            if cfg.get("built_with_normalization", False):
+                faiss.normalize_L2(index.reconstruct_n(0, index.ntotal))
 
-            # Build FAISS wrapper with the right embedding function
+            # === Build FAISS wrapper ===
             vdb = FAISS(
-                embedding_function=correct_emb.embed_query,  # critical line
+                embedding_function=correct_emb.embed_query,
                 index=index,
-                docstore=docstore,
+                docstore=InMemoryDocstore(docstore_dict),
                 index_to_docstore_id=id_map,
-                normalize_L2=False,  # already normalized when index was created
+                normalize_L2=False
             )
             vdb.metadatas = metadata
 
             return vdb, meta
 
         except Exception as ex:
-            print(f"[FAISS-RERANKERS] Load failed: {ex}")
-            return None, None
+            raise RuntimeError(f"[FAISS-RERANKERS] Load failed: {ex}")
 
     @staticmethod
     def load_vectorstore_any(path: str):

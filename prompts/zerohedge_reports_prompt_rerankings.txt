@@ -28,9 +28,9 @@ Rules:
 - Add aggressive keywords: rate cuts, dollar strength, commodity crash, banking stress, Fed pivot, inflation reacceleration, China slowdown, geopolitics, tariffs, AI capex, CRE, NPLs, unrealized losses
 - Keep it dense, 15–30 words
 - Preserve original intent
-- Output ONLY the rewritten query, nothing else
+- Output ONLY the rewritten query, nothing elsez
 
-User query: {question}
+User query: {query}
 
 Rewritten query:
 
@@ -43,7 +43,7 @@ Rules:
 - Numbered 1–5
 - No explanations, no extra text
 
-Topic: {question}
+Topic: {query}
 
 1.
 2.
@@ -61,6 +61,6 @@ Context:
 {context}
 
 Question:
-{question}
+{query}
 
 Final Answer:
