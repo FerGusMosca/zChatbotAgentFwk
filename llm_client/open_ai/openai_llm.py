@@ -47,3 +47,6 @@ class OpenAILLM:
         if hasattr(response, "content"):
             return response.content.strip()
         return str(response).strip()
+
+    def get_client(self):
+        return self._client

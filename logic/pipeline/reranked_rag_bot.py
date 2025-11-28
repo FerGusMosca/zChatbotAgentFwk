@@ -5,9 +5,8 @@ import uuid
 from datetime import datetime
 from langchain.schema import Document
 from langchain_core.output_parsers import StrOutputParser
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.retrievers import BM25Retriever
-
+from logic.util.builder.llm_factory import LLMFactory
 from langchain_core.prompts import (
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
@@ -82,7 +81,9 @@ class RerankedRagBot:
         master_prompt = self.system_prompt
         self.rewriter = QueryRewriter(
             full_prompt=master_prompt,
-            logger=self.logger
+            logger=self.logger,
+            model_name=model_name,
+            temperature=temperature
         )
         self.expander = QueryExpander(
             full_prompt=master_prompt,
@@ -148,7 +149,11 @@ class RerankedRagBot:
             raise
 
         # ===== LLM =====
-        self.llm = ChatOpenAI(model_name=model_name, temperature=temperature)
+        self.llm = LLMFactory.create(
+            provider="openai",
+            model_name=model_name,
+            temperature=temperature,
+        )
 
         # ===== Prompt =====
         self.answer_prompt = ChatPromptTemplate.from_template(PromptSectionExtractor.extract(self.system_prompt, "MAIN_LLM"))
@@ -317,7 +322,7 @@ class RerankedRagBot:
     def stage_llm(self, batch):
         """LLM answering stage."""
         self._log("stage_llm_start", {"question": batch["question"]})
-        chain = self.answer_prompt | self.llm | StrOutputParser()
+        chain = self.answer_prompt | self.llm.get_client() | StrOutputParser()
         answer = chain.invoke({
             "context": batch["context"],
             "query": batch["question"]  # <--- query, no question
