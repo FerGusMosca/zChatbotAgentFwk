@@ -1,15 +1,29 @@
 # ===== query_expansion.py =====
-# Extracts its prmompts since master prompt
+# Extracts its prompt from master prompt + uses LLMFactory (zero OpenAI coupling)
 
-from langchain_openai import ChatOpenAI
+from typing import List
+from logic.util.builder.llm_factory import LLMFactory  # ← tu factory
+
 
 class QueryExpander:
     SECTION = "[EXPANDER]"
 
-    def __init__(self, full_prompt: str, logger=None):
+    def __init__(
+        self,
+        full_prompt: str,
+        logger=None,
+        model_name: str = "gpt-4o-mini",
+        temperature: float = 0.0,
+    ):
         self.logger = logger
         self.prompt_template = self._extract_section(full_prompt)
-        self.llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.0)
+
+        # ← 100 % desacoplado via factory
+        self.llm = LLMFactory.create(
+            provider="openai",
+            model_name=model_name,
+            temperature=temperature,
+        )
 
     def _extract_section(self, text: str) -> str:
         start = text.find(self.SECTION)
@@ -24,9 +38,9 @@ class QueryExpander:
     def expand(self, query: str) -> str:
         try:
             full_prompt = self.prompt_template.format(query=query)
-            text = self.llm.invoke(full_prompt).content.strip()
+            text = self.llm.invoke(full_prompt).strip()
 
-            lines = []
+            lines: List[str] = []
             for line in text.split('\n'):
                 line = line.strip()
                 if line and line[0].isdigit() and '.' in line[:3]:

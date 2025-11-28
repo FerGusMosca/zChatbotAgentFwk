@@ -86,7 +86,9 @@ class RerankedRagBot:
         )
         self.expander = QueryExpander(
             full_prompt=master_prompt,
-            logger=self.logger
+            logger=self.logger,
+            model_name=model_name,
+            temperature=temperature
         )
 
         self.reranker = CrossEncoderReranker(top_k=top_k, logger_ref=self.logger)
