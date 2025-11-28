@@ -1,16 +1,35 @@
 # ===== query_classifier.py =====
-# # Extracts its prmompts since master prompt
+# Extracts its prompt from master prompt + uses LLMFactory (zero OpenAI coupling)
 
 from common.enum.intents import Intent
-from langchain_openai import ChatOpenAI
+
+from typing import Optional
+
+from logic.util.builder.llm_factory import LLMFactory
+
 
 class QueryClassifier:
     SECTION = "[CLASSIFIER]"
 
-    def __init__(self, full_prompt: str, logger=None, use_llm_fallback: bool = True):
+    def __init__(
+        self,
+        full_prompt: str,
+        logger=None,
+        use_llm_fallback: bool = True,
+        model_name: str = "gpt-4o-mini",
+        temperature: float = 0.0,
+    ):
         self.logger = logger
         self.prompt_template = self._extract_section(full_prompt)
-        self.llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.0) if use_llm_fallback else None
+
+        if use_llm_fallback:
+            self.llm = LLMFactory.create(
+                provider="openai",
+                model_name=model_name,
+                temperature=temperature,
+            )
+        else:
+            self.llm = None
 
     def _extract_section(self, text: str) -> str:
         start = text.find(self.SECTION)
@@ -25,7 +44,7 @@ class QueryClassifier:
     def classify(self, query: str) -> Intent:
         q = query.lower().strip()
 
-        # === Reglas rápidas (98 % cobertura) ===
+        # === Fast heuristic rules (98% coverage) ===
         if any(k in q for k in ["summarize", "overview", "dominant", "narratives", "themes"]):
             return self._return(Intent.BROAD, query)
         if any(k in q for k in ["list", "enumerate", "main risks", "key drivers"]):
@@ -37,11 +56,11 @@ class QueryClassifier:
         if len(q.split()) <= 14 and q.startswith(("what", "how much", "which", "is", "does")):
             return self._return(Intent.SPECIFIC, query)
 
-        # === LLM fallback usando la sección del master prompt ===
+        # === LLM fallback (fully abstracted) ===
         if self.llm and self.prompt_template:
             try:
                 full_prompt = self.prompt_template.format(query=query)
-                resp = self.llm.invoke(full_prompt).content.strip()
+                resp = self.llm.invoke(full_prompt)
                 if resp in Intent.list_values():
                     return self._return(Intent(resp), query)
             except Exception as e:

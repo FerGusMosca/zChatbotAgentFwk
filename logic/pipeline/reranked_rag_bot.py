@@ -96,7 +96,9 @@ class RerankedRagBot:
         self.classifier = QueryClassifier(
             full_prompt=master_prompt,
             logger=self.logger,
-            use_llm_fallback=True
+            use_llm_fallback=True,
+            model_name=model_name,
+            temperature=temperature
         )
 
         self.chat_store = {}
