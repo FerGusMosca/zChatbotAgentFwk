@@ -21,7 +21,10 @@ from common.config.settings import get_settings
 # ============================================================
 # SACRED CONFIG (single source of truth)
 # ============================================================
-CONFIG_PATH = Path(__file__).parent.parent / "common" / "config" / "FAISS_config" / "text-embedding-3-large.json"
+from pathlib import Path
+
+# From this file: build_...py → vectorstore_cmd → commands → project root
+CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "common" / "config" / "FAISS_config" / "text-embedding-3-large.json"
 
 if not CONFIG_PATH.exists():
     raise FileNotFoundError(f"[FATAL] Missing mandatory config: {CONFIG_PATH}")
