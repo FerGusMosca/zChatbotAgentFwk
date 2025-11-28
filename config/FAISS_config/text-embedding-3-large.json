@@ -1,0 +1,13 @@
+{
+  "embedding_model": "text-embedding-3-large",
+  "dimensions": 1024,
+  "metric": "METRIC_INNER_PRODUCT",
+  "normalize_L2": false,
+  "distance_is_cosine": true,
+  "index_type": "IndexFlatIP",
+  "faiss_version": "1.7.4+",
+  "built_with_normalization": true,
+  "built_at": "2025-11-28T00:00:00Z",
+  "total_vectors": 15432,
+  "description": "ZEROHEDGE Multi-Stage RAG - Cosine via normalized L2 + FlatIP"
+}

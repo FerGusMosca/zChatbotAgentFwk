@@ -118,6 +118,14 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("PORT", "PORT"))
 
+    grafana_on: bool | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GRAFANA_ON", "GRAFANA_ON"))
+
+
+
+
+
     #
 
 @lru_cache
