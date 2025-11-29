@@ -73,4 +73,7 @@ app.include_router(calendar.router)
 #           RUN
 # ===========================
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=int(settings.port))
+    uvicorn.run(app, host="0.0.0.0", port=int(settings.port),
+                reload=False,
+                timeout_keep_alive=120,
+                workers=6)
