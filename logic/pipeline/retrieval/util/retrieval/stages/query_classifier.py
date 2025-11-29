@@ -16,6 +16,7 @@ class QueryClassifier:
         full_prompt: str,
         logger=None,
         use_llm_fallback: bool = True,
+        llm_prov: str = "openai",
         model_name: str = "gpt-4o-mini",
         temperature: float = 0.0,
     ):
@@ -24,7 +25,7 @@ class QueryClassifier:
 
         if use_llm_fallback:
             self.llm = LLMFactory.create(
-                provider="openai",
+                provider=llm_prov,
                 model_name=model_name,
                 temperature=temperature,
             )
@@ -59,7 +60,7 @@ class QueryClassifier:
         # === LLM fallback (fully abstracted) ===
         if self.llm and self.prompt_template:
             try:
-                full_prompt = self.prompt_template.format(query=query)
+                full_prompt = self.prompt_template.format(question=query)
                 resp = self.llm.invoke(full_prompt)
                 if resp in Intent.list_values():
                     return self._return(Intent(resp), query)

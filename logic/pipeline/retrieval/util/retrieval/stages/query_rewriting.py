@@ -12,6 +12,7 @@ class QueryRewriter:
         self,
         full_prompt: str,
         logger=None,
+        llm_prov:str="openai",
         model_name: str = "gpt-4o-mini",
         temperature: float = 0.0,
     ):
@@ -19,7 +20,7 @@ class QueryRewriter:
         self.prompt_template = self._extract_section(full_prompt)
 
         self.llm = LLMFactory.create(
-            provider="openai",
+            provider=llm_prov,
             model_name=model_name,
             temperature=temperature,
         )

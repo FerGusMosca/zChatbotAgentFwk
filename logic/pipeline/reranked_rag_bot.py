@@ -56,6 +56,7 @@ class RerankedRagBot:
         vector_store_path: str,
         prompt_name,
         retrieval_score_threshold=None,
+        llm_prov: str="openai",
         model_name: str = "gpt-4o",
         temperature: float = 0.0,
         top_k: int = 4,
@@ -81,12 +82,14 @@ class RerankedRagBot:
         self.rewriter = QueryRewriter(
             full_prompt=full_prompt,
             logger=self.logger,
+            llm_prov=llm_prov,
             model_name=model_name,
             temperature=temperature
         )
         self.expander = QueryExpander(
             full_prompt=full_prompt,
             logger=self.logger,
+            llm_prov=llm_prov,
             model_name=model_name,
             temperature=temperature
         )
@@ -99,6 +102,7 @@ class RerankedRagBot:
             full_prompt=full_prompt,
             logger=self.logger,
             use_llm_fallback=True,
+            llm_prov=llm_prov,
             model_name=model_name,
             temperature=temperature
         )
@@ -149,7 +153,7 @@ class RerankedRagBot:
 
         # ===== LLM =====
         self.llm = LLMFactory.create(
-            provider="openai",
+            provider=llm_prov,
             model_name=model_name,
             temperature=temperature,
         )
