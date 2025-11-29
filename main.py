@@ -5,16 +5,12 @@ from fastapi.responses import HTMLResponse
 import uvicorn
 
 from common.config.settings import get_settings
-
-# Controllers ya existentes
 from controllers.calendar_controller import CalendarController
 from controllers.management_competition_controller import ManagementCompetitionController
 from controllers.management_news_indexed_controller import NewsIndexedController
 from controllers.management_sentiment_controller import ManagementSentimentController
 from controllers.management_sentiment_rankings_controller import ManagementSentimentRankingsController
 from controllers.management_sentiment_rankings_fallback_controller import ManagementSentimentRankingsFallbackController
-
-# 🔥 NUEVO CONTROLLER
 from controllers.portfolio_securities_controller import PortfolioSecuritiesController
 from controllers.process_news_controller import ProcessNewsController
 
