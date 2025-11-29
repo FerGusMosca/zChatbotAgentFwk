@@ -3,10 +3,15 @@
 
 import importlib
 from datetime import datetime
+
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+
 from common.util.app_logger import AppLogger
 from common.util.cache.cache_manager import CacheManager
 from common.config.settings import get_settings
 from common.util.loader.file_content_extractor import FileContentExtractor
+from common.util.loader.prompt_loader import PromptLoader
 from logic.util.builder.llm_factory import LLMFactory   # ← NUEVO
 
 
@@ -40,6 +45,12 @@ class IntentBasedFileIndexerBot:
         self.cache = CacheManager()
         self.last_metrics = {}
 
+        raw_prompt = PromptLoader(self.prompt_name).prompts[self.prompt_name]
+
+        self.full_prompt = ChatPromptTemplate.from_messages([
+            ("system", raw_prompt)
+        ])
+
         settings = get_settings()
         self.logger.info(f"Loading IntentBasedFileIndexerBot for profile: {settings.bot_profile}")
 
@@ -55,47 +66,70 @@ class IntentBasedFileIndexerBot:
         module = importlib.import_module(module_name)
         cls = getattr(module, class_name)
         self.intent_logic = cls(self.logger)
-        self.logger.info(f"[IntentBasedFileIndexerBot] Loaded intent logic: {cls.__name__}")
-
-        # --- LLM base instance – 100% AGNÓSTICO ---
-        self.llm = LLMFactory.create(
-            provider="openai",
-            model_name=model_name,
-            temperature=temperature,
-        ).get_client()   # ← devuelve el ChatOpenAI real (Runnable)
 
         self.logger.info(f"IntentBasedFileIndexerBot initialized successfully (HybridBot-compatible).")
 
+    def _stage_llm(self, batch):
+        """
+        LLM answering stage.
+        Sends the retrieved file content (context) + user question to the LLM.
+        The prompt already expects {context} and {question} exactly as written.
+        """
+        self.logger.info("stage_llm_start", {"question": batch["question"]})
+
+        # Build runnable chain: prompt → LLM → raw string
+        chain = (
+            self.full_prompt
+            | self.prompt_bot.get_client()
+            | StrOutputParser()
+        )
+
+        # Inject EXACT variables the prompt expects
+        answer = chain.invoke({
+            "context": batch["context"],
+            "question": batch["question"]
+        })
+
+        self.logger.info("stage_llm_done", {"answer_preview": answer[:200]})
+        return answer
+
+
     # ---------------- Core handler ----------------
     def handle(self, question: str) -> str:
+        """
+        Main entry point.
+        Detects file intent → loads file → sends file content + question to LLM.
+        Returns structured JSON sentiment analysis.
+        """
         try:
             self.logger.info("[IntentFileIndexerBot] Detecting intent...")
             relative_path = self.intent_logic.detect(question)
 
             if not relative_path:
                 self.logger.warning("[IntentFileIndexerBot] No intent detected.")
-                return "No matching file intent detected for this query."
+                return "No se detectó intención de archivo para esta consulta."
 
             self.logger.info(f"[IntentFileIndexerBot] Intent detected: {relative_path}")
 
             file_content = FileContentExtractor.get_file_content(relative_path)
             if not file_content:
-                return f"Error reading file: {relative_path}"
+                return f"Error leyendo el archivo: {relative_path}"
 
-            enriched_question = (
-                f"{question}\n\n---\nFile identified: {relative_path}\n\n"
-                f"Contenido del archivo:\n{file_content}"
-            )
+            # Build batch with file content as context
+            batch = {
+                "context": file_content,
+                "question": question
+            }
 
-            self.logger.info("[IntentFileIndexerBot] Forwarding to fallback LLM...")
-            result = self.prompt_bot.handle(enriched_question)
+            self.logger.info("[IntentFileIndexerBot] Sending to LLM with file content...")
+            result = self._stage_llm(batch)
 
             self._log_metrics(question, "intent", relative_path)
             return result
 
         except Exception as e:
             self.logger.error(f"[IntentFileIndexerBot] Error handling intent: {e}")
-            return f"Error processing intent: {e}"
+            return f"Error procesando la intención: {e}"
 
     # ---------------- Metrics ----------------
     def _log_metrics(self, user_query: str, mode: str, detected_path: str = None):

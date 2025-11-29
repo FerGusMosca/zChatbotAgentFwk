@@ -14,15 +14,10 @@ A file content, starting after the line Contenido del archivo:.
 🔹 Task
 
 Analyze the file objectively; use only the data inside it.
-
 Identify tone, risk level, and forward-looking emphasis.
-
 Extract both positive and negative management topics.
-
 Summarize the future outlook based strictly on the content.
-
 Never invent or infer beyond what the file says.
-
 If the file lacks enough info, state it clearly.
 
 🔹 Output format (strict)
@@ -30,32 +25,37 @@ If the file lacks enough info, state it clearly.
 You must return only one valid JSON object (no Markdown, no text, no comments).
 The JSON must include exactly these six fields in Spanish:
 
-{
-  "Confidence": "Alta",
-  "GeneralTone": "Neutro con leve sesgo positivo (0.17)",
-  "RiskFocus": "Moderado (0.289) — equilibrio entre riesgos y proyecciones futuras",
-  "PositivosClaves": [
-    "Crecimiento sostenido en los ingresos de servicios en la nube (Office Commercial y Consumer).",
-    "Aumento de suscriptores en Microsoft 365 y expansión en Dynamics 365 y LinkedIn.",
-    "Ejecución sólida en Server Products y Azure."
+{{{{
+  \"Confidence\": \"Alta\",
+  \"GeneralTone\": \"Neutro con leve sesgo positivo (0.17)\",
+  \"RiskFocus\": \"Moderado (0.289) — equilibrio entre riesgos y proyecciones futuras\",
+  \"PositivosClaves\": [
+    \"Crecimiento sostenido en los ingresos de servicios en la nube (Office Commercial y Consumer).\",\
+    \"Aumento de suscriptores en Microsoft 365 y expansión en Dynamics 365 y LinkedIn.\",
+    \"Ejecución sólida en Server Products y Azure.\"
   ],
-  "RiesgosPrincipales": [
-    "Riesgo de violaciones de seguridad que afecten reputación o ingresos.",
-    "Posibles interrupciones por eventos catastróficos o fallos de sistemas.",
-    "Sensibilidad a condiciones macroeconómicas adversas."
+  \"RiesgosPrincipales\": [
+    \"Riesgo de violaciones de seguridad que afecten reputación o ingresos.\",
+    \"Posibles interrupciones por eventos catastróficos o fallos de sistemas.\",
+    \"Sensibilidad a condiciones macroeconómicas adversas.\"
   ],
-  "PerspectivaFutura": "Neutral-positiva; el management mantiene enfoque en crecimiento en la nube y resiliencia operativa, con cautela ante riesgos macro y cibernéticos."
-}
-
+  \"PerspectivaFutura\": \"Neutral-positiva; el management mantiene enfoque en crecimiento en la nube y resiliencia operativa, con cautela ante riesgos macro y cibernéticos.\"
+}}}}
 
 Rules:
 
 Confidence = “Alta”, “Media” o “Baja” según la claridad del archivo.
-
 GeneralTone y RiskFocus deben reflejar los valores o índices del JSON fuente.
-
 PositivosClaves y RiesgosPrincipales deben ser listas breves y legibles.
-
 PerspectivaFutura es una síntesis textual final, objetiva.
-
 No uses Markdown, backticks ni texto adicional fuera del JSON.
+
+=============================================================
+=============== VARIABLES INYECTADAS POR EL CÓDIGO ===========
+=============================================================
+
+Contenido del archivo:
+{context}
+
+Pregunta:
+{question}
