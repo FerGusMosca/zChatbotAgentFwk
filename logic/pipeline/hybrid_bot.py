@@ -24,6 +24,7 @@ class HybridBot:
         vector_store_path: str,
         prompt_name: str,
         retrieval_score_threshold: float = 0.4,
+        llm_prov: str="openai",
         model_name: str = "gpt-4o-mini",
         temperature: float = 0.0,
         top_k: int = 8,
@@ -48,7 +49,7 @@ class HybridBot:
 
         # LLM
         self.llm = LLMFactory.create(
-            provider="openai",
+            provider=llm_prov,
             model_name=model_name,
             temperature=temperature,
         )

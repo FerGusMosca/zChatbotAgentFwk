@@ -68,6 +68,7 @@ def load_hybrid_bot(
         vectorstore_path,
         prompt_name=settings.chat_prompt,
         retrieval_score_threshold=settings.retrieval_score_threshold,
+        llm_prov=settings.llm_prov,
         model_name=settings.model_name,
         temperature=settings.model_temperature,
         top_k=int(settings.model_final_k),

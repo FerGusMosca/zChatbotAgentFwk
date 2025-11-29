@@ -41,6 +41,7 @@ class RagOnlyBot:
             vector_store_path,
             prompt_name,
             system_prompt: str = "",
+            llm_prov:str="openai",
             model_name: str = "gpt-4o",
             temperature: float = 0.0,
             top_k: int = 4,

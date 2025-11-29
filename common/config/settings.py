@@ -98,6 +98,10 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("BOT_LOGIC", "BOT_LOGIC"))
 
+    llm_prov: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LLM_PROV", "LLM_PROV"))
+
     model_name: str | None = Field(
         default=None,
         validation_alias=AliasChoices("MODEL_NAME", "MODEL_NAME"))
