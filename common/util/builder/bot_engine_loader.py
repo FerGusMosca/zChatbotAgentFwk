@@ -70,7 +70,7 @@ def load_hybrid_bot(
         retrieval_score_threshold=settings.retrieval_score_threshold,
         model_name=settings.model_name,
         temperature=settings.model_temperature,
-        top_k=settings.model_final_k,
+        top_k=int(settings.model_final_k),
     )
 
     # --- Cache instance ---
