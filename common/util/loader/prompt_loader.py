@@ -1,7 +1,11 @@
 import os
-
+from pathlib import Path
 class PromptLoader:
-    def __init__(self, prompts_path: str,prompt_name:str):
+    def __init__(self, prompt_name:str):
+        repo_root = Path(__file__).resolve().parents[3]
+        prompts_path = repo_root / "prompts"
+        prompt_name = prompt_name
+        # prompt_loader = PromptLoader(str(prompts_path), prompt_name=prompt_name)
         self.prompts_path = prompts_path
         self.prompt_name=prompt_name
         self.prompts = {}
@@ -17,7 +21,7 @@ class PromptLoader:
                 with open(os.path.join(self.prompts_path, file), "r", encoding="utf-8") as f:
                     self.prompts[prompt_name] = f.read()
                     print(f"[PROMPT LOADER] Loaded prompt: {prompt_name} ({file}) ✅")
-                break  # Ya lo encontraste, no sigas iterando
+                break
 
         if not found:
             raise FileNotFoundError(f"Prompt file '{self.prompt_name}.txt' not found in path '{self.prompts_path}'")

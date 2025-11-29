@@ -20,14 +20,19 @@ class IntentBasedFileIndexerBot:
     def __init__(
             self,
             vector_store_path,
-            prompt_bot,
+            prompt_name,
             retrieval_score_threshold=0.4,
             model_name: str = "gpt-4o",
             temperature: float = 0.0,
             top_k: int = 4,
     ):
         self.logger = AppLogger.get_logger(__name__)
-        self.prompt_bot = prompt_bot
+        self.prompt_bot =  LLMFactory.create(
+                                        provider="openai",
+                                        model_name=model_name,
+                                        temperature=temperature,
+                                    )
+        self.prompt_name=prompt_name
         self.model_name = model_name
         self.temperature = temperature
         self.retrieval_score_threshold = retrieval_score_threshold

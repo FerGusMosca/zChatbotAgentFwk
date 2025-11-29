@@ -50,3 +50,6 @@ class OpenAILLM:
 
     def get_client(self):
         return self._client
+
+    def handle(self,query):
+        return self.invoke(query)

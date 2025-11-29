@@ -33,14 +33,20 @@ class FileIndexerBot:
     def __init__(
         self,
         vector_store_path,
-        prompt_bot,
+        prompt_name,
         retrieval_score_threshold=0.4,
         model_name="gpt-4o",
         temperature=0.0,
         top_k=4,
     ):
         self.logger = AppLogger.get_logger(__name__)
-        self.prompt_bot = prompt_bot
+        self.prompt_bot =  LLMFactory.create(
+                                        provider="openai",
+                                        model_name=model_name,
+                                        temperature=temperature,
+                                    )
+
+        self.prompt_name=prompt_name
 
         vectordb = FaissVectorstoreLoader.load_legacy_faiss(vector_store_path)
         self.retriever = vectordb.as_retriever(search_kwargs={"k": top_k})
@@ -64,7 +70,7 @@ class FileIndexerBot:
         # Prompts
         answer_prompt = ChatPromptTemplate(
             messages=[
-                SystemMessagePromptTemplate.from_template(self.prompt_bot.system_prompt + "\n{context}"),
+                SystemMessagePromptTemplate.from_template(self.prompt_name + "\n{context}"),
                 HumanMessagePromptTemplate.from_template("Chat history:\n{chat_history}\n\n{question}"),
             ],
             input_variables=["context", "question", "chat_history"],

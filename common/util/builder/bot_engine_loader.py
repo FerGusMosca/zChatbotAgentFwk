@@ -2,12 +2,10 @@ import os
 from dotenv import load_dotenv
 from langchain.chains import ConversationalRetrievalChain
 from langchain_community.vectorstores import FAISS
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from typing import Dict, Tuple, Optional
 from common.config.settings import get_settings
 from logic.pipeline.hybrid_bot import HybridBot
-from logic.pipeline.prompt_based_chatbot import PromptBasedChatbot
 from common.util.loader.prompt_loader import PromptLoader
 from pathlib import Path
 import importlib
@@ -53,25 +51,14 @@ def load_hybrid_bot(
         raise FileNotFoundError(f"❌ Vectorstore not found at: {vectorstore_path}")
 
 
-    # --- Load prompt ---
+    # --- Load sett ---
     settings=get_settings()
-
-    repo_root = Path(__file__).resolve().parents[3]
-    prompts_path = repo_root / "prompts"
-    prompt_name = prompt_name or get_settings().chat_prompt
-    print(f"🧠 Loading prompt '{prompt_name}' from {prompts_path}")
-    prompt_loader = PromptLoader(str(prompts_path), prompt_name=prompt_name)
-    prompt_bot = PromptBasedChatbot(prompt_loader, prompt_name=prompt_name)
-
-    # --- Model configuration ---
-    model_name = settings.model_name
-    temperature = settings.model_temperature
-    model_final_k=settings.model_final_k
 
     # --- Dynamic bot logic instantiation ---
     bot_logic = settings.bot_logic
     if not bot_logic:
         raise ValueError("❌ BOT_LOGIC not defined in .env or settings.")
+    
     module_path, class_name = bot_logic.split(",")
     module = importlib.import_module(module_path)
     cls = getattr(module, class_name)
@@ -79,11 +66,11 @@ def load_hybrid_bot(
 
     bot = cls(
         vectorstore_path,
-        prompt_bot=prompt_bot,
-        retrieval_score_threshold=get_settings().retrieval_score_threshold,
-        model_name=model_name,
-        temperature=temperature,
-        top_k=model_final_k,
+        prompt_name=settings.chat_prompt,
+        retrieval_score_threshold=settings.retrieval_score_threshold,
+        model_name=settings.model_name,
+        temperature=settings.model_temperature,
+        top_k=settings.model_final_k,
     )
 
     # --- Cache instance ---

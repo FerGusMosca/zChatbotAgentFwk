@@ -18,7 +18,6 @@ class QueryRewriter:
         self.logger = logger
         self.prompt_template = self._extract_section(full_prompt)
 
-        # ← 100 % desacoplado via factory
         self.llm = LLMFactory.create(
             provider="openai",
             model_name=model_name,

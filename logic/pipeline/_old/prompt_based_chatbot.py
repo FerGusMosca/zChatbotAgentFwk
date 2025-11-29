@@ -2,7 +2,7 @@ import os
 
 from openai import OpenAI
 
-
+'''
 class PromptBasedChatbot:
     def __init__(self, prompt_loader, prompt_name="generic_prompt"):
         self.prompt_loader = prompt_loader
@@ -29,3 +29,5 @@ class PromptBasedChatbot:
 
         # Si sí hay contexto:
         return f"{base_prompt}\n\nContext:\n{retrieved_docs[0]}\n\nQuestion: {user_query}\nAnswer:"
+
+'''

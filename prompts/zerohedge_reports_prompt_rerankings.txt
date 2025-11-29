@@ -42,7 +42,7 @@ Rules:
 - One query per line
 - Numbered 1–5
 - No explanations, no extra text
-
+8
 Topic: {query}
 
 1.

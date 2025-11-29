@@ -6,6 +6,8 @@ from datetime import datetime
 from langchain.schema import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.retrievers import BM25Retriever
+
+from common.util.loader.prompt_loader import PromptLoader
 from logic.util.builder.llm_factory import LLMFactory
 from langchain_core.prompts import (
     SystemMessagePromptTemplate,
@@ -52,9 +54,8 @@ class RerankedRagBot:
     def __init__(
         self,
         vector_store_path: str,
-        prompt_bot=None,
+        prompt_name,
         retrieval_score_threshold=None,
-        system_prompt: str = "",
         model_name: str = "gpt-4o",
         temperature: float = 0.0,
         top_k: int = 4,
@@ -68,25 +69,23 @@ class RerankedRagBot:
         self.logger = logger if logger is not None else SimpleLogger()
 
         # --- Load system prompt provided by PromptBasedChatbot ---
-        if prompt_bot:
-            self.system_prompt = prompt_bot.system_prompt or ""
-        else:
-            self.system_prompt = system_prompt or ""
+        self.system_prompt = prompt_name
 
         self.top_k_faiss = top_k_faiss
         self.top_k_bm25 = top_k_bm25
         self.top_k_fusion = kwargs.get("top_k_fusion", 10)
 
         # ===== Modules =====
-        master_prompt = self.system_prompt
+        full_prompt=PromptLoader(self.system_prompt).prompts[prompt_name]
+
         self.rewriter = QueryRewriter(
-            full_prompt=master_prompt,
+            full_prompt=full_prompt,
             logger=self.logger,
             model_name=model_name,
             temperature=temperature
         )
         self.expander = QueryExpander(
-            full_prompt=master_prompt,
+            full_prompt=full_prompt,
             logger=self.logger,
             model_name=model_name,
             temperature=temperature
@@ -97,7 +96,7 @@ class RerankedRagBot:
 
         # ===== Query classifier =====
         self.classifier = QueryClassifier(
-            full_prompt=master_prompt,
+            full_prompt=full_prompt,
             logger=self.logger,
             use_llm_fallback=True,
             model_name=model_name,
@@ -156,7 +155,7 @@ class RerankedRagBot:
         )
 
         # ===== Prompt =====
-        self.answer_prompt = ChatPromptTemplate.from_template(PromptSectionExtractor.extract(self.system_prompt, "MAIN_LLM"))
+        self.answer_prompt = ChatPromptTemplate.from_template(PromptSectionExtractor.extract(full_prompt, "MAIN_LLM"))
 
         # DO NOT build pipeline here (dynamic!). Keep only runner wrapper.
         self._log("init_complete", {})

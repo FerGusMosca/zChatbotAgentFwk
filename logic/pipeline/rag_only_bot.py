@@ -39,7 +39,7 @@ class RagOnlyBot:
     def __init__(
             self,
             vector_store_path,
-            prompt_bot=None,
+            prompt_name,
             system_prompt: str = "",
             model_name: str = "gpt-4o",
             temperature: float = 0.0,
@@ -49,7 +49,8 @@ class RagOnlyBot:
     ):
         # Logging
         self.logger = logger
-        self.prompt_bot = prompt_bot
+        self.prompt_bot = None #NO FALLBACK!
+        self.prompt_name=prompt_name
         self.system_prompt = system_prompt
         self.top_k = top_k
         self.retrieval_score_threshold = retrieval_score_threshold
