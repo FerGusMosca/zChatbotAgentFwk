@@ -22,18 +22,49 @@ class FundsReportsController:
         @self.router.post("/analyze")
         async def analyze(query: str = Form(...)):
             if not query.strip():
-                return JSONResponse({"message": "error", "bot_response": "La consulta no puede estar vacía."})
+                return JSONResponse({"message": "error", "bot_response": "Query cannot be empty."})
 
             prompt = query.strip()
-            print(f"Invoking bot {settings.funds_reports_url} w/ message: {prompt}")
-            uri = settings.funds_reports_url  # ← el que ya tenés en .env (ws://ip:8010)
+            log = self.logger
+
+            log.info("==========================================")
+            log.info("[FundsReports] New incoming request")
+            log.info(f"[FundsReports] Query: {prompt}")
+            log.info("==========================================")
+
+            uri = settings.funds_reports_url
+            log.info(f"[FundsReports] Target WebSocket URL: {uri}")
 
             try:
-                async with websockets.connect(uri) as ws:
-                    await ws.send(prompt)
-                    response = await ws.recv()
-                return JSONResponse({"message": "ok", "bot_response": response})
-            except Exception as e:
-                return JSONResponse({"message": "error", "bot_response": f"Error conectando al bot: {e}"})
+                log.info("[FundsReports] Attempting WebSocket connection...")
 
-        self.logger = AppLogger.get_logger("FundsReportsController")
+                async with websockets.connect(
+                        uri,
+                        ping_interval=20,
+                        ping_timeout=20,
+                        close_timeout=5,
+                        max_size=10_000_000
+                ) as ws:
+
+                    log.info("[FundsReports] WebSocket connected successfully.")
+                    log.info("[FundsReports] Sending prompt to bot...")
+                    await ws.send(prompt)
+
+                    log.info("[FundsReports] Waiting for bot response...")
+                    response = await ws.recv()
+
+                    log.info("[FundsReports] Bot response received.")
+                    log.info("[FundsReports] DONE")
+                    return JSONResponse({"message": "ok", "bot_response": response})
+
+            except Exception as e:
+                log.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                log.error("[FundsReports] ERROR during WebSocket communication")
+                log.error(f"[FundsReports] Exception type: {type(e).__name__}")
+                log.error(f"[FundsReports] Exception details: {e}")
+                log.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+
+                return JSONResponse({
+                    "message": "error",
+                    "bot_response": f"Error connecting to bot: {e}"
+                })
