@@ -135,6 +135,7 @@ def main():
     def logger(msg): log(msg, lf)
 
     logger(f"START ZEROHEDGE Vectorstore Build")
+    logger(f"BUILD PARAMETER (inner_folder): {inner_folder}")
     logger(f"Config enforced: {CONFIG_PATH.name} (dim={EXPECTED_DIM}, cosine via IP)")
 
     # Collect folders
@@ -171,7 +172,7 @@ def main():
     index = build_faiss_index(all_embeddings, logger)
 
     # Output
-    out_dir = os.path.join(settings.bot_profile_root_path, bot_profile, "ONLY_FAISS")
+    out_dir = os.path.join(settings.bot_profile_root_path, bot_profile)
     os.makedirs(out_dir, exist_ok=True)
 
     faiss_path = os.path.join(out_dir, "index.faiss")
