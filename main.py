@@ -6,6 +6,7 @@ import uvicorn
 
 from common.config.settings import get_settings
 from controllers.calendar_controller import CalendarController
+from controllers.funds_reports_controller import FundsReportsController
 from controllers.management_competition_controller import ManagementCompetitionController
 from controllers.management_news_indexed_controller import NewsIndexedController
 from controllers.management_sentiment_controller import ManagementSentimentController
@@ -62,6 +63,10 @@ app.include_router(mgmt_sentiment_ranking.router)
 mgmt_sentiment_ranking_fallback = ManagementSentimentRankingsFallbackController()
 app.include_router(mgmt_sentiment_ranking_fallback.router)
 
+# Funds Reports (#10-Rag ZeroHedge)
+funds_reports = FundsReportsController()
+app.include_router(funds_reports.router)
+
 # Calendar Viewer
 calendar = CalendarController()
 app.include_router(calendar.router)
@@ -76,4 +81,4 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(settings.port),
                 reload=False,
                 timeout_keep_alive=120,
-                workers=6)
+                workers=1)

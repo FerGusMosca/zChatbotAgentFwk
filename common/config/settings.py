@@ -28,6 +28,11 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("RANKING_FALLBACK_URL", "RANKING_FALLBACK_URL"))
 
+    funds_reports_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("FUNDS_REPORTS_URL", "FUNDS_REPORTS_URL"))
+
+
     documents_path: str | None = Field(
         default=None,
         validation_alias=AliasChoices("DOCUMENTS_PATH", "DOCUMENTS_PATH"))

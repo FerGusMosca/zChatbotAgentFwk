@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Funds Reports (#10-Rag)</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/funds_reports.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <ul>
+    <li><a href="/">Home</a></li>
+
+  </ul>
+</nav>
+
+<div class="content">
+  <div class="panel">
+    <h3>Multipel Funds Reports - Search Tool</h3>
+    <form id="rankingForm" action="/funds_reports/analyze" method="POST" novalidate>
+      <textarea name="query" placeholder="Ejemplo: ¿Qué narrativas dominan esta semana en ZeroHedge?" required></textarea>
+      <button type="submit">
+        <span class="fr-spinner"></span>
+        <span>Search</span>
+      </button>
+    </form>
+    <div class="error-msg" id="errorMsg"></div>
+    <div id="result"></div>
+  </div>
+</div>
+
+<script src="/static/js/funds_reports.js"></script>
+</body>
+</html>
