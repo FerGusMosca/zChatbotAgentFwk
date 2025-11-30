@@ -2,14 +2,18 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Copy only the app code
+# Copiamos TODO
 COPY . /app
 
-# Install deps
+# 1. Instalamos las dependencias comunes (sin sentence-transformers)
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port if needed (FastAPI?)
+# 2. Instalamos SOLO las pesadas del bot10
+COPY requirements_bot_rerankers.txt .
+RUN pip install --no-cache-dir -r requirements_bot_rerankers.txt
+
+# Puerto FastAPI
 EXPOSE 8080
 
-# Default command
+# Arranca
 CMD ["python", "main.py"]
