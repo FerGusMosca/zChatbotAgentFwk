@@ -8,6 +8,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_community.retrievers import BM25Retriever
 
 from common.util.loader.prompt_loader import PromptLoader
+from logic.pipeline.retrieval.util.retrieval.stages.dedup_eliminator import DedupEliminator
 from logic.util.builder.llm_factory import LLMFactory
 from langchain_core.prompts import (
     SystemMessagePromptTemplate,
@@ -76,6 +77,9 @@ class RerankedRagBot:
         self.top_k_bm25 = top_k_bm25
         self.top_k_fusion = kwargs.get("top_k_fusion", 10)
 
+        # --- Inner Settings ---
+        self.dedup_settings_path= get_settings().dedup_settings
+
         # ===== Modules =====
         full_prompt=PromptLoader(self.system_prompt).prompts[prompt_name]
 
@@ -95,6 +99,8 @@ class RerankedRagBot:
         )
 
         self.reranker = CrossEncoderReranker(top_k=top_k, logger_ref=self.logger)
+        self.deduper = DedupEliminator(self.logger,self.dedup_settings_path)
+
         self.ssi = SalientSpanIndexer(top_k=top_k, logger_ref=self.logger)
 
         # ===== Query classifier =====
@@ -273,6 +279,13 @@ class RerankedRagBot:
         self._log("ssi_done", {"count": len(new_ctx)})
         return batch
 
+    def stage_dedup(self, batch,label):
+        ctx = batch.get("context", [])
+        result = self.deduper.run(ctx,label)
+        batch["context"] = result.docs
+        self._log("stage_dedup", {"removed": result.removed})
+        return batch
+
     def stage_rerank(self, batch, flags):
         """Apply cross-encoder reranker if enabled."""
         if not flags.get("rerank"):
@@ -336,7 +349,7 @@ class RerankedRagBot:
     # ==========================================================
     # BUILD PIPELINE
     # ==========================================================
-    def _build_pipeline(self, flags):
+    def _build_pipeline(self, flags,label):
         """
         Clean, flat, explicit pipeline builder.
         Returns a Runnable that executes the stages sequentially.
@@ -358,6 +371,7 @@ class RerankedRagBot:
             batch = self.stage_rewrite(batch, flags)
             batch = self.stage_expand(batch, flags)
             batch = self.stage_hybrid_search(batch)
+            batch = self.stage_dedup(batch,label)
             batch = self.stage_ssi(batch, flags)
             batch = self.stage_rerank(batch, flags)
             batch = self.stage_compress(batch)
@@ -420,7 +434,7 @@ class RerankedRagBot:
             })
 
             # 2) build dynamic pipeline
-            dynamic_pipeline = self._build_pipeline(flags)
+            dynamic_pipeline = self._build_pipeline(flags,label)
 
             # 3) run pipeline with message history
             chain = RunnableWithMessageHistory(

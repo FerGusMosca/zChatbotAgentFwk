@@ -114,6 +114,10 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("FINAL_K", "FINAL_K"))
 
+    dedup_settings: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DEDUP_SETTINSG", "DEDUP_SETTINSG"))
+
     faiss_config_file: str | None = Field(
         default=None,
         validation_alias=AliasChoices("FAISS_CONFIG_FILE", "FAISS_CONFIG_FILE"))
