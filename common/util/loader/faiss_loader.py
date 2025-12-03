@@ -133,7 +133,9 @@ class FaissVectorstoreLoader:
                 raise ValueError(f"Unsupported dimensions: {cfg.get('dimensions')}")
             if cfg.get("index_type") != "IndexFlatIP":
                 raise ValueError(f"Unsupported index_type: {cfg.get('index_type')}")
-            if not cfg.get("built_with_normalization", False):
+
+            built_w_norm = cfg.get("built_with_normalization", False)
+            if not built_w_norm:
                 raise ValueError("Index must be built with normalization")
 
             # === Load FAISS index ===
@@ -170,20 +172,23 @@ class FaissVectorstoreLoader:
             )
 
             # === Apply normalization if built with normalization ===
+            '''
             if cfg.get("built_with_normalization", False):
                 faiss.normalize_L2(index.reconstruct_n(0, index.ntotal))
+            '''
 
             # === Build FAISS wrapper ===
+            norm_on_search=cfg.get("normalize_L2", built_w_norm)
             vdb = FAISS(
                 embedding_function=correct_emb.embed_query,
                 index=index,
                 docstore=InMemoryDocstore(docstore_dict),
                 index_to_docstore_id=id_map,
-                normalize_L2=False
+                normalize_L2= norm_on_search
             )
             vdb.metadatas = metadata
 
-            return vdb, meta
+            return vdb, meta, correct_emb , norm_on_search
 
         except Exception as ex:
             raise RuntimeError(f"[FAISS-RERANKERS] Load failed: {ex}")

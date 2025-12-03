@@ -3,11 +3,15 @@
 from pathlib import Path
 import uuid
 from datetime import datetime
+
+import numpy as np
+
 from langchain.schema import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.retrievers import BM25Retriever
 
 from common.util.loader.prompt_loader import PromptLoader
+from logic.pipeline.retrieval.util.retrieval.stages.context_compression import ContextCompressor
 from logic.pipeline.retrieval.util.retrieval.stages.dedup_eliminator import DedupEliminator
 from logic.util.builder.llm_factory import LLMFactory
 from langchain_core.prompts import (
@@ -39,7 +43,7 @@ from logic.pipeline.retrieval.util.retrieval.stages.salient_span_indexer import 
 REWRITE_ON = True
 EXPAND_ON = True
 SSI_ON = False
-
+DEBUG_MODE=True
 
 
 class RerankedRagBot:
@@ -79,6 +83,8 @@ class RerankedRagBot:
 
         # --- Inner Settings ---
         self.dedup_settings_path= get_settings().dedup_settings
+        self.compression_settings_path=get_settings().compression_settings
+        self.ssi_settings=get_settings().ssi_settings
 
         # ===== Modules =====
         full_prompt=PromptLoader(self.system_prompt).prompts[prompt_name]
@@ -101,7 +107,7 @@ class RerankedRagBot:
         self.reranker = CrossEncoderReranker(top_k=top_k, logger_ref=self.logger)
         self.deduper = DedupEliminator(self.logger,self.dedup_settings_path)
 
-        self.ssi = SalientSpanIndexer(top_k=top_k, logger_ref=self.logger)
+        self.ssi = SalientSpanIndexer(self.ssi_settings,self.logger)
 
         # ===== Query classifier =====
         self.classifier = QueryClassifier(
@@ -120,11 +126,15 @@ class RerankedRagBot:
             self._log("init_start", {"vector_path": vector_store_path})
 
             self.faiss_config_file=get_settings().faiss_config_file
-            vectordb, meta = FaissVectorstoreLoader.load_faiss_rerankers(vector_store_path,config_path=self.faiss_config_file)
+            vectordb, meta,embed,norm_on_search = FaissVectorstoreLoader.load_faiss_rerankers(vector_store_path,config_path=self.faiss_config_file)
+
             if vectordb is None:
                 raise RuntimeError("Failed to load FAISS vectorstore.")
 
             self.vectordb = vectordb
+            self.meta=meta
+            self.embed=embed
+            self.norm_on_search=norm_on_search
             self.docs_raw = meta["metadata"]
             self.text_raw = meta["chunks"]
 
@@ -148,6 +158,13 @@ class RerankedRagBot:
             self._log("fatal_faiss_retriever_error", {"exception": str(ex)})
             raise
 
+        # ===== Context Compressor =====
+        try:
+            self.context_compressor = ContextCompressor(self.compression_settings_path,self.logger)
+        except Exception as ex:
+            self._log("fatal_context_compressor_error", {"exception": str(ex)})
+            raise
+
         # ===== BM25 retriever =====
         try:
             self.bm25_retriever = BM25Retriever.from_documents([Document(page_content=t) for t in self.text_raw])
@@ -169,6 +186,8 @@ class RerankedRagBot:
 
         # DO NOT build pipeline here (dynamic!). Keep only runner wrapper.
         self._log("init_complete", {})
+
+
 
     # ==========================================================
     # INTENT FLAGS
@@ -237,7 +256,15 @@ class RerankedRagBot:
         self._log("hybrid_start", {"query": q})
 
         try:
-            faiss_hits = self.faiss_retriever.invoke(q)
+            qv = np.array(self.embed.embed_query(q), dtype="float32")
+            if self.norm_on_search:
+                qv /= np.linalg.norm(qv)
+
+            idxs, scores = self.vectordb.index.search(qv.reshape(1, -1), self.top_k_faiss)
+
+            id_map = {str(k): v for k, v in self.meta["index_to_docstore_id"].items()}
+            faiss_hits = [self.vectordb.docstore._dict[str(id_map[str(int(fid))])] for fid in idxs[0]]
+
             self._log("faiss_ok", {"hits": len(faiss_hits)})
         except Exception as e:
             self._log("faiss_error", {"error": str(e)})
@@ -260,23 +287,24 @@ class RerankedRagBot:
         batch["context"] = fusion_docs
         batch["question"] = q
         batch["chat_history"] = batch.get("chat_history", [])
+
+        if DEBUG_MODE:
+            self.logger.debug("----CHUNKS RETURNED ----")
+            for i, doc in enumerate(batch["context"], start=1):
+                self.logger.debug(f"CHUNK[{i:02d}]: {doc.to_log_string()}")
+
         return batch
 
-    def stage_ssi(self, batch, flags):
-        """Apply Salient Span Indexer if enabled."""
-        if not flags.get("ssi"):
-            return {
-                "input": batch.get("input", ""),
-                "chat_history": batch.get("chat_history", []),
-                "context": batch.get("context", []),
-                "question": batch.get("question", batch.get("input", ""))
-            }
+    def stage_ssi(self, batch: dict, flags: dict) -> dict:
+        """Apply SSI only if flagged – minimal, safe, production-ready"""
+        if not flags.get("ssi", False):
+            return batch
 
-        self._log("ssi_start", {"query": batch.get("question", "")})
-        ctx = batch.get("context", [])
-        new_ctx = self.ssi.extract(batch["question"], ctx)
-        batch["context"] = new_ctx
-        self._log("ssi_done", {"count": len(new_ctx)})
+        docs = batch.get("context", [])
+        query = batch.get("question") or batch.get("input", "")
+        intent = flags.get("intent", "")
+
+        batch["context"] = self.ssi.extract(docs=docs, query=query, intent=intent)
         return batch
 
     def stage_dedup(self, batch,label):
@@ -298,6 +326,12 @@ class RerankedRagBot:
             reranked = self.reranker.rerank(q, ctx)
             batch["context"] = reranked
             self._log("rerank_done", {"count": len(reranked)})
+        return batch
+
+    def stage_context_compression(self, batch):
+        # keep original objects → compressor extrae texto solo adentro
+        docs = batch.get("context", [])
+        batch["context"] = self.context_compressor.compress(docs, batch["question"])
         return batch
 
     def stage_compress(self, batch):
@@ -374,6 +408,7 @@ class RerankedRagBot:
             batch = self.stage_dedup(batch,label)
             batch = self.stage_ssi(batch, flags)
             batch = self.stage_rerank(batch, flags)
+            batch = self.stage_context_compression(batch)
             batch = self.stage_compress(batch)
             answer = self.stage_llm(batch)
 

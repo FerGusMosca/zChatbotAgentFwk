@@ -62,3 +62,5 @@ class SimpleLogger:
     def info(self, message, extra=None):    self._log("INFO", message, extra)
     def error(self, message, extra=None):   self._log("ERROR", message, extra)
     def warning(self, message, extra=None): self._log("WARNING", message, extra)
+
+    def debug(self, message, extra=None):self._log("DEBUG", message, extra)

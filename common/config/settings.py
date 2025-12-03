@@ -116,7 +116,16 @@ class Settings(BaseSettings):
 
     dedup_settings: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("DEDUP_SETTINSG", "DEDUP_SETTINSG"))
+        validation_alias=AliasChoices("DEDUP_SETTINGS", "DEDUP_SETTINGS"))
+
+    compression_settings: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("COMPRESSION_SETTINGS", "COMPRESSION_SETTINGS"))
+
+
+    ssi_settings: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SSI_SETTINGS", "SSI_SETTINGS"))
 
     faiss_config_file: str | None = Field(
         default=None,

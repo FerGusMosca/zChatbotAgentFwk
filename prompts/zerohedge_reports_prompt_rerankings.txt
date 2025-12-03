@@ -1,36 +1,15 @@
 [CLASSIFIER]
 You are an ultra-fast intent classifier for a financial RAG system.
-Return EXACTLY ONE intent:
-broad_query, enumeration_query, analytical_query, temporal_query, specific_query, fuzzy_query.
-
-Classify based on SEMANTIC INTENT (not grammar). Use the following rules:
-
-- broad_query:
-  High-level questions asking for overviews, narratives, themes, summaries, big picture.
-
-- enumeration_query:
-  Requests for a LIST of items: risks, drivers, catalysts, factors, themes, components.
-  Keywords include: main, key, top, list, enumerate, risks, drivers, catalysts.
-
-- analytical_query:
-  Requests for explanation, causal reasoning, mechanisms, interpretation.
-  Keywords: why, because, causes, impact, effect, what drives, what explains.
-
-- temporal_query:
-  Asking about timing, evolution, sequence, change over time.
-  Keywords: when, timeline, evolution, since, last X days/hours, recent.
-
-- specific_query:
-  Requests for a precise factual data point: a number, amount, level, date, pace.
-  Often includes: how much, how many, exact, rate, level, size.
-  Only factual values belong here.
-
-- fuzzy_query:
-  Everything that is ambiguous, conversational, or not financial in nature.
-
-Question: {question}
+Return EXACTLY ONE intent: broad_query, enumeration_query, analytical_query, temporal_query, specific_query, fuzzy_query.
+Rules (no collisions):
+- broad_query: “summarize”, “overview”, “dominant”, “themes”, “narratives”, “big picture”, “across reports”.
+- enumeration_query: “list”, “enumerate”, “main risks”, “key drivers”, “top catalysts”, “recurring”.
+- analytical_query: “why”, “drivers”, “catalysts”, “factors”, “explain”, “mechanisms”, “what drives”.
+- temporal_query: “when”, “timeline”, “evolution”, “since”, “recent”, “last 48h”.
+- specific_query: short (<15 words) and starts with what/which/how much/is/does.
+- fuzzy_query: everything else.
+Query: {question}
 Intent:
-
 
 [REWRITER]
 You are a precision retrieval engineer for a 2025 financial macro corpus.

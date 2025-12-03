@@ -33,6 +33,13 @@ class RetrievedDocument:
     def combined(self, w_faiss: float, w_bm25: float) -> float:
         return self.score_faiss * w_faiss + self.score_bm25 * w_bm25
 
+    def to_log_string(self) -> str:
+        """Return compact string for debug log: score + first 100 chars of text"""
+        preview = self.text.replace("\n", " ").replace("\r", " ")[:100]
+        if len(self.text) > 100:
+            preview += "..."
+        return f"[score={self.combined(0.7, 0.3):.4f} faiss={self.score_faiss:.3f} bm25={self.score_bm25:.3f}] {preview}"
+
 
 # ===============================
 # Fusion

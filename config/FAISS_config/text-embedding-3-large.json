@@ -2,7 +2,7 @@
   "embedding_model": "text-embedding-3-large",
   "dimensions": 1024,
   "metric": "METRIC_INNER_PRODUCT",
-  "normalize_L2": false,
+  "normalize_L2": true,
   "distance_is_cosine": true,
   "index_type": "IndexFlatIP",
   "faiss_version": "1.7.4+",
