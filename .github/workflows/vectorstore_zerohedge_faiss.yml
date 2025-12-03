@@ -6,6 +6,7 @@ on:
     paths:
       - 'commands/vectorstore_cmd/**'
       - 'common/config/FAISS_config/**'
+      - 'commands/vectorstore_cmd/**'
       - '.github/workflows/**'
   workflow_dispatch:
 
