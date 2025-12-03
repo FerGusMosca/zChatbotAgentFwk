@@ -131,7 +131,11 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("FAISS_CONFIG_FILE", "FAISS_CONFIG_FILE"))
 
+    rerankers_settings: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("RERANKERS_SETTINGS", "RERANKERS_SETTINGS"))
 
+    #
 
     index_files_root_path: str | None = Field(
         default=None,

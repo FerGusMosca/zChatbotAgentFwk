@@ -1,11 +1,11 @@
 # ===== reranked_rag_bot.py =====
 # All comments MUST be in English.
+import json
 from pathlib import Path
 import uuid
 from datetime import datetime
-
 import numpy as np
-
+import traceback
 from langchain.schema import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.retrievers import BM25Retriever
@@ -33,7 +33,7 @@ from common.util.loader.faiss_loader import FaissVectorstoreLoader
 from common.util.logger.logger import SimpleLogger
 from logic.pipeline.retrieval.util.prompt_extractor.prompt_parser import PromptSectionExtractor
 from logic.pipeline.retrieval.util.retrieval.stages.query_classifier import QueryClassifier
-from logic.pipeline.retrieval.util.retrieval.stages.weighted_fusion import perform_weighted_fusion
+from logic.pipeline.retrieval.util.retrieval.stages.weighted_fusion import  WeightedFusion
 from logic.pipeline.retrieval.util.retrieval.stages.query_rewriting import QueryRewriter
 from logic.pipeline.retrieval.util.retrieval.stages.query_expansion import QueryExpander
 from logic.pipeline.retrieval.util.retrieval.stages.cross_encoder_reranker import CrossEncoderReranker
@@ -65,8 +65,6 @@ class RerankedRagBot:
         model_name: str = "gpt-4o",
         temperature: float = 0.0,
         top_k: int = 4,
-        top_k_faiss: int = 8,
-        top_k_bm25: int = 12,
         logger=None,
         **kwargs
     ):
@@ -74,17 +72,22 @@ class RerankedRagBot:
 
         self.logger = logger if logger is not None else SimpleLogger()
 
-        # --- Load system prompt provided by PromptBasedChatbot ---
-        self.system_prompt = prompt_name
-
-        self.top_k_faiss = top_k_faiss
-        self.top_k_bm25 = top_k_bm25
-        self.top_k_fusion = kwargs.get("top_k_fusion", 10)
-
         # --- Inner Settings ---
         self.dedup_settings_path= get_settings().dedup_settings
         self.compression_settings_path=get_settings().compression_settings
         self.ssi_settings=get_settings().ssi_settings
+        self.reranker_settings=get_settings().rerankers_settings
+
+        self.rerankers_cfg=self._load_config(self.reranker_settings)
+
+
+        # --- Load system prompt provided by PromptBasedChatbot ---
+        self.system_prompt = prompt_name
+        self.top_k_faiss = int(self.rerankers_cfg["top_k_faiss"])
+        self.top_k_bm25 = int(self.rerankers_cfg["top_k_bm25"])
+        self.top_k_fusion = int(self.rerankers_cfg["top_k_fusion"])
+
+
 
         # ===== Modules =====
         full_prompt=PromptLoader(self.system_prompt).prompts[prompt_name]
@@ -187,6 +190,17 @@ class RerankedRagBot:
         # DO NOT build pipeline here (dynamic!). Keep only runner wrapper.
         self._log("init_complete", {})
 
+    def _load_config(self,rerankers_config_path):
+        # Load and validate JSON
+        try:
+            with open(rerankers_config_path, "r", encoding="utf-8") as f:
+                raw_config = json.load(f)
+                return  raw_config
+        except FileNotFoundError:
+            raise FileNotFoundError(f"SSI config file not found: {rerankers_config_path}")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in SSI config: {e}")
+
 
 
     # ==========================================================
@@ -278,7 +292,8 @@ class RerankedRagBot:
             bm25_hits = []
 
         try:
-            fusion_docs = perform_weighted_fusion(faiss_hits, bm25_hits, top_k=self.top_k_fusion)
+            weight_fusion=WeightedFusion(self.logger)
+            fusion_docs = weight_fusion.perform_weighted_fusion(faiss_hits, bm25_hits, top_k=self.top_k_fusion)
             self._log("fusion_ok", {"hits": len(fusion_docs)})
         except Exception as e:
             self._log("fusion_error", {"error": str(e)})
@@ -380,6 +395,26 @@ class RerankedRagBot:
         self._log("stage_llm_done", {"answer_preview": answer[:200]})
         return answer
 
+    def _pipeline_processing_error(self,batch,ex):
+        error_id = str(uuid.uuid4())[:8]
+        tb = traceback.format_exc()
+
+        self._log("pipeline_fatal_error", {
+            "error_id": error_id,
+            "exception": str(ex),
+            "trace": tb,
+            "batch_snapshot": {
+                "input": batch.get("input", "")[:200] if batch else None,
+                "question": batch.get("question", "")[:200] if batch and "question" in batch else None,
+                "has_context": "context" in batch,
+                "context_items": len(batch.get("context", [])) if batch and "context" in batch else None,
+                "context_types": [type(x).__name__ for x in batch.get("context", [])]
+                if batch and "context" in batch else None
+            }
+        })
+
+        return f"[Pipeline Error {error_id}] Internal processing failure. "
+
     # ==========================================================
     # BUILD PIPELINE
     # ==========================================================
@@ -402,18 +437,21 @@ class RerankedRagBot:
                 "chat_history": inputs.get("chat_history", [])
             }
 
-            batch = self.stage_rewrite(batch, flags)
-            batch = self.stage_expand(batch, flags)
-            batch = self.stage_hybrid_search(batch)
-            batch = self.stage_dedup(batch,label)
-            batch = self.stage_ssi(batch, flags)
-            batch = self.stage_rerank(batch, flags)
-            batch = self.stage_context_compression(batch)
-            batch = self.stage_compress(batch)
-            answer = self.stage_llm(batch)
+            try:
+                batch = self.stage_rewrite(batch, flags)
+                batch = self.stage_expand(batch, flags)
+                batch = self.stage_hybrid_search(batch)
+                batch = self.stage_dedup(batch,label)
+                batch = self.stage_ssi(batch, flags)
+                batch = self.stage_rerank(batch, flags)
+                batch = self.stage_context_compression(batch)
+                batch = self.stage_compress(batch)
+                answer = self.stage_llm(batch)
 
-            self._log("pipeline_end", {"answer_preview": str(answer)[:200]})
-            return answer
+                self._log("pipeline_end", {"answer_preview": str(answer)[:200]})
+                return answer
+            except Exception as ex:
+                return  self._pipeline_processing_error(batch,ex)
 
         # --- Return flat runnable ---
         return (
