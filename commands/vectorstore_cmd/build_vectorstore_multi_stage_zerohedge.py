@@ -1,7 +1,7 @@
 """
 Build Vectorstore for ZEROHEDGE Multi-Stage RAG - FULLY CONFIG-DRIVEN
 --------------------------------------------------------------------
-- Forces text-embedding-3-large (1024 dim) via sacred JSON config
+- Forces bge-large-en-v1.5 (384 dim) via sacred JSON config
 - Explodes instantly on any deviation
 - Copies the config alongside the index so loader never has to guess
 All comments in English.
@@ -24,7 +24,7 @@ from common.config.settings import get_settings
 from pathlib import Path
 
 # From this file: build_...py → vectorstore_cmd → commands → project root
-CONFIG_PATH = Path("/app/config/FAISS_config/text-embedding-3-large.json")
+CONFIG_PATH = Path("/app/config/FAISS_config/bge-large-en-v1.5.json")
 
 if not CONFIG_PATH.exists():
     raise FileNotFoundError(f"[FATAL] Missing mandatory config: {CONFIG_PATH}")
@@ -76,7 +76,7 @@ def load_artifacts(doc_folder: str, logger):
     if dim != EXPECTED_DIM:
         raise ValueError(
             f"[FATAL] Dimension mismatch in {doc_folder}!\n"
-            f"    Expected: {EXPECTED_DIM} (text-embedding-3-large)\n"
+            f"    Expected: {EXPECTED_DIM} (bge-large-en-v1.5)\n"
             f"    Found:    {dim}\n"
             f"    Update your embedding model or config."
         )
@@ -177,7 +177,7 @@ def main():
 
     faiss_path = os.path.join(out_dir, "index.faiss")
     meta_path = os.path.join(out_dir, "index.pkl")
-    config_dest = os.path.join(out_dir, "text-embedding-3-large.json")
+    config_dest = os.path.join(out_dir, "bge-large-en-v1.5.json")
 
     logger(f"Saving FAISS index → {faiss_path}")
     faiss.write_index(index, faiss_path)
