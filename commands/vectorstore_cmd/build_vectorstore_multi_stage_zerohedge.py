@@ -19,7 +19,7 @@ from common.config.settings import get_settings
 
 
 # ============================================================
-# SACRED CONFIG (single source of truth)xx
+# SACRED CONFIG (single source of truth)xxx
 # ============================================================
 from pathlib import Path
 
