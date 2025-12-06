@@ -3,13 +3,11 @@
 # Fully aligned with ContextCompressor style: config-driven, no defaults, strict validation
 
 import json
-import logging
 import re
-from typing import List, Dict, Any
-from langchain.schema import Document
+from typing import List
 from transformers import pipeline
 
-from logic.pipeline.retrieval.util.retrieval.stages.weighted_fusion import RetrievedDocument
+from logic.pipeline.retrieval.util.retrieval.stages.common.weighted_fusion import RetrievedDocument
 
 
 class SalientSpanIndexer:

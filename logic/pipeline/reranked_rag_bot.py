@@ -1,45 +1,41 @@
 # ===== reranked_rag_bot.py =====
 # All comments MUST be in English.
 import json
-from pathlib import Path
 import uuid
 from datetime import datetime
-import numpy as np
 import traceback
 from langchain.schema import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.retrievers import BM25Retriever
-from sentence_transformers import SentenceTransformer
 
 from common.util.loader.prompt_loader import PromptLoader
-from logic.pipeline.retrieval.util.retrieval.stages.FAISS_Searcher import FaissSearcher
-from logic.pipeline.retrieval.util.retrieval.stages.context_compression import ContextCompressor
-from logic.pipeline.retrieval.util.retrieval.stages.dedup_eliminator import DedupEliminator
+from logic.pipeline.retrieval.util.retrieval.stages.FAISS.simple_FAISS_Searcher import FaissSearcher
+
+from logic.pipeline.retrieval.util.retrieval.stages.common.context_compression import ContextCompressor
+from logic.pipeline.retrieval.util.retrieval.stages.common.dedup_eliminator import DedupEliminator
+from logic.pipeline.retrieval.util.retrieval.util.chunks_debugger import ChunksDebugger
 from logic.util.builder.llm_factory import LLMFactory
 from langchain_core.prompts import (
-    SystemMessagePromptTemplate,
-    HumanMessagePromptTemplate,
     ChatPromptTemplate,
 )
 
 from langchain_core.runnables import (
     RunnablePassthrough,
-    RunnableWithMessageHistory, RunnableLambda
+    RunnableWithMessageHistory
 )
 
 from langchain_core.chat_history import InMemoryChatMessageHistory
 
 from common.config.settings import get_settings
 from common.enum.intents import Intent
-from common.util.loader.faiss_loader import FaissVectorstoreLoader
 from common.util.logger.logger import SimpleLogger
 from logic.pipeline.retrieval.util.prompt_extractor.prompt_parser import PromptSectionExtractor
-from logic.pipeline.retrieval.util.retrieval.stages.query_classifier import QueryClassifier
-from logic.pipeline.retrieval.util.retrieval.stages.weighted_fusion import  WeightedFusion
-from logic.pipeline.retrieval.util.retrieval.stages.query_rewriting import QueryRewriter
-from logic.pipeline.retrieval.util.retrieval.stages.query_expansion import QueryExpander
-from logic.pipeline.retrieval.util.retrieval.stages.cross_encoder_reranker import CrossEncoderReranker
-from logic.pipeline.retrieval.util.retrieval.stages.salient_span_indexer import SalientSpanIndexer
+from logic.pipeline.retrieval.util.retrieval.stages.common.query_classifier import QueryClassifier
+from logic.pipeline.retrieval.util.retrieval.stages.common.weighted_fusion import  WeightedFusion
+from logic.pipeline.retrieval.util.retrieval.stages.common.query_rewriting import QueryRewriter
+from logic.pipeline.retrieval.util.retrieval.stages.common.query_expansion import QueryExpander
+from logic.pipeline.retrieval.util.retrieval.stages.common.cross_encoder_reranker import CrossEncoderReranker
+from logic.pipeline.retrieval.util.retrieval.stages.common.salient_span_indexer import SalientSpanIndexer
 
 # === GLOBAL MODULE SWITCHES ===
 REWRITE_ON = True
@@ -270,11 +266,6 @@ class RerankedRagBot:
         self._log("stage_expand_done", {"expanded": expanded})
         return batch
 
-    from langchain.schema import Document
-    from sentence_transformers import SentenceTransformer
-
-
-
     def stage_hybrid_search(self, batch):
         q = batch["input"]
         self._log("hybrid_start", {"query": q})
@@ -317,9 +308,10 @@ class RerankedRagBot:
         batch["chat_history"] = batch.get("chat_history", [])
 
         if DEBUG_MODE:
-            self.logger.debug("----CHUNKS RETURNED ----")
-            for i, doc in enumerate(batch["context"], start=1):
-                self.logger.debug(f"CHUNK[{i:02d}]: {doc.to_log_string()}")
+            ChunksDebugger._log_prefetch_documents(faiss_hits,"FAISS", self.logger)
+            ChunksDebugger._log_prefetch_documents(bm25_hits, "BM25", self.logger)
+            ChunksDebugger._log_retrieved_document(batch["context"],"FUSION",self.logger)
+
 
         return batch
 

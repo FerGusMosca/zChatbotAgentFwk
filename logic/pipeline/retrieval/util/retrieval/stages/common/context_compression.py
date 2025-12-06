@@ -3,12 +3,9 @@
 
 import json
 from typing import List
-from typing import List
-from langchain.schema import Document
-import numpy as np
 from sentence_transformers import SentenceTransformer, util
 
-from logic.pipeline.retrieval.util.retrieval.stages.weighted_fusion import RetrievedDocument
+from logic.pipeline.retrieval.util.retrieval.stages.common.weighted_fusion import RetrievedDocument
 
 
 class ContextCompressor:

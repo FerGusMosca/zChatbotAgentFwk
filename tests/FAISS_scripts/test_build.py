@@ -1,11 +1,11 @@
 # FILE: test_build.py
 import os, json, pickle, faiss
-import numpy as np
-
-os.environ["OPENAI_API_KEY"] = "KEY"
+os.environ["OPENAI_API_KEY"] = "key"
 
 #ROOT = r"C:\faiss_tests\Nov 6"
-ROOT = r"C:\faiss_tests\Nov_6_red"
+import numpy as np
+
+ROOT = r"C:\faiss_tests\Nov_6_red_2"
 OUT  = r"C:\faiss_tests"
 os.makedirs(OUT, exist_ok=True)
 

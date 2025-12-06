@@ -13,7 +13,7 @@ id_map = meta["index_to_docstore_id"]
 # Use the same model as used in the build
 model = SentenceTransformer(cfg["embedding_model"])
 
-QUERY = "What is the expected headline CPI and food deflation trend for India in late 2025, and what monetary policy actions are anticipated by the RBI"
+QUERY = "Is the liquidity going to be a problem for too long?"
 
 
 def print_all_chunks(chs):
