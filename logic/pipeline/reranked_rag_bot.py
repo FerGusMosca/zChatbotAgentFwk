@@ -265,11 +265,40 @@ class RerankedRagBot:
         self._log("stage_expand_done", {"expanded": expanded})
         return batch
 
+    def _run_faiss_search(self, query: str):
+        """
+        FAISS search using the exact same embedder used during indexing (bge-large-en-v1.5).
+        Works 100% with your current load_faiss_rerankers output.
+        """
+        # 1. Generate query embedding with the SAME embedder from config
+        qv = np.array(self.embed.embed_query(query), dtype="float32").reshape(1, -1)
+
+        # 2. Optional L2 normalization (only if config says so)
+        if self.norm_on_search:
+            qv = qv / np.linalg.norm(qv, axis=1, keepdims=True)
+
+        # 3. Direct FAISS search using the loaded index
+        D, I = self.vectordb.index.search(qv, self.top_k_faiss)
+
+        # 4. Convert FAISS indices → real chunk IDs using the stored map
+        results = []
+        id_map = self.meta["index_to_docstore_id"]
+        for faiss_idx, distance in zip(I[0], D[0]):
+            real_id = int(id_map[int(faiss_idx)])  # ← 100% compatible
+            results.append({
+                "content": self.text_raw[real_id],
+                "score": float(distance),
+                "chunk_id": real_id
+            })
+
+        return results
+
     def stage_hybrid_search(self, batch):
         q = batch["input"]
         self._log("hybrid_start", {"query": q})
 
         try:
+            '''
             qv = np.array(self.embed.embed_query(q), dtype="float32")
             if self.norm_on_search:
                 qv /= np.linalg.norm(qv)
@@ -278,7 +307,9 @@ class RerankedRagBot:
 
             id_map = {str(k): v for k, v in self.meta["index_to_docstore_id"].items()}
             faiss_hits = [self.vectordb.docstore._dict[str(id_map[str(int(fid))])] for fid in idxs[0]]
-
+            
+            '''
+            faiss_hits=self._run_faiss_search(q)
             self._log("faiss_ok", {"hits": len(faiss_hits)})
         except Exception as e:
             self._log("faiss_error", {"error": str(e)})

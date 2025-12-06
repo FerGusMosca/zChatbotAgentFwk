@@ -127,9 +127,9 @@ class FaissVectorstoreLoader:
                 cfg = json.load(f)
 
             # === Validate config strictly ===
-            if cfg.get("embedding_model") != "text-embedding-3-large":
+            if cfg.get("embedding_model") != "BAAI/bge-large-en-v1.5":
                 raise ValueError(f"Unsupported embedding_model: {cfg.get('embedding_model')}")
-            if cfg.get("dimensions") != 1024:
+            if cfg.get("dimensions") != 384:
                 raise ValueError(f"Unsupported dimensions: {cfg.get('dimensions')}")
             if cfg.get("index_type") != "IndexFlatIP":
                 raise ValueError(f"Unsupported index_type: {cfg.get('index_type')}")

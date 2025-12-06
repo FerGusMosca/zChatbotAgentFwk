@@ -1,6 +1,6 @@
 {
   "embedding_model": "BAAI/bge-large-en-v1.5",
-  "dimensions": 384,
+  "dimensions": 1024,
   "metric": "METRIC_INNER_PRODUCT",
   "normalize_L2": true,
   "distance_is_cosine": true,
