@@ -9,7 +9,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_community.retrievers import BM25Retriever
 
 from common.util.loader.prompt_loader import PromptLoader
-from logic.pipeline.retrieval.util.retrieval.stages.FAISS.simple_FAISS_Searcher import FaissSearcher
+from logic.pipeline.retrieval.util.retrieval.stages.retrievers.simple_FAISS_Searcher import FaissSearcher
 
 from logic.pipeline.retrieval.util.retrieval.stages.common.context_compression import ContextCompressor
 from logic.pipeline.retrieval.util.retrieval.stages.common.dedup_eliminator import DedupEliminator

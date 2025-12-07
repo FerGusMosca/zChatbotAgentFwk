@@ -122,8 +122,10 @@ class ContextCompressor:
             selected_indices.append(best_global_idx)
             candidate_indices.pop(best_local_idx)
 
+            '''
             self.logger.info(f"MMR step {i + 1}/{self.top_k}: selected doc #{best_global_idx} "
                               f"| rel={relevance[best_local_idx]:.3f}")
+            '''
 
         result = [docs[i] for i in selected_indices]
         reduction = original_count - len(result)

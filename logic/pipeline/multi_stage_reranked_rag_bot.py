@@ -12,9 +12,10 @@ from common.util.loader.prompt_loader import PromptLoader
 
 
 from logic.pipeline.reranked_rag_bot import RerankedRagBot
-from logic.pipeline.retrieval.util.retrieval.stages.FAISS.multi_stage_FAISS_searcher import MultiStageFaissSearcher
+from logic.pipeline.retrieval.util.retrieval.stages.retrievers.multi_stage_FAISS_searcher import MultiStageFaissSearcher
 from logic.pipeline.retrieval.util.retrieval.stages.common.context_compression import ContextCompressor
 from logic.pipeline.retrieval.util.retrieval.stages.common.dedup_eliminator import DedupEliminator
+from logic.pipeline.retrieval.util.retrieval.stages.retrievers.multi_stage_bm25_searcher import MultiStageBM25Searcher
 from logic.pipeline.retrieval.util.retrieval.util.chunks_debugger import ChunksDebugger
 from logic.util.builder.llm_factory import LLMFactory
 from langchain_core.prompts import (
@@ -81,6 +82,10 @@ class MultiStageRerankedRagBot(RerankedRagBot):
         self.index_files_root_path=get_settings().index_files_root_path
         self.bot_profile=get_settings().bot_profile
 
+        #-- logs
+        self.dump_on_logs=get_settings().dump_on_logs
+        self.dump_log_folder=get_settings().dump_log_folder
+
         self.rerankers_cfg=self._load_config(self.reranker_settings)
         self.faiss_cfg=self._load_config(self.faiss_config_file)
 
@@ -134,14 +139,10 @@ class MultiStageRerankedRagBot(RerankedRagBot):
             raise
 
         # ===== FAISS retriever =====
-        try:
-            self.ms_FAISS_searcher =MultiStageFaissSearcher(self.faiss_cfg,self.rerankers_cfg,self.index_files_root_path,self.bot_profile,self.top_k_faiss,self.logger)
+        self._init_FAISS_retriever()
 
-        except Exception as ex:
-            self._log("fatal_ms_FAISS_searcher_error", {"exception": str(ex)})
-            raise
-
-        #TODO implement multi stage BM25
+        # ===== BM25 retriever =====
+        self._init_BM25_retriever()
 
         # ===== LLM =====
         self.llm = LLMFactory.create(
@@ -156,44 +157,80 @@ class MultiStageRerankedRagBot(RerankedRagBot):
         # DO NOT build pipeline here (dynamic!). Keep only runner wrapper.
         self._log("init_complete", {})
 
+    def _init_FAISS_retriever(self):
+        # ===== FAISS retriever =====
+        try:
+            self.ms_FAISS_searcher = MultiStageFaissSearcher(self.faiss_cfg, self.rerankers_cfg,
+                                                             self.index_files_root_path, self.bot_profile,
+                                                             self.top_k_faiss, self.logger,
+                                                             self.dump_on_logs,self.dump_log_folder)
+
+        except Exception as ex:
+            self._log("fatal_ms_FAISS_searcher_error", {"exception": str(ex)})
+            raise
+
+    def _init_BM25_retriever(self):
+        # ===== BM25 retriever =====
+        try:
+            self.bm25_searcher = MultiStageBM25Searcher(
+                docs_path=self.index_files_root_path,
+                bot_profile=self.bot_profile,
+                top_k_bm25=self.top_k_bm25,
+                std_out_logger =self.logger,
+                dump_on_logs=self.dump_on_logs,
+                dump_log_folder = self.dump_log_folder
+            )
+
+            # Successful initialization log
+            self._log("init_ms_BM25_searcher_ok", {
+                "bot_profile": self.bot_profile,
+                "top_k_bm25": self.top_k_bm25,
+                "index_root": self.index_files_root_path,
+                "status": "initialized"
+            })
+
+        except Exception as ex:
+            self._log("fatal_ms_BM25_searcher_error", {"exception": str(ex)})
+            raise
 
     def stage_hybrid_search(self, batch):
         q = batch["input"]
         self._log("hybrid_start", {"query": q})
 
         try:
-            '''
-            qv = np.array(self.embed.embed_query(q), dtype="float32")
-            if self.norm_on_search:
-                qv /= np.linalg.norm(qv)
-
-            idxs, scores = self.vectordb.index.search(qv.reshape(1, -1), self.top_k_faiss)
-
-            id_map = {str(k): v for k, v in self.meta["index_to_docstore_id"].items()}
-            faiss_hits = [self.vectordb.docstore._dict[str(id_map[str(int(fid))])] for fid in idxs[0]]
-            
-            '''
             faiss_hits=self.ms_FAISS_searcher.run_faiss_search(q)
-            #faiss_hits=self.faiss_searcher.run_faiss_search(q)
+            #faiss_hits=[]
             self._log("faiss_ok", {"hits": len(faiss_hits)})
         except Exception as e:
             self._log("faiss_error", {"error": str(e)})
             faiss_hits = []
 
-        '''
+
         try:
-            #bm25_hits = self.bm25_retriever.invoke(q)
-            bm25_hits=[]
+            bm25_hits = self.bm25_searcher.run_bm25_search(q)
             self._log("bm25_ok", {"hits": len(bm25_hits)})
         except Exception as e:
             self._log("bm25_error", {"error": str(e)})
             bm25_hits = []
-        '''
+
+        # ===== Hybrid Fusion (FAISS + BM25) =====
         try:
-            bm25_hits = []
-            weight_fusion=WeightedFusion(self.logger)
-            fusion_docs = weight_fusion.perform_weighted_fusion(faiss_hits, bm25_hits,w_faiss=1,w_bm25=0, top_k=len(faiss_hits))
+            self.logger.info(
+                f"[FUSION] starting | faiss={len(faiss_hits)} | bm25={len(bm25_hits)}"
+            )
+
+            weight_fusion = WeightedFusion(self.logger)
+
+            fusion_docs = weight_fusion.perform_weighted_fusion(
+                faiss_docs=faiss_hits,
+                bm25_docs=bm25_hits,
+                w_faiss=self.rerankers_cfg["fusion_faiss_pct"],
+                w_bm25=self.rerankers_cfg["fusion_bm25_pct"],
+                top_k=len(faiss_hits)
+            )
+
             self._log("fusion_ok", {"hits": len(fusion_docs)})
+
         except Exception as e:
             self._log("fusion_error", {"error": str(e)})
             fusion_docs = []

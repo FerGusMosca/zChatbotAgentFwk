@@ -131,6 +131,14 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("FAISS_CONFIG_FILE", "FAISS_CONFIG_FILE"))
 
+    dump_on_logs: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DUMP_ON_LOGS", "DUMP_ON_LOGS"))
+
+    dump_log_folder: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DUMP_LOG_FOLDER", "DUMP_LOG_FOLDER"))
+
     rerankers_settings: str | None = Field(
         default=None,
         validation_alias=AliasChoices("RERANKERS_SETTINGS", "RERANKERS_SETTINGS"))
