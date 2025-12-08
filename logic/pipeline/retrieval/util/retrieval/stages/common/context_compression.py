@@ -112,7 +112,8 @@ class ContextCompressor:
             if selected_indices and self.mmr_lambda < 1.0:
                 selected_embs = doc_embs[selected_indices]
                 diversity = util.cos_sim(candidate_embs_current, selected_embs).max(dim=1).values
-                mmr_scores = self.mmr_lambda * relevance - (1.0 - self.mmr_lambda) * diversity
+                #mmr_scores = self.mmr_lambda * relevance - (1.0 - self.mmr_lambda) * diversity
+                mmr_scores = (1.0 - self.mmr_lambda) * relevance - self.mmr_lambda * diversity
             else:
                 mmr_scores = relevance
 

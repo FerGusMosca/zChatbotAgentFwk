@@ -224,9 +224,8 @@ class MultiStageRerankedRagBot(RerankedRagBot):
             fusion_docs = weight_fusion.perform_weighted_fusion(
                 faiss_docs=faiss_hits,
                 bm25_docs=bm25_hits,
-                w_faiss=self.rerankers_cfg["fusion_faiss_pct"],
-                w_bm25=self.rerankers_cfg["fusion_bm25_pct"],
-                top_k=len(faiss_hits)
+                fusion_top_faiss=self.rerankers_cfg["fusion_top_faiss"],
+                fusion_top_bm25=self.rerankers_cfg["fusion_top_bm25"]
             )
 
             self._log("fusion_ok", {"hits": len(fusion_docs)})
