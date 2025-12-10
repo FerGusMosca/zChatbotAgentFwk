@@ -33,7 +33,7 @@ class FundsReportsController:
             self.logger.info(f"[FundsReports] Prompt: {prompt}")
 
             try:
-                async with websockets.connect(uri) as ws:
+                async with websockets.connect(uri, ping_interval=None, close_timeout=300, ping_timeout=300) as ws:
                     self.logger.info("[FundsReports] WebSocket connection established")
 
                     await ws.send(prompt)
