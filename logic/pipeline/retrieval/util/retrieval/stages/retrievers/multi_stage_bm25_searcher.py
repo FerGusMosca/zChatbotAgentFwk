@@ -176,6 +176,7 @@ class MultiStageBM25Searcher:
         loading BM25 chunks + metadata and running BM25 on each shard.
         """
         root_path=self.docs_path
+        self.std_out_logger.info(f"--- BM25- Processing root_folder: {root_path} ---")
         #root_path = os.path.join(self.docs_path, self.bot_profile)
 
         top_folders = [
