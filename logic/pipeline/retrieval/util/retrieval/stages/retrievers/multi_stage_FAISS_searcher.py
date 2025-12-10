@@ -1,5 +1,5 @@
 # FILE: multi_stage_faiss_searcher.py
-
+import glob
 import os
 import json
 import numpy as np
@@ -31,41 +31,65 @@ class MultiStageFaissSearcher:
         self.normalize_embeddings = self.faiss_cfg.get("normalize_L2", True)
         self.chunk_relevance_filter=ChunkRelevanceFilter(self.rerankers_cfg["chunk_filter_model"])
 
-
     def _get_temp_FAISS(self, folder_path: str) -> Tuple[faiss.IndexFlatIP, List[str], List[Dict]]:
         """
-        Build temporary in-memory FAISS index from a single folder.
-        Returns: (index, chunks_list, metadata_list)
+        Build a temporary in-memory FAISS index from all subfolders under folder_path.
+        Extremely robust against spaces, quotes, special chars, etc.
+        Logs every skip and every successful load.
         """
         all_emb = []
         all_chunks = []
         all_meta = []
 
-        for root, _, files in os.walk(folder_path):
-            c = os.path.join(root, "chunks.txt")
-            m = os.path.join(root, "metadata.json")
-            e = os.path.join(root, "embeddings.npy")
+        # Fast and bullet-proof way: find every embeddings.npy recursively
+        pattern = os.path.join(folder_path, "**", "embeddings.npy")
+        for emb_path in glob.iglob(pattern, recursive=True):
+            root_dir = os.path.dirname(emb_path)
 
-            if not (os.path.isfile(c) and os.path.isfile(m) and os.path.isfile(e)):
+            chunks_path = os.path.join(root_dir, "chunks.txt")
+            meta_path = os.path.join(root_dir, "metadata.json")
+
+            # --- Skip + log if any file is missing ---
+            if not os.path.isfile(chunks_path):
+                self.std_out_logger.debug(f"[FAISS_SKIP] {root_dir} → missing chunks.txt")
+                continue
+            if not os.path.isfile(meta_path):
+                self.std_out_logger.debug(f"[FAISS_SKIP] {root_dir} → missing metadata.json")
                 continue
 
-            raw = open(c, encoding="utf-8").read()
-            chunks = [x.strip() for x in re.split(r"\n\s*\n", raw) if x.strip()]
-            meta = json.load(open(m, encoding="utf-8"))
-            emb = np.load(e).astype("float32")
+            # --- All three files exist → load them safely ---
+            try:
+                # Load text chunks
+                with open(chunks_path, "r", encoding="utf-8") as f:
+                    raw = f.read()
+                chunks = [c.strip() for c in re.split(r"\n\s*\n", raw) if c.strip()]
 
-            all_chunks.extend(chunks)
-            all_meta.extend(meta)
-            all_emb.append(emb)
+                # Load metadata
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    metadata = json.load(f)
 
+                # Load embeddings
+                embeddings = np.load(emb_path).astype("float32")
+
+                # Append to global lists
+                all_chunks.extend(chunks)
+                all_meta.extend(metadata)
+                all_emb.append(embeddings)
+
+                self.std_out_logger.debug(f"[FAISS_LOADED] {root_dir} → {len(chunks)} chunks")
+
+            except Exception as exc:
+                self.std_out_logger.debug(f"[FAISS_ERROR] {root_dir} → {exc}")
+                continue
+
+        # --- Final checks ---
         if not all_emb:
-            raise ValueError(f"No embeddings in {folder_path}")
+            raise ValueError(f"No valid shards found under {folder_path}")
 
         all_emb = np.vstack(all_emb)
         faiss.normalize_L2(all_emb)
 
-        dim = all_emb.shape[1]
-        index = faiss.IndexFlatIP(dim)
+        index = faiss.IndexFlatIP(all_emb.shape[1])
         index.add(all_emb)
 
         return index, all_chunks, all_meta

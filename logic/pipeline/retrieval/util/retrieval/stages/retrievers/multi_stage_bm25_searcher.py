@@ -198,7 +198,12 @@ class MultiStageBM25Searcher:
                 chunk_file = os.path.join(inner_root, "chunks.txt")
                 meta_file = os.path.join(inner_root, "metadata.json")
 
-                if not (os.path.isfile(chunk_file) and os.path.isfile(meta_file)):
+                if not (os.path.isfile(chunk_file) ):
+                    self.std_out_logger.debug(f"[BM25_SKIP] {inner_root} → missing chunks.txt")
+                    continue
+
+                if not ( os.path.isfile(meta_file)):
+                    self.std_out_logger.debug(f"[BM25_SKIP] {inner_root} → missing chunks.txt")
                     continue
 
                 try:
