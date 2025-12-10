@@ -225,8 +225,8 @@ class MultiStageFaissSearcher:
         return dominant_docs, True
 
     def run_faiss_search(self, query: str):
-        root_path = os.path.join(self.docs_path, self.bot_profile)
-
+        #root_path = os.path.join(self.docs_path, self.bot_profile)
+        root_path=self.docs_path
         inner_folders = [
             f for f in os.listdir(root_path)
             if os.path.isdir(os.path.join(root_path, f))

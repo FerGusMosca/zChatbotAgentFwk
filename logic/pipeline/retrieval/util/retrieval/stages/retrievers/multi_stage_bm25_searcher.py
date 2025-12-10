@@ -175,7 +175,8 @@ class MultiStageBM25Searcher:
         Traverse every top-level folder and every internal subfolder,
         loading BM25 chunks + metadata and running BM25 on each shard.
         """
-        root_path = os.path.join(self.docs_path, self.bot_profile)
+        root_path=self.docs_path
+        #root_path = os.path.join(self.docs_path, self.bot_profile)
 
         top_folders = [
             f for f in os.listdir(root_path)
