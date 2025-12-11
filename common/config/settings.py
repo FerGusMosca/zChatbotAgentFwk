@@ -157,6 +157,12 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("GRAFANA_ON", "GRAFANA_ON"))
 
+    loki_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LOKI_URL", "LOKI_URL"))
+
+    pass
+
 
 
 

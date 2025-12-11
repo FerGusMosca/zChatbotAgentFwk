@@ -5,6 +5,7 @@ from langchain_community.vectorstores import FAISS
 from langchain.memory import ConversationBufferMemory
 from typing import Dict, Tuple, Optional
 from common.config.settings import get_settings
+from common.util.logger.logger import SimpleLogger
 from logic.pipeline.hybrid_bot import HybridBot
 from common.util.loader.prompt_loader import PromptLoader
 from pathlib import Path
@@ -30,10 +31,12 @@ def load_hybrid_bot(
     ✅ Prompts always loaded from repo's /prompts directory.
     """
 
+    logger = SimpleLogger(loki_url=get_settings().loki_url,
+                 grafana_on=get_settings().grafana_on)
     if not client_id:
         raise ValueError("❌ 'client_id' must be provided explicitly — no fallback allowed.")
 
-    print(f"🤖 Loading hybrid bot strictly for client_id (full path): {client_id}")
+    logger.info(f"🤖 Loading hybrid bot strictly for client_id (full path): {client_id}")
 
     # --- Cache key resolution ---
     if cache_scope == "session":
@@ -62,7 +65,7 @@ def load_hybrid_bot(
     module_path, class_name = bot_logic.split(",")
     module = importlib.import_module(module_path)
     cls = getattr(module, class_name)
-    print(f"✅ Loaded bot logic: {class_name} from {module_path}")
+    logger.info(f"✅ Loaded bot logic: {class_name} from {module_path}")
 
     bot = cls(
         vectorstore_path,
@@ -76,6 +79,6 @@ def load_hybrid_bot(
 
     # --- Cache instance ---
     _HYBRID_BOT_CACHE[cache_key] = bot
-    print(f"✅ Hybrid bot ready for {client_id} (cached under {cache_scope})")
+    logger.info(f"✅ Hybrid bot ready for {client_id} (cached under {cache_scope})")
 
     return bot

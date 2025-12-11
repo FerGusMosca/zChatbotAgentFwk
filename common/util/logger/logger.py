@@ -2,6 +2,7 @@
 # 2025 production – lightweight + async Loki (zero blocking)
 
 import json
+import time
 from datetime import datetime
 from threading import Thread
 from queue import Queue, Empty
@@ -28,19 +29,19 @@ class SimpleLogger:
         while True:
             try:
                 level, msg, extra = self.queue.get(timeout=1)
-                app_name = extra.get("app") or f"App_{get_settings().bot_profile}"
 
+                app_name =  f"App_{get_settings().bot_profile}"
                 payload = {
                     "streams": [{
-                        "stream": {"level": level, "app": app_name},
-                        "values": [[str(int(datetime.utcnow().timestamp() * 1e9)), f"{msg} {json.dumps(extra or {})}"]]
+                        "stream": {"app": app_name},
+                        "values": [[f"{int(time.time()*1_000_000_000)}", f"{msg} {json.dumps(extra or {})}"]]
                     }]
                 }
-                session.post(self.loki_url + "/loki/api/v1/push", json=payload, timeout=2)
+                session.post(self.loki_url , json=payload, timeout=20)
             except Empty:
                 continue
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[LOKI ERROR] {e} | payload={payload}")
     def _log(self, level: str, message: str, extra: dict | None = None):
         data = {
             "ts": datetime.utcnow().isoformat(),

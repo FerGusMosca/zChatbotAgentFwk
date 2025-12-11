@@ -71,7 +71,8 @@ class MultiStageRerankedRagBot(RerankedRagBot):
     ):
 
 
-        self.logger = logger if logger is not None else SimpleLogger()
+        self.logger = logger if logger is not None else SimpleLogger(loki_url=get_settings().loki_url,
+                                                                     grafana_on= get_settings().grafana_on)
 
         # --- Inner Settings ---
         self.dedup_settings_path= get_settings().dedup_settings
@@ -96,7 +97,7 @@ class MultiStageRerankedRagBot(RerankedRagBot):
         self.top_k_fusion = int(self.rerankers_cfg["top_k_fusion"])
 
         # ===== Modules =====
-        full_prompt=PromptLoader(self.system_prompt).prompts[prompt_name]
+        full_prompt=PromptLoader(self.system_prompt,self.logger).prompts[prompt_name]
 
         self.rewriter = QueryRewriter(
             full_prompt=full_prompt,

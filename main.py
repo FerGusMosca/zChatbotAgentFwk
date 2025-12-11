@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 
 from common.util.app_logger import AppLogger
+from common.util.logger.logger import SimpleLogger
 from common.util.settings.env_deploy_reader import EnvDeployReader
 from controllers import chat_controller
 
@@ -21,7 +22,8 @@ from controllers import chat_controller
 
 EnvDeployReader.load(get_settings().deploy_file)
 BASE_DIR = Path(__file__).resolve().parent
-logger = AppLogger.get_logger(__name__)
+logger = SimpleLogger(loki_url=get_settings().loki_url,
+                      grafana_on=get_settings().grafana_on)
 
 # Parse CLI arg: --prompt generic|lawyer|<name>
 parser = argparse.ArgumentParser(description="zChatbotAgentFwk")
@@ -122,17 +124,11 @@ if __name__ == "__main__":
 
 
 
-    logging.getLogger(__name__).info(
-        "env loaded from %s | ZP_FETCH_MODE=%s | HEADLESS=%s",
-        EnvDeployReader._path,
-        EnvDeployReader.get("ZP_FETCH_MODE", "<none>"),
-        EnvDeployReader.get("SELENIUM_HEADLESS", "<none>")
-    )
     # Use 0.0.0.0 if you want to test from other devices in your LAN
     port= int( get_settings().port)
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False, timeout_keep_alive=120, workers=1)
     # Increased timeout to 120s to support slow SSI + CrossEncoder (up to 25s total)
-
+    logger.info(f"App successfully loaded in port {port}")
 
 
 
