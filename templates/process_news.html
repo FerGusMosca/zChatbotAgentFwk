@@ -27,7 +27,7 @@
 
         <div class="block btn-block">
             <button type="submit" class="green-btn" id="runBtn">
-                <span class="btn-text">Run News Processor</span>
+                <span class="btn-text">Download News</span>
                 <div class="spinner"></div>  <!-- Este ahora sí usa el spinner PRO del main.css -->
             </button>
         </div>
@@ -39,6 +39,14 @@
 
     <div id="outputBox" class="output-box"></div>
           <div style="margin-top:20px; display:flex; justify-content:center; gap:20px;">
+
+    <a id="downloadPromptBtn"
+       href="/process_news/download_prompt"
+       class="green-btn"
+       style="text-decoration:none;">
+        Prompt
+    </a>
+
     <a id="downloadBtn"
        href="/process_news/download_last"
        class="green-btn disabled-btn"
@@ -46,12 +54,15 @@
         Download Last Report
     </a>
 
-    <a id="downloadPromptBtn"
-       href="/process_news/download_prompt"
-       class="green-btn"
-       style="text-decoration:none;">
-        Download Analysis Prompt
+    <a id="ingestNewsBtn"
+       href="#"
+       class="green-btn disabled-btn"
+       onclick="ingestNews(event)"
+       style="text-decoration:none; position:relative;">
+        <span class="btn-text">Ingest News</span>
+        <div class="spinner"></div>
     </a>
+
 </div>
     </div>
 </div>

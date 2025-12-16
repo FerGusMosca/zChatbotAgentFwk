@@ -59,6 +59,7 @@ async function runProcessNews(ev) {
     // disable download button at start
     const dl = document.getElementById("downloadBtn");  // correct ID
     const dp = document.getElementById("downloadPromptBtn");
+    const ra = document.getElementById("ingestNewsBtn");
     dl.classList.remove("enabled-btn");
     dl.classList.add("disabled-btn");
     dp.classList.remove("enabled-btn");
@@ -81,8 +82,57 @@ async function runProcessNews(ev) {
             dl.classList.add("enabled-btn");
             dp.classList.remove("disabled-btn");
             dp.classList.add("enabled-btn");
+            ra.classList.remove("disabled-btn");
+            ra.classList.add("enabled-btn");
         }
     }
 
     runBtn.classList.remove("loading"); // hide spinner
+}
+
+
+async function ingestNews(ev) {
+    ev.preventDefault();
+
+    const symbol = document.getElementById("selectedSecurity").value.trim();
+    if (!symbol) {
+        alert("Select a security first.");
+        return;
+    }
+
+    const outputBox = document.getElementById("outputBox");
+    outputBox.textContent = "";
+
+    const ingestBtn = document.getElementById("ingestNewsBtn");
+    ingestBtn.classList.add("loading");   // show spinner
+
+    await new Promise(r => requestAnimationFrame(() => r()));
+
+    const formData = new FormData();
+    formData.append("symbol", symbol);
+
+    const resp = await fetch("/process_news/ingest_news", {
+        method: "POST",
+        body: formData
+    });
+
+    if (!resp.body) {
+        outputBox.textContent = "❌ No stream received";
+        ingestBtn.classList.remove("loading");
+        return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: false });
+        outputBox.textContent += chunk;
+        outputBox.scrollTop = outputBox.scrollHeight;
+    }
+
+    ingestBtn.classList.remove("loading"); // hide spinner
 }

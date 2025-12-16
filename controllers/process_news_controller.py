@@ -11,10 +11,41 @@ from starlette.templating import Jinja2Templates
 
 from common.config.settings import settings
 from common.util.app_logger import AppLogger
+from common.util.ui.process_stream_runner import ProcessStreamRunner
 from data_access_layer.portfolio_securities_manager import PortfolioSecuritiesManager
 
 
 class ProcessNewsController:
+    from pathlib import Path
+
+    from pathlib import Path
+
+    from pathlib import Path
+
+    def _resolve_news_root_folder(
+            self,
+            full_path: str,
+            news_folder_rel_path: str
+    ) -> str:
+        """
+        Returns the relative path starting at news_folder_rel_path.
+        If full_path is a file, strips the filename.
+        If full_path is a directory, keeps it intact.
+        """
+        p = Path(full_path)
+
+        parts = p.parts
+        if news_folder_rel_path not in parts:
+            raise ValueError(f"{news_folder_rel_path} not found in path")
+
+        idx = parts.index(news_folder_rel_path)
+
+        # If path has a suffix, it's a file → drop filename
+        end = -1 if p.suffix else len(parts)
+
+        relative_parts = parts[idx:end]
+
+        return str(Path(*relative_parts).as_posix())
 
     def __init__(self):
         self.router = APIRouter(prefix="/process_news")
@@ -61,9 +92,10 @@ class ProcessNewsController:
 
                 # Documents folder path from settings
                 documents_path = settings.documents_path
+                news_folder_rel_path=settings.news_folder_rel_path
 
-
-                prcess_news_cmd_file =settings.docker_process_news_cmd
+                # Command template file name from settings
+                prcess_news_cmd_file = settings.docker_process_news_cmd
 
                 # Load command template
                 template_path = (
@@ -72,15 +104,16 @@ class ProcessNewsController:
                 )
                 template_raw = template_path.read_text()
 
-                # Inject variables into template (single-line CMD)
+                # Inject variables into template (single-line Windows command)
                 cmd_str = template_raw.format(
                     timestamp=timestamp,
                     commands_ini=commands_ini,
                     documents_path=documents_path,
+                    news_folder_rel_path=news_folder_rel_path,
                     symbol=symbol
                 )
 
-                # Convert into argument list
+                # Convert command string into argument list
                 cmd = shlex.split(cmd_str, posix=False)
 
             except KeyError as ex:
@@ -88,48 +121,30 @@ class ProcessNewsController:
             except Exception as ex:
                 return PlainTextResponse(f"❌ Error preparing command: {ex}", status_code=500)
 
-            async def stream_output():
-
-                try:
-                    self.logger.error(f"CMD: {cmd}")
-                    process = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        bufsize=1
-                    )
-                    for line in process.stdout:
-                        print(">>>", line)
-                        yield line
-
-                        # ===== Capture last JSON path =====
-                        # comment: detect "saved" event with JSON path
-                        if '"path":' in line:
-                            try:
-                                # comment: extract JSON string safely
-                                part = line.split('"path":', 1)[1]
-                                extracted = part.split('"')[1]  # first quoted string
-                                self.last_output_file = extracted
-                                self.logger.info(f"[OK] Extracted output file: {self.last_output_file}")
-                            except Exception as ex:
-                                self.logger.error(
-                                    f"[FAIL] Could not extract path from line: {line.strip()} | Error: {ex}"
-                                )
-
-                except Exception as ex:
-                    yield f"\n❌ Runtime error: {ex}\n"
-                finally:
+            # Callback executed for each stdout line
+            def on_line(line: str):
+                # Detect "saved" event and extract output file path
+                if '"path":' in line:
                     try:
-                        process.stdout.close()
-                        process.wait()
-                    except:
-                        pass
+                        part = line.split('"path":', 1)[1]
+                        extracted = part.split('"')[1]  # first quoted string
+                        self.last_output_file = extracted
+                        self.logger.info(f"[OK] Extracted output file: {self.last_output_file}")
+                    except Exception as ex:
+                        self.logger.error(
+                            f"[FAIL] Could not extract path from line: {line.strip()} | Error: {ex}"
+                        )
 
-            return StreamingResponse(stream_output(), media_type="text/plain; charset=utf-8")  # comment: enable chunked streaming
-
-
-
+            # Stream process output to the UI in real time
+            return StreamingResponse(
+                ProcessStreamRunner.stream_process(
+                    cmd=cmd,
+                    logger=self.logger,
+                    tag="DOWNLOAD",
+                    on_line=on_line
+                ),
+                media_type="text/plain; charset=utf-8"
+            )
 
         @self.router.get("/download_last")
         async def download_last():
@@ -163,3 +178,75 @@ class ProcessNewsController:
                     "Content-Disposition": "attachment; filename=news_prompt.txt"
                 }
             )
+
+        @self.router.post("/ingest_news")
+        async def ingest_news(symbol: str = Form(...)):
+            try:
+                # Safety check: ensure we have a downloaded file from run_stream
+                if not self.last_output_file:
+                    return PlainTextResponse(
+                        "❌ No downloaded news found. Run news download first.",
+                        status_code=400
+                    )
+
+                # Resolve the folder containing the downloaded JSON
+                # Example:
+                # /zzLotteryTicket/documents/.../CAMP_xxx/2025-12-16_17-06-03_full_news.json --> we want the parent directory
+                downloaded_path = os.path.dirname(self.last_output_file)
+
+                news_path=self._resolve_news_root_folder(downloaded_path,settings.news_folder_rel_path)
+
+                # Generate unique identifier
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+                # Build full path to commands_mgr.ini
+                commands_ini = str(Path(settings.commands_ini_path) / "commands_mgr.ini")
+
+                # Documents root path (same as download)
+                documents_path = settings.documents_path
+                news_chunks_rel_path=settings.news_chunks_rel_path
+                news_vendor = settings.news_vendor
+
+                # Command template file from settings
+                ingest_cmd_file = settings.docker_ingest_news_cmd
+
+                # Load command template
+                template_path = (
+                        Path(__file__).parent.parent /
+                        "static" / "containers_cmds" / ingest_cmd_file
+                )
+                template_raw = template_path.read_text()
+
+                # Inject variables into template
+                cmd_str = template_raw.format(
+                    timestamp=timestamp,
+                    commands_ini=commands_ini,
+                    documents_path=documents_path,
+                    news_path=news_path,
+                    news_chunks_rel_path=news_chunks_rel_path,
+                    news_vendor=news_vendor,
+                    symbol=symbol
+                )
+
+                # Convert command string into argument list (Windows-safe)
+                cmd = shlex.split(cmd_str, posix=False)
+
+                self.logger.info(f"[INGEST] Using downloaded path: {downloaded_path}")
+
+            except Exception as ex:
+                self.logger.exception("[INGEST] Error preparing ingest command")
+                return PlainTextResponse(
+                    f"❌ Error preparing ingest command: {ex}",
+                    status_code=500
+                )
+
+            # Stream ingest process output to UI in real time
+            return StreamingResponse(
+                ProcessStreamRunner.stream_process(
+                    cmd=cmd,
+                    logger=self.logger,
+                    tag="INGEST"
+                ),
+                media_type="text/plain; charset=utf-8"
+            )
+
