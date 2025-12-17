@@ -71,6 +71,29 @@ class RetrievalLogger:
         else:
             self.fh.write(f"[KEEP] {source} | {folder} | rank={rank} | {preview}\n")
 
+    def print_cross_encoding_comp(self, folder: str, query: str, text: str, score: float):
+        """
+        Log cross-encoder result: folder, short query, chunk preview and score.
+        """
+        if not self.dump_on_logs or not self.fh:
+            return
+
+        # Short query (first 80 chars)
+        short_query = query.strip()[:10]
+        if len(query) > 10:
+            short_query += "..."
+
+        # Chunk preview (first 120 chars)
+        preview = text.replace("\n", " ").strip()[:120]
+        if len(text) > 120:
+            preview += "..."
+
+        # Write log line
+        self.fh.write(
+            f"[CROSS] Folder: {folder} | Query: {short_query} | "
+            f"Chunk: {preview} | Score: {score:.4f}\n"
+        )
+
     # ---------------------------------------------------------
     def close_log_dump_file(self):
         """Close file handle if opened."""

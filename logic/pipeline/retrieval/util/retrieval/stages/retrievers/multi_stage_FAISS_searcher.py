@@ -24,12 +24,40 @@ class MultiStageFaissSearcher:
         self.docs_path = docs_path
         self.bot_profile = bot_profile
         self.std_out_logger = std_out_logger
+        self.use_cross_encoders_thresholds=rerankers_cfg["use_cross_encoders_thresholds"]
         self.file_logger=RetrievalLogger(dump_on_logs,dump_log_file)
 
         # Load model once at init
         self.model = SentenceTransformer(self.faiss_cfg["embedding_model"])
         self.normalize_embeddings = self.faiss_cfg.get("normalize_L2", True)
         self.chunk_relevance_filter=ChunkRelevanceFilter(self.rerankers_cfg["chunk_filter_model"])
+
+        self._load_cross_encoder_thresholds()
+        pass
+
+    def _load_cross_encoder_thresholds(self):
+        """Load cross-encoder thresholds from faiss_cfg. Raise error if missing."""
+        if "cross_encoder_thresholds" not in self.rerankers_cfg:
+            raise KeyError(
+                "Missing required section 'cross_encoder_thresholds' in faiss_cfg. "
+                "Add it to the config with thresholds per query type."
+            )
+
+        thresholds = self.rerankers_cfg["cross_encoder_thresholds"]
+        required_keys = {
+            "broad_query",
+            "enumeration_query",
+            "analytical_query",
+            "temporal_query",
+            "specific_query",
+            "fuzzy_query"
+        }
+
+        missing = required_keys - thresholds.keys()
+        if missing:
+            raise KeyError(f"Missing query types in cross_encoder_thresholds: {missing}")
+
+        self.cross_encoder_thresholds = thresholds
 
     def _get_temp_FAISS(self, folder_path: str) -> Tuple[faiss.IndexFlatIP, List[str], List[Dict]]:
         """
@@ -139,9 +167,58 @@ class MultiStageFaissSearcher:
 
         return results
 
+    def _filt_fix_cross_encoders(self,folder,retrieved_docs,scores):
+        # --- Take TOP-K documents ---
+        top_k = self.rerankers_cfg["top_cross_encoders_chunks"]
+        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:top_k]
+        filt_docs = [retrieved_docs[i] for i in top_indices]
+
+        self.std_out_logger.debug(f"[RELEVANT] {folder}: kept {len(filt_docs)} chunks")
+
+        self._log_kept_docs(filt_docs, folder)
+
+        return filt_docs
+
+    def _filt_cross_encoders_thresholds(self, folder, query_label, retrieved_docs, scores):
+        """
+        Filter docs using threshold based on query type.
+        """
+        # Get threshold for the query type
+        try:
+            threshold = self.cross_encoder_thresholds[query_label.value]
+        except KeyError:
+            raise KeyError(f"Unknown query type: {query_label.value}. "
+                           f"Available: {list(self.cross_encoder_thresholds.keys())}")
+
+        # Pair docs with scores and filter those above threshold
+        paired = list(zip(retrieved_docs, scores))
+        filt_paired = [(doc, score) for doc, score in paired if score > threshold]
+
+        # Sort descending by score (best first)
+        filt_paired.sort(key=lambda x: x[1], reverse=True)
+
+        # Extract filtered docs
+        filt_docs = [doc for doc, _ in filt_paired]
+
+        # Log
+        kept = len(filt_docs)
+        self.std_out_logger.debug(
+            f"[RELEVANT] {folder}: threshold={threshold:.2f} ({query_label.value}) → kept {kept} chunks")
+
+        self._log_kept_docs(filt_docs, folder)
+
+        # Fallback: if nothing passes threshold, keep the best one
+        if kept == 0 and retrieved_docs:
+            best_idx = scores.index(max(scores))
+            filt_docs = [retrieved_docs[best_idx]]
+            self.std_out_logger.debug(f"[RELEVANT] {folder}: fallback to best chunk (score={max(scores):.4f})")
+
+        return filt_docs
+
     def _run_search(
             self,
             query: str,
+            query_label:str,
             index: faiss.IndexFlatIP,
             chunks: List[str],
             metas: List[Dict],
@@ -172,20 +249,18 @@ class MultiStageFaissSearcher:
 
         # --- Cross-encoder scores ---
         scores = self.chunk_relevance_filter.is_relevant(
+            folder=folder,
             query=query,
             docs=retrieved_docs,
+            file_logger=self.file_logger
         )
 
-        # --- Take TOP-3 documents ---
-        top_k = self.rerankers_cfg["top_chunks"]
-        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:top_k]
-        filt_docs = [retrieved_docs[i] for i in top_indices]
 
-        self.std_out_logger.debug(f"[RELEVANT] {folder}: kept {len(filt_docs)} chunks")
+        if self.use_cross_encoders_thresholds:
+            return self._filt_cross_encoders_thresholds(folder,query_label,retrieved_docs,scores)
+        else:
+            return  self._filt_fix_cross_encoders(folder,retrieved_docs,scores)
 
-        self._log_kept_docs( filt_docs, folder)
-
-        return filt_docs
 
     def detect_dominance_and_filter(self, docs: List[Document], gap_threshold=3.0):
         """
@@ -224,9 +299,13 @@ class MultiStageFaissSearcher:
 
         return dominant_docs, True
 
-    def run_faiss_search(self, query: str):
+    def run_faiss_search(self, query: str,query_label:str,dynamic_chunks_folder=None):
         #root_path = os.path.join(self.docs_path, self.bot_profile)
-        root_path=self.docs_path
+
+        if dynamic_chunks_folder is not None:
+            root_path=dynamic_chunks_folder
+        else:
+            root_path=self.docs_path
 
         self.std_out_logger.info(f"--- FAISS- Processing root_folder: {root_path} ---")
         inner_folders = [
@@ -250,7 +329,7 @@ class MultiStageFaissSearcher:
                 continue
 
             try:
-                faiss_hits = self._run_search(query, index, chunks, meta,folder)
+                faiss_hits = self._run_search(query,query_label, index, chunks, meta,folder)
                 all_results.extend(faiss_hits)  # flatten
             except Exception as e:
                 self.std_out_logger.error(f"[SEARCH ERROR] {folder}: {e}")

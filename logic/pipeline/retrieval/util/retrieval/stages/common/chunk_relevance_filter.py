@@ -3,6 +3,8 @@ from langchain_core.documents import Document
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
 
+from logic.pipeline.retrieval.util.retrieval.util.retrieval_logger import RetrievalLogger
+
 
 class ChunkRelevanceFilter:
     """
@@ -17,14 +19,17 @@ class ChunkRelevanceFilter:
 
     def is_relevant(
         self,
+        folder: str,
         query: str,
         docs: List[Document],
+        file_logger:RetrievalLogger = None
     ) -> List[Tuple[bool, float]]:
         """
         Returns (is_relevant, relevance_score) for each chunk.
         """
 
         results = []
+        scored = []
 
         for doc in docs:
             text = doc.page_content
@@ -44,8 +49,14 @@ class ChunkRelevanceFilter:
 
                 # BGE reranker outputs a single score
                 score = logits[0].item()
-
+                scored.append((doc, score))
 
             results.append(score)
+
+        scored.sort(key=lambda x: x[1], reverse=True)
+        for doc, score in scored:
+            if file_logger is not None:
+                file_logger.print_cross_encoding_comp(folder, query, doc.page_content, score)
+
 
         return results

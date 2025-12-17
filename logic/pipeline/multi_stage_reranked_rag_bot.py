@@ -39,6 +39,7 @@ from logic.pipeline.retrieval.util.retrieval.stages.common.query_rewriting impor
 from logic.pipeline.retrieval.util.retrieval.stages.common.query_expansion import QueryExpander
 from logic.pipeline.retrieval.util.retrieval.stages.common.cross_encoder_reranker import CrossEncoderReranker
 from logic.pipeline.retrieval.util.retrieval.stages.common.salient_span_indexer import SalientSpanIndexer
+from logic.util.loader.dynamic_query import DynamicQuery
 
 # === GLOBAL MODULE SWITCHES ===
 REWRITE_ON = True
@@ -194,12 +195,13 @@ class MultiStageRerankedRagBot(RerankedRagBot):
             self._log("fatal_ms_BM25_searcher_error", {"exception": str(ex)})
             raise
 
-    def stage_hybrid_search(self, batch):
+    def stage_hybrid_search(self, batch,label=None,dynamic_chunks_folder=None):
         q = batch["input"]
+
         self._log("hybrid_start", {"query": q})
 
         try:
-            faiss_hits=self.ms_FAISS_searcher.run_faiss_search(q)
+            faiss_hits=self.ms_FAISS_searcher.run_faiss_search(q,label,dynamic_chunks_folder=dynamic_chunks_folder)
             #faiss_hits=[]
             self._log("faiss_ok", {"hits": len(faiss_hits)})
         except Exception as e:

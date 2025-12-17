@@ -36,6 +36,7 @@ from logic.pipeline.retrieval.util.retrieval.stages.common.query_rewriting impor
 from logic.pipeline.retrieval.util.retrieval.stages.common.query_expansion import QueryExpander
 from logic.pipeline.retrieval.util.retrieval.stages.common.cross_encoder_reranker import CrossEncoderReranker
 from logic.pipeline.retrieval.util.retrieval.stages.common.salient_span_indexer import SalientSpanIndexer
+from logic.util.loader.dynamic_query import DynamicQuery
 
 # === GLOBAL MODULE SWITCHES ===
 REWRITE_ON = True
@@ -266,7 +267,7 @@ class RerankedRagBot:
         self._log("stage_expand_done", {"expanded": expanded})
         return batch
 
-    def stage_hybrid_search(self, batch):
+    def stage_hybrid_search(self, batch,label=None,dynamic_chunk_folder=None):
         q = batch["input"]
         self._log("hybrid_start", {"query": q})
 
@@ -423,7 +424,7 @@ class RerankedRagBot:
     # ==========================================================
     # BUILD PIPELINE
     # ==========================================================
-    def _build_pipeline(self, flags,label):
+    def _build_pipeline(self, flags,label, dynamic_chunk_folder=None):
         """
         Clean, flat, explicit pipeline builder.
         Returns a Runnable that executes the stages sequentially.
@@ -445,7 +446,7 @@ class RerankedRagBot:
             try:
                 batch = self.stage_rewrite(batch, flags)
                 batch = self.stage_expand(batch, flags)
-                batch = self.stage_hybrid_search(batch)
+                batch = self.stage_hybrid_search(batch,label,dynamic_chunk_folder)
                 batch = self.stage_dedup(batch,label)
                 batch = self.stage_ssi(batch, flags)
                 batch = self.stage_rerank(batch, flags)
@@ -496,6 +497,12 @@ class RerankedRagBot:
         """
         import traceback
 
+        dto = DynamicQuery.parse(user_query)
+        dynamic_chunks_folder=None
+        if dto.is_dynamic:
+            user_query=dto.query
+            dynamic_chunks_folder=dto.chunks_folder
+
         session_id = "default"
         user_query = str(user_query).strip()
 
@@ -512,7 +519,7 @@ class RerankedRagBot:
             })
 
             # 2) build dynamic pipeline
-            dynamic_pipeline = self._build_pipeline(flags,label)
+            dynamic_pipeline = self._build_pipeline(flags,label,dynamic_chunks_folder)
 
             # 3) run pipeline with message history
             chain = RunnableWithMessageHistory(
