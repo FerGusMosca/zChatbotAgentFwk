@@ -210,7 +210,7 @@ class MultiStageRerankedRagBot(RerankedRagBot):
 
 
         try:
-            bm25_hits = self.bm25_searcher.run_bm25_search(q)
+            bm25_hits = self.bm25_searcher.run_bm25_search(q,dynamic_chunks_folder=dynamic_chunks_folder)
             self._log("bm25_ok", {"hits": len(bm25_hits)})
         except Exception as e:
             self._log("bm25_error", {"error": str(e)})

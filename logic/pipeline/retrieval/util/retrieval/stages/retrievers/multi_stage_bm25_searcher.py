@@ -170,12 +170,18 @@ class MultiStageBM25Searcher:
         return out
 
     # -----------------------------------------------------
-    def run_bm25_search(self, query: str) -> List[Document]:
+    def run_bm25_search(self, query: str,dynamic_chunks_folder=None) -> List[Document]:
         """
         Traverse every top-level folder and every internal subfolder,
         loading BM25 chunks + metadata and running BM25 on each shard.
         """
-        root_path=self.docs_path
+
+        if dynamic_chunks_folder is not None:
+            root_path=dynamic_chunks_folder
+        else:
+            root_path=self.docs_path
+
+
         self.std_out_logger.info(f"--- BM25- Processing root_folder: {root_path} ---")
         #root_path = os.path.join(self.docs_path, self.bot_profile)
 
