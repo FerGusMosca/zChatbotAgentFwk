@@ -4,6 +4,7 @@ import shlex
 import uuid
 
 from fastapi import APIRouter, Request, Form
+import websockets
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from pathlib import Path
 import subprocess
@@ -24,6 +25,8 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
 
+
+BOT_NEWS_QUERY_PATH = Path(__file__).parent.parent / "static" / "bot_querys" / "bot_11_query.json"
 class ProcessNewsController:
 
     def _resolve_news_root_folder(
@@ -64,10 +67,12 @@ class ProcessNewsController:
 
         self.sec_mgr = PortfolioSecuritiesManager(settings.research_connection_string)
 
+        #TO TEST
 
 
         @self.router.get("/", response_class=HTMLResponse)
         async def main(request: Request):
+
             request.session.clear()
             request.session["sid"] = str(uuid.uuid4())
             ingest_state.register_callback(request.session["sid"], on_news_ingested)
@@ -189,9 +194,38 @@ class ProcessNewsController:
                 }
             )
 
-        async def on_news_ingested(query: str, path: str) -> str:
-            self.logger.info(f"[NEWS INGESTED] query={query} path={path}")
-            return f"Using chunks at: {path}"
+        async def query_bot11( query: str, chunks_path: str) -> str:
+            """Queries news bot via WebSocket. Returns response or error string."""
+            try:
+                template_path = BOT_NEWS_QUERY_PATH
+                prompt = template_path.read_text().format(
+                    query=query,
+                    folder=chunks_path.rstrip("/")
+                )
+
+                self.logger.info(f"[News Bot] Querying {query} – folder: {chunks_path}")
+
+                async with websockets.connect(settings.news_reports_url, ping_interval=None) as ws:
+                    await ws.send(prompt)
+                    response = await ws.recv()
+
+                self.logger.info("[News Bot] Response received")
+                return response
+
+            except Exception as e:
+                self.logger.exception(f"[News Bot] Error querying bot11: {e}")
+                return f"Error querying News Bot: {str(e)}"
+
+        async def on_news_ingested( query: str, path: str) -> str:
+            try:
+                self.logger.info(f"[NEWS INGESTED] symbol={query} path={path}")
+
+                response = await query_bot11(query, path)
+                return response
+
+            except Exception as e:
+                self.logger.exception(f"[ON_NEWS_INGESTED] Error: {e}")
+                return f"Ingestion OK but News Bot failed: {str(e)}"
 
         @self.router.post("/ingest_news")
         async def ingest_news(request: Request,symbol: str = Form(...)):

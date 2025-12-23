@@ -38,6 +38,10 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("FUNDS_REPORTS_URL", "FUNDS_REPORTS_URL"))
 
+    news_reports_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("NEWS_REPORTS_URL", "NEWS_REPORTS_URL"))
+
 
     documents_path: str | None = Field(
         default=None,
