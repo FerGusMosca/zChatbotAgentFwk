@@ -26,7 +26,7 @@ class ChatResponse(BaseModel):
     answer: str
 
 
-BOT_NEWS_QUERY_PATH = Path(__file__).parent.parent / "static" / "bot_querys" / "bot_11_query.json"
+BOT_NEWS_QUERY_PATH = Path(__file__).parent.parent / "static" / "bot_querys" / "bot_11_query"
 class ProcessNewsController:
 
     def _resolve_news_root_folder(
