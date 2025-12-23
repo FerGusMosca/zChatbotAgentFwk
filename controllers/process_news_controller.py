@@ -199,7 +199,7 @@ class ProcessNewsController:
             """Queries news bot via WebSocket. Returns response or error string."""
             try:
                 template_path = BOT_NEWS_QUERY_PATH
-                prompt = template_path.read_text().format(
+                prompt = template_path.read_text().lstrip().format(
                     query=query,
                     folder=chunks_path.rstrip("/")
                 )
