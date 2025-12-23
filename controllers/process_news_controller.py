@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import os
 import shlex
@@ -205,9 +206,9 @@ class ProcessNewsController:
 
                 self.logger.info(f"[News Bot] Querying {query} – folder: {chunks_path}")
 
-                async with websockets.connect(settings.news_reports_url, ping_interval=None) as ws:
+                async with websockets.connect(settings.news_reports_url, ping_interval=None,open_timeout=60) as ws:
                     await ws.send(prompt)
-                    response = await ws.recv()
+                    response = await asyncio.wait_for(ws.recv(), timeout=180)
 
                 self.logger.info("[News Bot] Response received")
                 return response
