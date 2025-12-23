@@ -1,11 +1,14 @@
 import datetime
 import os
 import shlex
+import uuid
 
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from pathlib import Path
 import subprocess
+
+from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 from starlette.templating import Jinja2Templates
 
@@ -13,14 +16,15 @@ from common.config.settings import settings
 from common.util.app_logger import AppLogger
 from common.util.ui.process_stream_runner import ProcessStreamRunner
 from data_access_layer.portfolio_securities_manager import PortfolioSecuritiesManager
+from common.dto.ingest_state import ingest_state
 
+class ChatRequest(BaseModel):
+    question: str
+
+class ChatResponse(BaseModel):
+    answer: str
 
 class ProcessNewsController:
-    from pathlib import Path
-
-    from pathlib import Path
-
-    from pathlib import Path
 
     def _resolve_news_root_folder(
             self,
@@ -60,8 +64,14 @@ class ProcessNewsController:
 
         self.sec_mgr = PortfolioSecuritiesManager(settings.research_connection_string)
 
+
+
         @self.router.get("/", response_class=HTMLResponse)
         async def main(request: Request):
+            request.session.clear()
+            request.session["sid"] = str(uuid.uuid4())
+            ingest_state.register_callback(request.session["sid"], on_news_ingested)
+
             return self.templates.TemplateResponse(
                 "process_news.html",
                 {"request": request}
@@ -179,8 +189,12 @@ class ProcessNewsController:
                 }
             )
 
+        async def on_news_ingested(query: str, path: str) -> str:
+            self.logger.info(f"[NEWS INGESTED] query={query} path={path}")
+            return f"Using chunks at: {path}"
+
         @self.router.post("/ingest_news")
-        async def ingest_news(symbol: str = Form(...)):
+        async def ingest_news(request: Request,symbol: str = Form(...)):
             try:
                 # Safety check: ensure we have a downloaded file from run_stream
                 if not self.last_output_file:
@@ -240,13 +254,28 @@ class ProcessNewsController:
                     status_code=500
                 )
 
+            def extract_path(line: str):
+                marker = "Artifacts saved →"
+                if marker in line:
+                    raw_path = line.split(marker, 1)[1].strip()
+                    folder_path = str(Path(raw_path).parent)
+                    session_id = request.session.get("sid")
+                    ingest_state.context_by_session[session_id] = folder_path
+
+                if "Ingestion completed" in line:
+                    session_id = request.session.get("sid")
+                    ingest_state.ready_by_session[session_id]=True
+
             # Stream ingest process output to UI in real time
             return StreamingResponse(
                 ProcessStreamRunner.stream_process(
                     cmd=cmd,
                     logger=self.logger,
+                    on_line=extract_path,
                     tag="INGEST"
                 ),
                 media_type="text/plain; charset=utf-8"
             )
+
+
 

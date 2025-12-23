@@ -6,6 +6,12 @@ from pydantic import Field, AliasChoices
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
+    #
+
+    session_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SESSION_KEY", "SESSION_KEY"))
+
 
     management_sentiment_url: str | None = Field(
         default=None,

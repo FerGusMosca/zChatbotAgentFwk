@@ -20,7 +20,7 @@ class ProcessStreamRunner:
 
         try:
             while True:
-                # ⬇️ CLAVE: no bloquea el event loop
+
                 line = await asyncio.to_thread(process.stdout.readline)
 
                 if not line:

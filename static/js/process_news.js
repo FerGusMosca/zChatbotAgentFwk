@@ -60,6 +60,7 @@ async function runProcessNews(ev) {
     const dl = document.getElementById("downloadBtn");  // correct ID
     const dp = document.getElementById("downloadPromptBtn");
     const ra = document.getElementById("ingestNewsBtn");
+
     dl.classList.remove("enabled-btn");
     dl.classList.add("disabled-btn");
     dp.classList.remove("enabled-btn");
@@ -135,4 +136,5 @@ async function ingestNews(ev) {
     }
 
     ingestBtn.classList.remove("loading"); // hide spinner
+    document.getElementById("chat-toggle-btn").classList.remove("disabled-btn");
 }

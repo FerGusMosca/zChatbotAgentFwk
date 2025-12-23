@@ -4,8 +4,8 @@ from fastapi.responses import JSONResponse
 import time
 from pathlib import Path
 from common.config.settings import get_settings
+from common.dto.ingest_state import ingest_state
 from common.util.app_logger import AppLogger
-from common.util.builder.bot_engine_loader import load_hybrid_bot
 from fastapi import WebSocket, WebSocketDisconnect
 router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
 logger = AppLogger.get_logger(__name__)
@@ -13,67 +13,30 @@ logger = AppLogger.get_logger(__name__)
 def _log_chat_metrics(question: str, latency_ms: int, bot) -> None:
     import json
     m = getattr(bot, "last_metrics", {}) or {}
-    payload = {
-        "mode": m.get("mode"),
-        "docs_found": m.get("docs_found"),
-        "best_score": m.get("best_score"),
-        "threshold": m.get("threshold"),
-        "prompt_name": m.get("prompt_name"),
-        "latency_ms": latency_ms,
-        "len_q": len(question or ""),
-    }
-    logger.info("chat_metrics %s", json.dumps(payload, ensure_ascii=False))
 
-@router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    try:
-        while True:
-            question = await websocket.receive_text()
-            hybrid_bot = load_hybrid_bot(str(Path(get_settings().bot_profile_root_path) / get_settings().bot_profile))
-            answer = hybrid_bot.handle(question)
-            await websocket.send_text(answer)
-    except WebSocketDisconnect:
-        print("🔌 Client disconnected")
 
 @router.post("/ask")
 async def ask_question(request: Request):
-    try:
-        import time
-        start = time.time()
+    session_id = request.session.get("sid")
 
-        payload = await request.json()
-        question = (payload.get("question") or "").strip()
-        if not question:
-            raise HTTPException(status_code=400, detail="Missing 'question' in request body")
+    if session_id is not None and session_id in ingest_state.callbacks.keys():
+        body = await request.json()
+        ingest_state.query_by_session[session_id] = body["question"]
 
-        # 🧩 Load bot profile & root path
-        settings = get_settings()
-        bot_profile = settings.bot_profile
-        bot_root_path = settings.bot_profile_root_path
 
-        # 🧠 Build full path for the client_id
+        path = ingest_state.context_by_session.get(session_id)
+        completed = ingest_state.ready_by_session.get(session_id)
+    
+        if not completed:
+            return {"answer": "⏳ Waiting other process to process any question..."}
+    
+        if not path:
+            return {"answer": "⏳ No context information extracted for this session!"}
 
-        client_id = str(Path(bot_root_path) / bot_profile)
-
-        # 🔹 Load bot directly from full path
-        hybrid_bot = load_hybrid_bot(client_id)
-        answer = hybrid_bot.handle(question)
-
-        latency_ms = int((time.time() - start) * 1000)
-
-        # 📊 Log metrics
-        try:
-            _log_chat_metrics(question, latency_ms, hybrid_bot)
-        except Exception as log_ex:
-            logger.warning("metrics_error", extra={"error": str(log_ex)})
-
-        return JSONResponse(content={"answer": answer})
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("chat_error", extra={"error": str(e)})
-        return JSONResponse(status_code=500, content={"error": "Internal error"})
+        ingest_state.ready_by_session[session_id]=True
+        resp = await ingest_state.invoke_callback(session_id)
+        return {"answer": resp}
+    else:
+        return {"answer": "🔴 Initialization Error!..."}
 
 

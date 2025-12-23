@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 import uvicorn
-
+from starlette.middleware.sessions import SessionMiddleware
 from common.config.settings import get_settings
 from controllers.calendar_controller import CalendarController
 from controllers.funds_reports_controller import FundsReportsController
@@ -14,10 +14,15 @@ from controllers.management_sentiment_rankings_controller import ManagementSenti
 from controllers.management_sentiment_rankings_fallback_controller import ManagementSentimentRankingsFallbackController
 from controllers.portfolio_securities_controller import PortfolioSecuritiesController
 from controllers.process_news_controller import ProcessNewsController
+from controllers.chat_controller import router as chat_router
+from starlette.middleware.sessions import SessionMiddleware
+
 
 settings = get_settings()
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
+
+app.add_middleware(SessionMiddleware, secret_key=settings.session_key)
 
 # Static folder
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -70,6 +75,10 @@ app.include_router(funds_reports.router)
 # Calendar Viewer
 calendar = CalendarController()
 app.include_router(calendar.router)
+
+# Chat
+
+app.include_router(chat_router)
 
 
 
