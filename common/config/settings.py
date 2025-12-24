@@ -78,6 +78,11 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("NEWS_EMBEDDING_MODEL", "NEWS_EMBEDDING_MODEL"))
 
 
+    zh_processed_folders_file: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ZH_PROCESSED_FOLDERS_FILE", "ZH_PROCESSED_FOLDERS_FILE"))
+
+
     deploy_file: str | None = Field(
         default=None,
         validation_alias=AliasChoices("DEPLOY_FILE", "DEPLOY_FILE"))

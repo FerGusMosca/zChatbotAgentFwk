@@ -19,6 +19,12 @@
   <div class="panel">
     <h3>Multipel Funds Reports - Search Tool</h3>
     <form id="rankingForm" action="/funds_reports/analyze" method="POST" novalidate>
+      <select name="processed_folder" class="folder-select">
+        <option value="Last">Last ingestion</option>
+        {% for folder in processed_folders %}
+          <option value="{{ folder }}">{{ folder }}</option>
+        {% endfor %}
+      </select>
       <textarea name="query" placeholder="Ejemplo: ¿Qué narrativas dominan esta semana en ZeroHedge?" required></textarea>
       <button type="submit">
         <span class="fr-spinner"></span>
