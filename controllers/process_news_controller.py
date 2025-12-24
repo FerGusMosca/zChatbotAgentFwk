@@ -255,6 +255,7 @@ class ProcessNewsController:
                 documents_path = settings.documents_path
                 news_chunks_rel_path=settings.news_chunks_rel_path
                 news_vendor = settings.news_vendor
+                embedding_model = settings.news_embedding_model
 
                 # Command template file from settings
                 ingest_cmd_file = settings.docker_ingest_news_cmd
@@ -274,6 +275,7 @@ class ProcessNewsController:
                     news_path=news_path,
                     news_chunks_rel_path=news_chunks_rel_path,
                     news_vendor=news_vendor,
+                    embedding_model=embedding_model,
                     symbol=symbol
                 )
 

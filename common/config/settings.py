@@ -73,6 +73,10 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("DOCKER_CONTAINER_INGEST_NEWS", "DOCKER_CONTAINER_INGEST_NEWS"))
 
+    news_embedding_model: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("NEWS_EMBEDDING_MODEL", "NEWS_EMBEDDING_MODEL"))
+
 
     deploy_file: str | None = Field(
         default=None,
