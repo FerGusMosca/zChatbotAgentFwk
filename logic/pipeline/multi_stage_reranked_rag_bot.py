@@ -80,7 +80,7 @@ class MultiStageRerankedRagBot(RerankedRagBot):
         self.compression_settings_path=get_settings().compression_settings
         self.ssi_settings=get_settings().ssi_settings
         self.reranker_settings=get_settings().rerankers_settings
-        self.faiss_config_file = get_settings().faiss_config_file
+
         self.index_files_root_path=get_settings().index_files_root_path
         self.bot_profile=get_settings().bot_profile
 
@@ -89,7 +89,6 @@ class MultiStageRerankedRagBot(RerankedRagBot):
         self.dump_log_folder=get_settings().dump_log_folder
 
         self.rerankers_cfg=self._load_config(self.reranker_settings)
-        self.faiss_cfg=self._load_config(self.faiss_config_file)
 
         # --- Load system prompt provided by PromptBasedChatbot ---
         self.system_prompt = prompt_name
@@ -115,7 +114,7 @@ class MultiStageRerankedRagBot(RerankedRagBot):
             temperature=temperature
         )
 
-        self.reranker = CrossEncoderReranker(top_k=top_k, logger_ref=self.logger)
+        #self.reranker = CrossEncoderReranker(top_k=top_k, logger_ref=self.logger)
         self.deduper = DedupEliminator(self.logger,self.dedup_settings_path)
 
         self.ssi = SalientSpanIndexer(self.ssi_settings,self.logger)
@@ -162,7 +161,7 @@ class MultiStageRerankedRagBot(RerankedRagBot):
     def _init_FAISS_retriever(self):
         # ===== FAISS retriever =====
         try:
-            self.ms_FAISS_searcher = MultiStageFaissSearcher(self.faiss_cfg, self.rerankers_cfg,
+            self.ms_FAISS_searcher = MultiStageFaissSearcher( self.rerankers_cfg,
                                                              self.index_files_root_path, self.bot_profile,
                                                              self.top_k_faiss, self.logger,
                                                              self.dump_on_logs,self.dump_log_folder)

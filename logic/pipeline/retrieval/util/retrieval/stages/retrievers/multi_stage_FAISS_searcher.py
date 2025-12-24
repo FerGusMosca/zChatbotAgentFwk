@@ -16,9 +16,9 @@ from logic.pipeline.retrieval.util.retrieval.util.retrieval_logger import Retrie
 
 
 class MultiStageFaissSearcher:
-    def __init__(self, faiss_cfg,rerankers_cfg, docs_path, bot_profile, top_k_faiss, std_out_logger
+    def __init__(self, rerankers_cfg, docs_path, bot_profile, top_k_faiss, std_out_logger
                 ,dump_on_logs=False,dump_log_file=None):
-        self.faiss_cfg = faiss_cfg
+
         self.rerankers_cfg=rerankers_cfg
         self.top_k_faiss = top_k_faiss
         self.docs_path = docs_path
@@ -28,18 +28,18 @@ class MultiStageFaissSearcher:
         self.file_logger=RetrievalLogger(dump_on_logs,dump_log_file)
 
         # Load model once at init
-        self.model = SentenceTransformer(self.faiss_cfg["embedding_model"])
-        self.normalize_embeddings = self.faiss_cfg.get("normalize_L2", True)
+        self.model = SentenceTransformer(self.rerankers_cfg["chunk_exploration_model"])
+        self.normalize_embeddings = self.rerankers_cfg.get("normalize_L2", True)
         self.chunk_relevance_filter=ChunkRelevanceFilter(self.rerankers_cfg["chunk_filter_model"])
 
         self._load_cross_encoder_thresholds()
         pass
 
     def _load_cross_encoder_thresholds(self):
-        """Load cross-encoder thresholds from faiss_cfg. Raise error if missing."""
+        """Load cross-encoder thresholds from rerankers_cfg. Raise error if missing."""
         if "cross_encoder_thresholds" not in self.rerankers_cfg:
             raise KeyError(
-                "Missing required section 'cross_encoder_thresholds' in faiss_cfg. "
+                "Missing required section 'cross_encoder_thresholds' in rerankers_cfg. "
                 "Add it to the config with thresholds per query type."
             )
 

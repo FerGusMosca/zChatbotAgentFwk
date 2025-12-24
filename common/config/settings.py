@@ -127,9 +127,6 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("SSI_SETTINGS", "SSI_SETTINGS"))
 
-    faiss_config_file: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("FAISS_CONFIG_FILE", "FAISS_CONFIG_FILE"))
 
     dump_on_logs: str | None = Field(
         default=None,
