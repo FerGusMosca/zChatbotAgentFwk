@@ -57,10 +57,15 @@ class FundsReportsController:
                         ping_timeout=300
                 ) as ws:
 
-                    await ws.send(json.dumps({
-                        "query": query,
-                        "chunks_folder": folder
-                    }))
+                    if(folder!=""):
+                        self.logger.info(f"[FundsReports] Sending query {query[0:10]} to {folder} ...")
+                        await ws.send(json.dumps({
+                            "query": query,
+                            "chunks_folder": folder
+                        }))
+                    else:
+                        self.logger.info(f"[FundsReports] Sending query {query[0:10]} to default folder ...")
+                        await ws.send(json.dumps(query))
 
                     self.logger.info("[FundsReports] Payload sent — waiting for reply...")
 
@@ -89,9 +94,9 @@ class FundsReportsController:
 
             history = data.get("processed_history", [])
             folders = [
-                item["folder"]
+                item["dest_folder"]
                 for item in history
-                if item.get("status") == "success" and item.get("folder")
+                if item.get("status") == "success" and item.get("dest_folder")
             ]
 
             # Remove duplicates, preserve order
