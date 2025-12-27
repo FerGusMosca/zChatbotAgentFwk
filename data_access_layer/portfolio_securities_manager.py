@@ -13,13 +13,14 @@ class PortfolioSecuritiesManager:
     # =========================
     # PAGED
     # =========================
-    def get_paged(self, portfolio_id: int, page: int, page_size: int):
+    def get_paged(self, portfolio_id: int, page: int, page_size: int,
+                  ticker_filter: str | None = None, symbol_filter: str | None = None):
         conn = pyodbc.connect(self.connection_string)
         cursor = conn.cursor()
 
         cursor.execute(
-            "EXEC dbo.get_portfolio_securities_paged @portfolio_id=?, @page=?, @page_size=?",
-            (portfolio_id, page, page_size)
+            "EXEC dbo.get_portfolio_securities_paged @portfolio_id=?, @page=?, @page_size=?, @ticker_filter=?, @symbol_filter=?",
+            (portfolio_id, page, page_size, ticker_filter, symbol_filter)
         )
 
         rows = cursor.fetchall()
@@ -29,6 +30,7 @@ class PortfolioSecuritiesManager:
                 portfolio_id=r.portfolio_id,
                 security_id=r.security_id,
                 ticker=r.ticker,
+                symbol=r.symbol,
                 name=r.name,
                 cik=r.cik,
                 added_at=r.added_at,
@@ -52,6 +54,28 @@ class PortfolioSecuritiesManager:
             page_size=page_size
         )
 
+    # Updates symbol and/or name using the stored procedure
+    def update(self, security_id: int, symbol: str | None = None, name: str | None = None):
+        conn = pyodbc.connect(self.connection_string)
+        cursor = conn.cursor()
+
+        # Execute the stored procedure with optional parameters
+        cursor.execute(
+            "EXEC dbo.update_portfolio_security @id=?, @symbol=?, @name=?",
+            (security_id, symbol, name)
+        )
+
+        # Get rows affected (optional, for feedback)
+        row = cursor.fetchone()
+        rows_affected = row.rows_affected if row else 0
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return {"status": "ok", "rows_affected": rows_affected}
+
+
     # =========================
     # FULL LIST
     # =========================
@@ -68,6 +92,7 @@ class PortfolioSecuritiesManager:
                 portfolio_id=r.portfolio_id,
                 security_id=r.security_id,
                 ticker=r.ticker,
+                symbol=r.symbol,
                 name=r.name,
                 cik=r.cik,
                 added_at=r.added_at,
@@ -90,11 +115,11 @@ class PortfolioSecuritiesManager:
 
         like = f"%{query}%"
         cursor.execute("""
-            SELECT TOP 20 id, ticker, name, cik
+            SELECT TOP 20 id,ticker, symbol, name, cik
             FROM SEC_Securities
-            WHERE ticker LIKE ? OR name LIKE ?
+            WHERE ticker LIKE ? OR symbol LIKE ? OR name LIKE ?
             ORDER BY ticker
-        """, (like, like))
+        """, (like, like, like))
 
         rows = cursor.fetchall()
         cursor.close()
@@ -104,6 +129,7 @@ class PortfolioSecuritiesManager:
             SecuritySearchResult(
                 id=r.id,
                 ticker=r.ticker,
+                symbol=r.symbol,
                 name=r.name,
                 cik=r.cik
             )

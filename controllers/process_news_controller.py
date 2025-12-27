@@ -91,7 +91,7 @@ class ProcessNewsController:
             return [
                 {
                     "security_id": x.id,
-                    "ticker": x.ticker,
+                    "symbol": x.symbol,
                     "name": x.name
                 }
                 for x in items

@@ -117,3 +117,95 @@ function showLoader(btn){
     btn.innerHTML = "⏳ Loading...";
 }
 
+document.addEventListener("dblclick", function (e) {
+    const cell = e.target.closest(".editable");
+    if (!cell) return;
+
+    if (cell.querySelector("input")) return;
+
+    const value = cell.innerText.trim();
+    const input = document.createElement("input");
+
+    input.value = value;
+    input.className = "edit-input";
+
+    cell.innerHTML = "";
+    cell.appendChild(input);
+
+    const row = cell.closest("tr");
+    row.querySelector(".save-btn").disabled = false;
+});
+
+
+// Saves the edited row by sending updated fields to the backend
+async function saveRow(btn) {
+    // Find the closest table row (<tr>) containing the Save button
+    const row = btn.closest("tr");
+
+    // Create FormData to send as multipart/form-data (matches FastAPI Form expectations)
+    const formData = new FormData();
+
+    // Always send the security_id to identify which record to update
+    formData.append("security_id", Number(row.dataset.id));
+
+    // Iterate over all cells marked as editable
+    row.querySelectorAll(".editable").forEach(cell => {
+        // Skip the is_active field – it's not meant to be edited by the user
+        if (cell.dataset.field === "is_active") return;
+
+        // Find the input element inside the cell
+        const input = cell.querySelector("input");
+        if (!input) return;
+
+        // Get the trimmed value to avoid sending empty strings
+        const value = input.value.trim();
+
+        // Only append the field if it has a non-empty value
+        // This prevents sending invalid/empty data that could cause backend errors
+        if (value !== "") {
+            formData.append(cell.dataset.field, value);
+        }
+    });
+
+    try {
+        // Send POST request to the update endpoint
+        const response = await fetch("/portfolio_securities/update", {
+            method: "POST",
+            body: formData
+        });
+
+        // Handle successful response
+        if (response.ok) {
+            alert("Updated successfully");
+            location.reload(); // Refresh page to show updated data
+        } else {
+            // Handle HTTP errors (e.g., 400, 500)
+            const errorText = await response.text();
+            alert("Error updating record: " + errorText);
+        }
+    } catch (err) {
+        // Handle network or JavaScript errors
+        alert("Connection error");
+        console.error(err);
+    }
+}
+
+// Apply filters by reloading with query params
+function applyFilters() {
+    const ticker = document.getElementById("tickerFilter").value.trim();
+    const symbol = document.getElementById("symbolFilter").value.trim();
+
+    const portfolioId = document.getElementById("portfolioSelect").value;
+    let url = `/portfolio_securities/load?portfolio_id=${portfolioId}`;
+    if (ticker) url += `&ticker_filter=${encodeURIComponent(ticker)}`;
+    if (symbol) url += `&symbol_filter=${encodeURIComponent(symbol)}`;
+    window.location.href = url;
+}
+
+// Clear filters – reload without params
+function clearFilters() {
+    document.getElementById("tickerFilter").value = "";
+    document.getElementById("symbolFilter").value = "";
+    const portfolioId = document.getElementById("portfolioSelect").value;
+    window.location.href = `/portfolio_securities/load?portfolio_id=${portfolioId}`;
+}

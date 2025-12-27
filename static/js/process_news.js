@@ -1,5 +1,5 @@
 // ===== UI: search ticker =====
-async function searchTicker() {
+async function searchSymbol() {
     const q = document.getElementById("searchInput").value.trim();
     const box = document.getElementById("searchResults");
 
@@ -12,22 +12,21 @@ async function searchTicker() {
     const items = await res.json();
 
     box.innerHTML = items.map(x =>
-        `<div class="result-item" onclick="selectSecurity('${x.ticker}')">
-            ${x.ticker} — ${x.name}
+        `<div class="result-item" onclick="selectSecurity('${x.symbol}')">
+            ${x.symbol} — ${x.name}
         </div>`
     ).join("");
 }
 
-function selectSecurity(ticker) {
-    document.getElementById("searchInput").value = ticker;
-    document.getElementById("selectedSecurity").value = ticker;
+function selectSecurity(symbol) {
+    document.getElementById("searchInput").value = symbol;
+    document.getElementById("selectedSecurity").value = symbol;
     document.getElementById("searchResults").innerHTML = "";
 }
 
 // ===== RUN PROCESS WITH STREAMING =====
 async function runProcessNews(ev) {
     ev.preventDefault();
-
     const symbol = document.getElementById("selectedSecurity").value.trim();
     if (!symbol) {
         alert("Select a security first.");
@@ -138,3 +137,4 @@ async function ingestNews(ev) {
     ingestBtn.classList.remove("loading"); // hide spinner
     document.getElementById("chat-toggle-btn").classList.remove("disabled-btn");
 }
+

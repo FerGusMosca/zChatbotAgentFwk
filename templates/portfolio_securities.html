@@ -52,9 +52,26 @@
         </a>
 
         <button type="button" class="green-btn" onclick="openAddModal()">+ Add Securities</button>
-
-
     </div>
+    <div class="filters-row">
+        <input type="text" id="tickerFilter" placeholder="Filter by Ticker..." class="filter-input">
+        <input type="text" id="symbolFilter" placeholder="Filter by Symbol..." class="filter-input">
+
+        <button type="button"
+                class="icon-btn apply"
+                title="Apply Filters"
+                onclick="applyFilters()">
+            🔍
+        </button>
+
+        <button type="button"
+                class="icon-btn clear"
+                title="Clear Filters"
+                onclick="clearFilters()">
+            ✖
+        </button>
+    </div>
+
     {% endif %}
 
 
@@ -65,6 +82,7 @@
           <tr>
             <th>ID</th>
             <th>Ticker</th>
+            <th>Symbol</th>
             <th>Name</th>
             <th>CIK</th>
             <th>Added</th>
@@ -74,14 +92,18 @@
         </thead>
         <tbody>
           {% for s in page_data.items %}
-          <tr>
-            <td>{{ s.id }}</td>
+          <tr data-id="{{ s.security_id }}">
+            <td>{{ s.security_id }}</td>
             <td>{{ s.ticker }}</td>
-            <td>{{ s.name }}</td>
+            <td class="editable" data-field="symbol">{{ s.symbol }}</td>
+            <td class="editable" data-field="name">{{ s.name }}</td>
             <td>{{ s.cik }}</td>
             <td>{{ s.added_at }}</td>
-            <td>{{ s.is_active }}</td>
+            <td >{{ s.is_active }}</td>
             <td>{{ s.weight }}</td>
+            <td>
+                <button class="save-btn" onclick="saveRow(this)" disabled>💾</button>
+            </td>
           </tr>
           {% endfor %}
         </tbody>

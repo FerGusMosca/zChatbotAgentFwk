@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Form
+from fastapi import APIRouter, Request, Form, Body, Query
 from fastapi.responses import HTMLResponse
 from pathlib import Path
 
@@ -6,6 +6,7 @@ from starlette.responses import StreamingResponse
 from starlette.templating import Jinja2Templates
 
 from common.config.settings import settings
+from common.dto.update_security_request import UpdateSecurityRequest
 from common.util.app_logger import AppLogger
 
 from data_access_layer.manager_portfolios import PortfolioManager
@@ -15,6 +16,8 @@ import io
 from fastapi.responses import StreamingResponse
 
 from data_access_layer.portfolio_securities_manager import PortfolioSecuritiesManager
+
+
 
 
 class PortfolioSecuritiesController:
@@ -37,15 +40,25 @@ class PortfolioSecuritiesController:
                 {"request": request, "portfolios": portfolios, "securities": []}
             )
 
-        @self.router.post("/load", response_class=HTMLResponse)
-        async def load(
+        from fastapi import Query
+
+        @self.router.get("/load", response_class=HTMLResponse)
+        async def load_get(
                 request: Request,
-                portfolio_id: int = Form(...),
-                page: int = Form(1),
-                page_size: int = Form(20)
+                portfolio_id: int = Query(...),
+                page: int = Query(1),
+                page_size: int = Query(20),
+                ticker_filter: str | None = Query(None),
+                symbol_filter: str | None = Query(None),
         ):
             portfolios = self.portfolio_mgr.get_all()
-            page_data = self.ps_mgr.get_paged(portfolio_id, page, page_size)
+            page_data = self.ps_mgr.get_paged(
+                portfolio_id=portfolio_id,
+                page=page,
+                page_size=page_size,
+                ticker_filter=ticker_filter,
+                symbol_filter=symbol_filter,
+            )
 
             return self.templates.TemplateResponse(
                 "portfolio_securities.html",
@@ -53,9 +66,54 @@ class PortfolioSecuritiesController:
                     "request": request,
                     "portfolios": portfolios,
                     "selected_portfolio": portfolio_id,
-                    "page_data": page_data
-                }
+                    "page_data": page_data,
+                    "ticker_filter": ticker_filter,
+                    "symbol_filter": symbol_filter,
+                },
             )
+
+        @self.router.post("/load", response_class=HTMLResponse)
+        async def load_post(
+                request: Request,
+                portfolio_id: int = Form(...),
+                page: int = Form(1),
+                page_size: int = Form(20),
+                ticker_filter: str | None = Form(None),
+                symbol_filter: str | None = Form(None),
+        ):
+            portfolios = self.portfolio_mgr.get_all()
+            page_data = self.ps_mgr.get_paged(
+                portfolio_id=portfolio_id,
+                page=page,
+                page_size=page_size,
+                ticker_filter=ticker_filter,
+                symbol_filter=symbol_filter,
+            )
+
+            return self.templates.TemplateResponse(
+                "portfolio_securities.html",
+                {
+                    "request": request,
+                    "portfolios": portfolios,
+                    "selected_portfolio": portfolio_id,
+                    "page_data": page_data,
+                    "ticker_filter": ticker_filter,
+                    "symbol_filter": symbol_filter,
+                },
+            )
+
+        @self.router.post("/update")
+        async def update_security(
+                security_id: int = Form(...),
+                symbol: str | None = Form(None),
+                name: str | None = Form(None)
+        ):
+            try:
+                result = self.ps_mgr.update(security_id, symbol, name)
+                return result
+            except Exception as ex:
+                self.logger.error(f"Update failed for security_id {security_id}: {ex}")
+                return {"status": "error", "message": str(ex)}
 
         @self.router.get("/export_csv", response_class=StreamingResponse)
         async def export_csv(portfolio_id: int):
@@ -70,6 +128,7 @@ class PortfolioSecuritiesController:
                 writer.writerow([
                     s.id,
                     s.ticker,
+                    s.symbol,
                     s.name,
                     s.cik,
                     s.added_at,

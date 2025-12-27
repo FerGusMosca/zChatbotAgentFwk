@@ -220,3 +220,57 @@
 .csv-icon-btn:hover {
     background: #2ea043;
 }
+
+.save-btn {
+    background: linear-gradient(135deg, #4CAF50, #2e7d32);
+    border: none;
+    color: white;
+    font-size: 14px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    transition: all 0.15s ease-in-out;
+}
+
+.save-btn:disabled {
+    background: #2f3b2f;
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.save-btn:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+}
+
+.save-btn:not(:disabled):active {
+    transform: scale(0.97);
+}
+
+.filters-row {
+    margin: 15px 0;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.filter-input {
+    padding: 8px;
+    width: 200px;
+    border: 1px solid #444;
+    background: #222;
+    color: white;
+    border-radius: 4px;
+}
+
+.clear-btn {
+    background: #666;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
