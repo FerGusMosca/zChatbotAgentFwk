@@ -3,7 +3,7 @@ from typing import List, Dict
 import hashlib
 
 from langchain_core.documents import Document
-from common.dto.test.retrieval_test_result_dto import RetrievalTestResultDTO
+from common.dto.test.retrieval_test_result_dto import RetrievalTestResultDTO, StageMetricsDTO
 from common.util.loader.prompt_loader import PromptLoader
 from data_access_layer.retrieval_test_dal import RetrievalTestDAL
 from logic.util.builder.llm_factory import LLMFactory
@@ -54,6 +54,7 @@ class RetrievalHarnessTester:
     def evaluate_bi_encoder_retrieval(
             self,
             query: str,
+            source:str,
             retrieved_docs: List[Document]
     ) -> None:
         """
@@ -68,6 +69,10 @@ class RetrievalHarnessTester:
             self.std_out_logger.debug("[FAISS_SKIP] Testing harness disabled")
             return
 
+        if not self.testing_harness_cfg["process_bi_encoder"]:
+            self.std_out_logger.debug("[FAISS_BI_ENCODER_SKIP] Skipping bi encoder testing for settings")
+            return
+
         last_test = self._get_last_query_added()#we don't have the original question. so last test is ok
         if last_test is not None:
             test_id=last_test.query_id
@@ -75,8 +80,8 @@ class RetrievalHarnessTester:
         else:
             raise Exception(f"[FAISS_LLM_INITIALIZE_ERROR] : Could not find a last test to process!")
 
-        stage_name = "faiss_bi_encoder"
-        stage = dto.stages[stage_name]
+        stage_name = f"faiss_bi_encoder_{source}"
+        stage = dto.stages.setdefault(stage_name, StageMetricsDTO(stage_type="bi_encoder",source=source))
 
         # ------------------------------------------------------------
         # 1) Structural evaluation (IDs)
@@ -86,6 +91,7 @@ class RetrievalHarnessTester:
             self._extract_chunk_id(doc) for doc in retrieved_docs
         ]
         stage.retrieved_chunks = retrieved_chunk_ids
+        stage.source=source
 
         self.std_out_logger.debug(
             f"[FAISS_TEST] {test_id} → evaluating {len(retrieved_chunk_ids)} chunks"

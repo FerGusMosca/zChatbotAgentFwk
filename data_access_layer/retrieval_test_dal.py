@@ -123,6 +123,7 @@ class RetrievalTestDAL:
                     "hallucinated_chunks": json.dumps(stage.hallucinated_chunks),
                     "recall": stage.recall,
                     "precision": stage.precision,
+                    "source": stage.source,
                     "llm_judgement": json.dumps(stage.llm_judgement)
                     if stage.llm_judgement is not None
                     else None,

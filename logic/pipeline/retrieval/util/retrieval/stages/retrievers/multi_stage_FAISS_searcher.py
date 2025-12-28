@@ -257,6 +257,7 @@ class MultiStageFaissSearcher:
             docs=retrieved_docs,
             file_logger=self.file_logger
         )
+        self.tester.evaluate_bi_encoder_retrieval(query,folder,retrieved_docs)
 
         if self.use_cross_encoders_thresholds:
             return self._filt_cross_encoders_thresholds(folder,query,query_label,retrieved_docs,scores)

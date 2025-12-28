@@ -6,6 +6,7 @@ from datetime import datetime
 @dataclass
 class StageMetricsDTO:
     stage_type: str = ""   # bi_encoder | cross_encoder | fusion | mmr | dedup
+    source: str = ""
     retrieved_chunks: List[str] = field(default_factory=list)
     gold_hits: List[str] = field(default_factory=list)
     dropped_gold_chunks: List[str] = field(default_factory=list)
@@ -27,13 +28,14 @@ class StageMetricsDTO:
 
         # ---- BI-ENCODER: recall-focused ----
         if eval_type == "bi_encoder_recall":
-            mapping = {
-                "HIGH": 0.9,
-                "MEDIUM": 0.6,
-                "LOW": 0.3
-            }
             recall_label = self.llm_judgement.get("recall_assessment")
-            self.recall = mapping.get(recall_label)
+
+            if recall_label:
+                mapping = {"HIGH": 0.9, "MEDIUM": 0.6, "LOW": 0.3}
+                self.recall = mapping.get(recall_label)
+            else:
+                relevant = self.llm_judgement.get("relevant_chunks", [])
+                self.recall = 1.0 if len(relevant) > 0 else 0.0
 
         # ---- CROSS-ENCODER: precision-focused ----
         elif eval_type == "cross_encoder_precision":

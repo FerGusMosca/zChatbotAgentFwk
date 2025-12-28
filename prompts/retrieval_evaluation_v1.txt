@@ -8,37 +8,38 @@ Context:
 - These chunks are NOT re-ranked or filtered yet.
 - Your job is to evaluate SEMANTIC RECALL, not precision.
 
-Definition:
-A chunk is considered RELEVANT if it contains information that helps answer the question,
-even partially, even if noisy, even if redundant.
-
-A chunk is considered IRRELEVANT if:
-- It is topically unrelated to the question
-- It does not provide any information useful to answer the question
-- It only shares keywords but not meaning
+Definitions:
+- A chunk is RELEVANT if it contains information that helps answer the question,
+  even partially, even if noisy, even if redundant.
+- A chunk is IRRELEVANT if:
+  - It is topically unrelated to the question
+  - It does not provide useful information to answer the question
+  - It only shares keywords but not meaning
 
 Instructions:
-1. For each chunk, decide if it is RELEVANT or IRRELEVANT to the question.
+1. For each chunk, decide if it is RELEVANT or IRRELEVANT.
 2. Be STRICT but FAIR: allow semantic breadth, but do NOT accept garbage.
-3. Do NOT assume later stages will fix bad retrieval — evaluate what you see.
+3. Do NOT assume later stages will fix bad retrieval — evaluate only what you see.
 4. Focus on RECALL: missing relevant chunks is worse than including extra ones.
 
-Output:
-Return a VALID JSON object with the following structure ONLY:
+OUTPUT RULES (MANDATORY):
+- RETURN **JSON ONLY**.
+- DO NOT include explanations, markdown, bullet points, or code fences.
+- DO NOT include any text before or after the JSON.
+- DO NOT summarize or rewrite chunks.
 
+Output JSON format (STRICT):
 {
   "evaluation_type": "bi_encoder_recall",
-  "relevant_chunks": [<indexes of relevant chunks>],
-  "irrelevant_chunks": [<indexes of irrelevant chunks>],
+  "relevant_chunks": [<zero-based indexes>],
+  "irrelevant_chunks": [<zero-based indexes>],
   "recall_assessment": "HIGH | MEDIUM | LOW",
   "notes": "Short explanation of why recall is good or bad"
 }
 
 Important:
-- Indexes are ZERO-BASED and refer to the order of the chunks as provided.
-- Do NOT include any text outside the JSON.
+- Indexes are ZERO-BASED and refer to the order of chunks as provided.
 - Do NOT hallucinate missing chunks.
-- Do NOT rewrite or summarize chunks.
 
 
 [CROSS_ENCODER_TESTING]
