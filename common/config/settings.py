@@ -127,6 +127,9 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("SSI_SETTINGS", "SSI_SETTINGS"))
 
+    testing_harness_settings: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("TESTING_HARNESS_SETTINGS", "TESTING_HARNESS_SETTINGS"))
 
     dump_on_logs: str | None = Field(
         default=None,

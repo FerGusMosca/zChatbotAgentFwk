@@ -34,7 +34,7 @@ class MultiStageBM25Searcher:
 
     # -----------------------------------------------------
     def __init__(self, docs_path: str, bot_profile: str, top_k_bm25: int, std_out_logger
-                 ,dump_on_logs=False,dump_log_folder=None):
+                 ,dump_on_logs=False,dump_log_folder=None,tester=None):
         """
         Args:
             docs_path: root directory where bot profiles are stored
@@ -47,6 +47,9 @@ class MultiStageBM25Searcher:
         self.top_k_bm25 = top_k_bm25
         self.std_out_logger = std_out_logger
         self.file_logger = RetrievalLogger(dump_on_logs, dump_log_folder)
+
+        #Tester
+        self.tester=tester
 
         # Static filenames
         self.chunk_file = _CHUNKS_FILE
@@ -133,7 +136,7 @@ class MultiStageBM25Searcher:
         #self._log_hits(folder, enriched)
         return enriched
 
-    def _bm25_global_topk(self, docs: List[Document], query: str) -> List[Document]:
+    def _bm25_global_topk(self, docs: List[Document], query: str,label:str) -> List[Document]:
         """
         Apply a single global BM25 over the merged shard results.
         Returns exactly self.top_k_bm25 docs.
@@ -170,7 +173,7 @@ class MultiStageBM25Searcher:
         return out
 
     # -----------------------------------------------------
-    def run_bm25_search(self, query: str,dynamic_chunks_folder=None) -> List[Document]:
+    def run_bm25_search(self, query: str,label:str,dynamic_chunks_folder=None) -> List[Document]:
         """
         Traverse every top-level folder and every internal subfolder,
         loading BM25 chunks + metadata and running BM25 on each shard.
@@ -232,9 +235,10 @@ class MultiStageBM25Searcher:
                     self.std_out_logger.error(f"[BM25_SEARCH_ERROR] {folder} / {inner_root}: {e}")
                     continue
 
-        all_results=self._bm25_global_topk(all_results,query)
+        all_results=self._bm25_global_topk(all_results,query,label)
 
         #all_results,dom_detected= DominanceDetector.detect_dominance_and_filter(all_results,self.std_out_logger)
+        self.tester.evaluate_bm25_retrieval(query, label, all_results)
         self.file_logger.close_log_dump_file()
         return all_results
 

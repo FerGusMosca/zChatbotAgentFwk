@@ -5,6 +5,7 @@ from common.enum.intents import Intent
 
 from typing import Optional
 
+from common.util.loader.prompt_loader import PromptLoader
 from logic.util.builder.llm_factory import LLMFactory
 
 
@@ -21,7 +22,7 @@ class QueryClassifier:
         temperature: float = 0.0,
     ):
         self.logger = logger
-        self.prompt_template = self._extract_section(full_prompt)
+        self.prompt_template=PromptLoader.extract_section_from_text(full_prompt,self.SECTION)
 
         if use_llm_fallback:
             self.llm = LLMFactory.create(
@@ -31,16 +32,6 @@ class QueryClassifier:
             )
         else:
             self.llm = None
-
-    def _extract_section(self, text: str) -> str:
-        start = text.find(self.SECTION)
-        if start == -1:
-            raise ValueError(f"Missing section {self.SECTION} in master prompt")
-        start += len(self.SECTION)
-        end = text.find("[", start)
-        section = text[start:end if end != -1 else None].strip()
-        self.logger and self.logger.info("[CLASSIFIER] prompt loaded", {"length": len(section)})
-        return section
 
     def classify(self, query: str) -> Intent:
         q = query.lower().strip()

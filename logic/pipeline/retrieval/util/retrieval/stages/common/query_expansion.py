@@ -2,6 +2,8 @@
 # Extracts its prompt from master prompt + uses LLMFactory (zero OpenAI coupling)
 
 from typing import List
+
+from common.util.loader.prompt_loader import PromptLoader
 from logic.util.builder.llm_factory import LLMFactory  # ← tu factory
 
 
@@ -17,7 +19,7 @@ class QueryExpander:
         temperature: float = 0.0,
     ):
         self.logger = logger
-        self.prompt_template = self._extract_section(full_prompt)
+        self.prompt_template=PromptLoader.extract_section_from_text(full_prompt,self.SECTION)
 
         self.llm = LLMFactory.create(
             provider=llm_prov,
@@ -25,15 +27,6 @@ class QueryExpander:
             temperature=temperature,
         )
 
-    def _extract_section(self, text: str) -> str:
-        start = text.find(self.SECTION)
-        if start == -1:
-            raise ValueError(f"Missing section {self.SECTION} in master prompt")
-        start += len(self.SECTION)
-        end = text.find("[", start)
-        section = text[start:end if end != -1 else None].strip()
-        self.logger and self.logger.info("[EXPANDER] prompt loaded", {"length": len(section)})
-        return section
 
     def expand(self, query: str) -> str:
         try:

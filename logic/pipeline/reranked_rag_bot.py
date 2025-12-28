@@ -14,6 +14,7 @@ from logic.pipeline.retrieval.util.retrieval.stages.retrievers.simple_FAISS_Sear
 from logic.pipeline.retrieval.util.retrieval.stages.common.context_compression import ContextCompressor
 from logic.pipeline.retrieval.util.retrieval.stages.common.dedup_eliminator import DedupEliminator
 from logic.pipeline.retrieval.util.retrieval.util.chunks_debugger import ChunksDebugger
+from logic.test.retrieval_harness_tester import RetrievalHarnessTester
 from logic.util.builder.llm_factory import LLMFactory
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -77,6 +78,7 @@ class RerankedRagBot:
         self.ssi_settings=get_settings().ssi_settings
         self.reranker_settings=get_settings().rerankers_settings
         self.faiss_config_file = get_settings().faiss_config_file
+        self.testing_harness_settings = get_settings().testing_harness_settings
 
         self.rerankers_cfg=self._load_config(self.reranker_settings)
         self.faiss_cfg=self._load_config(self.faiss_config_file)
@@ -87,7 +89,8 @@ class RerankedRagBot:
         self.top_k_bm25 = int(self.rerankers_cfg["top_k_bm25"])
         self.top_k_fusion = int(self.rerankers_cfg["top_k_fusion"])
 
-
+        # tests
+        self.testing_harness_cfg = self._load_config(self.testing_harness_settings)
 
         # ===== Modules =====
         full_prompt=PromptLoader(self.system_prompt).prompts[prompt_name]
@@ -179,12 +182,16 @@ class RerankedRagBot:
             self._log("fatal_bm25_error", {"exception": str(ex)})
             raise
 
+
         # ===== LLM =====
         self.llm = LLMFactory.create(
             provider=llm_prov,
             model_name=model_name,
             temperature=temperature,
         )
+
+        # ===== Testing ====
+        self.test_harness = RetrievalHarnessTester(self.testing_harness_cfg, llm_prov, self.logger)
 
         # ===== Prompt =====
         self.answer_prompt = ChatPromptTemplate.from_template(PromptSectionExtractor.extract(full_prompt, "MAIN_LLM"))
@@ -506,6 +513,7 @@ class RerankedRagBot:
         session_id = "default"
         user_query = str(user_query).strip()
 
+
         self._log("query_received", {"query": user_query})
 
         try:
@@ -519,6 +527,7 @@ class RerankedRagBot:
             })
 
             # 2) build dynamic pipeline
+            self.test_harness.initialize_query(user_query, label)
             dynamic_pipeline = self._build_pipeline(flags,label,dynamic_chunks_folder)
 
             # 3) run pipeline with message history
@@ -537,6 +546,7 @@ class RerankedRagBot:
 
             ans = str(result).strip() or "No strong evidence found in retrieved context."
             self._log("query_answered", {"answer": ans[:200]})
+            self.test_harness.persist_last_query_tests(query=user_query)
             return ans
 
         except Exception as ex:

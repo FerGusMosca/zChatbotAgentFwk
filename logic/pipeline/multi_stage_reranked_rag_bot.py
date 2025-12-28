@@ -17,6 +17,7 @@ from logic.pipeline.retrieval.util.retrieval.stages.common.context_compression i
 from logic.pipeline.retrieval.util.retrieval.stages.common.dedup_eliminator import DedupEliminator
 from logic.pipeline.retrieval.util.retrieval.stages.retrievers.multi_stage_bm25_searcher import MultiStageBM25Searcher
 from logic.pipeline.retrieval.util.retrieval.util.chunks_debugger import ChunksDebugger
+from logic.test.retrieval_harness_tester import RetrievalHarnessTester
 from logic.util.builder.llm_factory import LLMFactory
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -80,6 +81,7 @@ class MultiStageRerankedRagBot(RerankedRagBot):
         self.compression_settings_path=get_settings().compression_settings
         self.ssi_settings=get_settings().ssi_settings
         self.reranker_settings=get_settings().rerankers_settings
+        self.testing_harness_settings=get_settings().testing_harness_settings
 
         self.index_files_root_path=get_settings().index_files_root_path
         self.bot_profile=get_settings().bot_profile
@@ -90,6 +92,9 @@ class MultiStageRerankedRagBot(RerankedRagBot):
 
         self.rerankers_cfg=self._load_config(self.reranker_settings)
 
+        #tests
+        self.testing_harness_cfg=self._load_config(self.testing_harness_settings)
+
         # --- Load system prompt provided by PromptBasedChatbot ---
         self.system_prompt = prompt_name
         self.top_k_faiss = int(self.rerankers_cfg["top_k_faiss"])
@@ -98,6 +103,10 @@ class MultiStageRerankedRagBot(RerankedRagBot):
 
         # ===== Modules =====
         full_prompt=PromptLoader(self.system_prompt,self.logger).prompts[prompt_name]
+
+        # ===== Testing ====
+        self.test_harness = RetrievalHarnessTester(self.testing_harness_cfg,llm_prov,model_name,temperature,self.logger)
+
 
         self.rewriter = QueryRewriter(
             full_prompt=full_prompt,
@@ -155,6 +164,9 @@ class MultiStageRerankedRagBot(RerankedRagBot):
         # ===== Prompt =====
         self.answer_prompt = ChatPromptTemplate.from_template(PromptSectionExtractor.extract(full_prompt, "MAIN_LLM"))
 
+
+
+
         # DO NOT build pipeline here (dynamic!). Keep only runner wrapper.
         self._log("init_complete", {})
 
@@ -164,7 +176,8 @@ class MultiStageRerankedRagBot(RerankedRagBot):
             self.ms_FAISS_searcher = MultiStageFaissSearcher( self.rerankers_cfg,
                                                              self.index_files_root_path, self.bot_profile,
                                                              self.top_k_faiss, self.logger,
-                                                             self.dump_on_logs,self.dump_log_folder)
+                                                             self.dump_on_logs,self.dump_log_folder,
+                                                              self.test_harness)
 
         except Exception as ex:
             self._log("fatal_ms_FAISS_searcher_error", {"exception": str(ex)})
@@ -179,7 +192,8 @@ class MultiStageRerankedRagBot(RerankedRagBot):
                 top_k_bm25=self.top_k_bm25,
                 std_out_logger =self.logger,
                 dump_on_logs=self.dump_on_logs,
-                dump_log_folder = self.dump_log_folder
+                dump_log_folder = self.dump_log_folder,
+                tester=self.test_harness
             )
 
             # Successful initialization log
@@ -207,9 +221,8 @@ class MultiStageRerankedRagBot(RerankedRagBot):
             self._log("faiss_error", {"error": str(e)})
             faiss_hits = []
 
-
         try:
-            bm25_hits = self.bm25_searcher.run_bm25_search(q,dynamic_chunks_folder=dynamic_chunks_folder)
+            bm25_hits = self.bm25_searcher.run_bm25_search(q,label,dynamic_chunks_folder=dynamic_chunks_folder)
             self._log("bm25_ok", {"hits": len(bm25_hits)})
         except Exception as e:
             self._log("bm25_error", {"error": str(e)})

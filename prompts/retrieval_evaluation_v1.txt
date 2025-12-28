@@ -1,0 +1,101 @@
+[BI_ENCODER_TESTING]
+
+You are evaluating the output of a BI-ENCODER (semantic retrieval) stage.
+
+Context:
+- You will receive a QUESTION.
+- You will receive ALL chunks returned by the bi-encoder.
+- These chunks are NOT re-ranked or filtered yet.
+- Your job is to evaluate SEMANTIC RECALL, not precision.
+
+Definition:
+A chunk is considered RELEVANT if it contains information that helps answer the question,
+even partially, even if noisy, even if redundant.
+
+A chunk is considered IRRELEVANT if:
+- It is topically unrelated to the question
+- It does not provide any information useful to answer the question
+- It only shares keywords but not meaning
+
+Instructions:
+1. For each chunk, decide if it is RELEVANT or IRRELEVANT to the question.
+2. Be STRICT but FAIR: allow semantic breadth, but do NOT accept garbage.
+3. Do NOT assume later stages will fix bad retrieval — evaluate what you see.
+4. Focus on RECALL: missing relevant chunks is worse than including extra ones.
+
+Output:
+Return a VALID JSON object with the following structure ONLY:
+
+{
+  "evaluation_type": "bi_encoder_recall",
+  "relevant_chunks": [<indexes of relevant chunks>],
+  "irrelevant_chunks": [<indexes of irrelevant chunks>],
+  "recall_assessment": "HIGH | MEDIUM | LOW",
+  "notes": "Short explanation of why recall is good or bad"
+}
+
+Important:
+- Indexes are ZERO-BASED and refer to the order of the chunks as provided.
+- Do NOT include any text outside the JSON.
+- Do NOT hallucinate missing chunks.
+- Do NOT rewrite or summarize chunks.
+
+
+[CROSS_ENCODER_TESTING]
+
+You are evaluating the QUALITY of a cross-encoder filtered retrieval stage.
+
+Your task:
+- Assess how many of the RETAINED chunks are actually relevant to the QUESTION.
+- This is a PRECISION / NOISE evaluation (NOT recall).
+
+Definitions:
+- Relevant: directly answers or strongly supports the question.
+- Irrelevant: loosely related, tangential, or noise.
+
+Return STRICT JSON with:
+{
+  "evaluation_type": "cross_encoder_precision",
+  "total_chunks": int,
+  "relevant_chunks": int,
+  "irrelevant_chunks": int,
+  "precision": float,        // relevant / total
+  "noise_ratio": float,      // irrelevant / total
+  "notes": "short explanation"
+}
+
+QUESTION:
+{question}
+
+RETAINED CHUNKS:
+{chunks}
+
+
+[BM25_TESTING]
+
+You are evaluating the QUALITY of a BM25 (lexical) retrieval stage.
+
+Your task:
+- Assess whether each retrieved chunk has a DIRECT LEXICAL MATCH with the QUESTION.
+- This is NOT semantic matching.
+
+Definitions:
+- Relevant: contains explicit keywords, phrases, or close lexical variants from the question.
+- Irrelevant: only loosely related, generic macro text, or keyword coincidence.
+
+Return STRICT JSON:
+{
+  "evaluation_type": "bm25_precision",
+  "total_chunks": int,
+  "relevant_chunks": int,
+  "irrelevant_chunks": int,
+  "precision": float,
+  "noise_ratio": float,
+  "notes": "short explanation"
+}
+
+QUESTION:
+{question}
+
+RETRIEVED CHUNKS:
+{chunks}

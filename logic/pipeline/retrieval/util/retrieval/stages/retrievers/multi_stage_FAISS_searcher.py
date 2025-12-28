@@ -17,7 +17,7 @@ from logic.pipeline.retrieval.util.retrieval.util.retrieval_logger import Retrie
 
 class MultiStageFaissSearcher:
     def __init__(self, rerankers_cfg, docs_path, bot_profile, top_k_faiss, std_out_logger
-                ,dump_on_logs=False,dump_log_file=None):
+                ,dump_on_logs=False,dump_log_file=None, tester=None):
 
         self.rerankers_cfg=rerankers_cfg
         self.top_k_faiss = top_k_faiss
@@ -31,6 +31,9 @@ class MultiStageFaissSearcher:
         self.model = SentenceTransformer(self.rerankers_cfg["chunk_exploration_model"])
         self.normalize_embeddings = self.rerankers_cfg.get("normalize_L2", True)
         self.chunk_relevance_filter=ChunkRelevanceFilter(self.rerankers_cfg["chunk_filter_model"])
+
+        #Tester
+        self.tester=tester
 
         self._load_cross_encoder_thresholds()
         pass
@@ -179,7 +182,7 @@ class MultiStageFaissSearcher:
 
         return filt_docs
 
-    def _filt_cross_encoders_thresholds(self, folder, query_label, retrieved_docs, scores):
+    def _filt_cross_encoders_thresholds(self, folder,query, query_label, retrieved_docs, scores):
         """
         Filter docs using threshold based on query type.
         """
@@ -255,9 +258,8 @@ class MultiStageFaissSearcher:
             file_logger=self.file_logger
         )
 
-
         if self.use_cross_encoders_thresholds:
-            return self._filt_cross_encoders_thresholds(folder,query_label,retrieved_docs,scores)
+            return self._filt_cross_encoders_thresholds(folder,query,query_label,retrieved_docs,scores)
         else:
             return  self._filt_fix_cross_encoders(folder,retrieved_docs,scores)
 
@@ -335,6 +337,7 @@ class MultiStageFaissSearcher:
                 self.std_out_logger.error(f"[SEARCH ERROR] {folder}: {e}")
                 continue
 
+        self.tester.evaluate_cross_encoder_retrieval(query, query_label, all_results)
 
         #all_results,dom_detected= DominanceDetector.detect_dominance_and_filter(all_results,self.std_out_logger)
         self.file_logger.close_log_dump_file()

@@ -1,8 +1,12 @@
 import os
 from pathlib import Path
+
+from common.util.std_in_out.root_locator import RootLocator
+
+
 class PromptLoader:
     def __init__(self, prompt_name:str,logger):
-        repo_root = Path(__file__).resolve().parents[3]
+        repo_root = RootLocator.get_root()
         prompts_path = repo_root / "prompts"
         prompt_name = prompt_name
         # prompt_loader = PromptLoader(str(prompts_path), prompt_name=prompt_name)
@@ -34,3 +38,21 @@ class PromptLoader:
     def get_prompt(self, prompt_name: str) -> str:
         """Returns the prompt string for a given name."""
         return self.prompts.get(prompt_name, "")
+
+
+    def extract_section(self,prompt_name:str, section: str) -> str:
+        text=self.prompts[prompt_name]
+        section_txt = PromptLoader.extract_section_from_text(text,section)
+        self.logger and self.logger.info(f"{section} prompt loaded", {"length": len(section_txt)})
+        return section_txt
+
+
+    @staticmethod
+    def extract_section_from_text( text: str, section: str) -> str:
+        start = text.find(section)
+        if start == -1:
+            raise ValueError(f"Missing section {section} in master prompt")
+        start += len(section)
+        end = text.find("[", start)
+        section = text[start:end if end != -1 else None].strip()
+        return section
