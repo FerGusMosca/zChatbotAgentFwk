@@ -46,7 +46,7 @@ class IntentBasedFileIndexerBot:
         self.cache = CacheManager()
         self.last_metrics = {}
 
-        raw_prompt = PromptLoader(self.prompt_name).prompts[self.prompt_name]
+        raw_prompt = PromptLoader(self.prompt_name,self.logger).prompts[self.prompt_name]
 
         self.full_prompt = ChatPromptTemplate.from_messages([
             ("system", raw_prompt)
