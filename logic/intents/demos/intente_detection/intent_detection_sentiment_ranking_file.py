@@ -10,7 +10,9 @@ class SentimentRankingFileDetection:
     """
 
     K10_rank_folder = "K10_sentiment_summary_report_rank"
-    Q10_rank_folder = "Q10_sentiment_summary_report_rank"
+    Q10_rank_folder = "Q10_sentiment_summary_report_Q{quarter}_rank"
+    K10_report="K10"
+    Q10_report="Q10"
 
     def __init__(self, logger=None):
         self.logger = logger
@@ -41,11 +43,18 @@ class SentimentRankingFileDetection:
         # REPORT TYPE
         # ------------------------------------------------------------
         rpt = None
-
+        quarter=None
         if re.search(r"\b(K10|10K|10-K|ANUAL|FORM\s*K)\b", txt):
-            rpt = "K10"
+            rpt = self.K10_report
         elif re.search(r"\b(Q10|10Q|10-Q|TRIMESTRAL|FORM\s*Q)\b", txt):
-            rpt = "Q10"
+            rpt = self.Q10_report
+            qm = re.search(r"\bQ([1-4])\b", txt)
+            quarter = qm.group(1) if qm else None
+
+            if not quarter:
+                if self.logger:
+                    self.logger.warning("[SRFD] ❌ Q10 detected but no quarter found.")
+                return None
 
         if self.logger:
             self.logger.info(f"[SRFD] Detected report_type={rpt}")
@@ -72,7 +81,12 @@ class SentimentRankingFileDetection:
         # ------------------------------------------------------------
         # FOLDER
         # ------------------------------------------------------------
-        folder = self.K10_rank_folder if rpt == "K10" else self.Q10_rank_folder
+        if rpt == self.K10_report:
+            folder = self.K10_rank_folder
+        elif rpt==self.Q10_report:
+            folder = self.Q10_rank_folder.replace("{quarter}", quarter)
+        else:
+            raise  Exception(f"Invalid report type {rpt}")
 
         if self.logger:
             self.logger.info(f"[SRFD] Selected folder={folder}")
