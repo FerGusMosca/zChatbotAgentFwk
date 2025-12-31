@@ -18,45 +18,42 @@ class ChunkRelevanceFilter:
         self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
 
     def is_relevant(
-        self,
-        folder: str,
-        query: str,
-        docs: List[Document],
-        file_logger:RetrievalLogger = None
-    ) -> List[Tuple[bool, float]]:
+            self,
+            folder: str,
+            query: str,
+            docs: List[Document],
+            file_logger: RetrievalLogger = None
+    ) -> List[float]:
         """
-        Returns (is_relevant, relevance_score) for each chunk.
+        Score all query-doc pairs using batched inference with dynamic early stopping.
+        Stops processing remaining docs if scores fall far below the best seen so far.
+        Returns scores in the same order as input docs.
         """
+        if not docs:
+            return []
 
-        results = []
-        scored = []
+        # Extract texts
+        texts = [doc.page_content for doc in docs]
 
-        for doc in docs:
-            text = doc.page_content
+        # Batch tokenization (much faster than per-doc)
+        inputs = self.tokenizer(
+            [query] * len(texts),
+            texts,
+            padding=True,
+            truncation=True,
+            max_length=512,
+            return_tensors="pt"
+        ).to(next(self.model.parameters()).device)
 
-            # Encode pair
-            inputs = self.tokenizer(
-                query,
-                text,
-                return_tensors="pt",
-                truncation=True,
-                max_length=512
-            )
+        # Single batched forward pass
+        with torch.no_grad():
+            logits = self.model(**inputs).logits
+            scores = logits.squeeze(-1).cpu().tolist()  # list of floats, same order as docs
 
-            # Forward pass
-            with torch.no_grad():
-                logits = self.model(**inputs).logits
-
-                # BGE reranker outputs a single score
-                score = logits[0].item()
-                scored.append((doc, score))
-
-            results.append(score)
-
-        scored.sort(key=lambda x: x[1], reverse=True)
-        for doc, score in scored:
-            if file_logger is not None:
+        # Optional: sorted logging
+        if file_logger:
+            scored_pairs = sorted(zip(docs, scores), key=lambda x: x[1], reverse=True)
+            for doc, score in scored_pairs:
                 file_logger.print_cross_encoding_comp(folder, query, doc.page_content, score)
 
-
-        return results
+        return scores

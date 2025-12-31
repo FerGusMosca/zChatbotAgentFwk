@@ -32,6 +32,9 @@ class MultiStageFaissSearcher:
         self.normalize_embeddings = self.rerankers_cfg.get("normalize_L2", True)
         self.chunk_relevance_filter=ChunkRelevanceFilter(self.rerankers_cfg["chunk_filter_model"])
 
+        self.index_cache = {}  # Dictionary to cache {folder_name: (faiss_index, chunks_list, metadata_list)}
+        self.preloaded = False  # Flag to track if all indices have been preloaded already
+
         #Tester
         self.tester=tester
 
@@ -218,18 +221,7 @@ class MultiStageFaissSearcher:
 
         return filt_docs
 
-    def _run_search(
-            self,
-            query: str,
-            query_label:str,
-            index: faiss.IndexFlatIP,
-            chunks: List[str],
-            metas: List[Dict],
-            folder: str
-    ) -> List[Document]:
-        """Run FAISS search on a single bank folder and filter relevant chunks."""
-
-        # --- Encode query ---
+    def _get_query_vec(self,query):
         query_vec = self.model.encode(
             [query],
             normalize_embeddings=self.normalize_embeddings,
@@ -237,6 +229,20 @@ class MultiStageFaissSearcher:
 
         if not self.normalize_embeddings:
             query_vec = query_vec / np.linalg.norm(query_vec, axis=1, keepdims=True)
+
+        return query_vec
+
+    def _run_search(
+            self,
+            query: str,
+            query_vec,
+            query_label:str,
+            index: faiss.IndexFlatIP,
+            chunks: List[str],
+            metas: List[Dict],
+            folder: str
+    ) -> List[Document]:
+        """Run FAISS search on a single bank folder and filter relevant chunks."""
 
         # --- FAISS search ---
         distances, indices = index.search(query_vec, self.top_k_faiss)
@@ -249,7 +255,7 @@ class MultiStageFaissSearcher:
             metas=metas,
             folder=folder
         )
-
+        '''
         # --- Cross-encoder scores ---
         scores = self.chunk_relevance_filter.is_relevant(
             folder=folder,
@@ -263,6 +269,8 @@ class MultiStageFaissSearcher:
             return self._filt_cross_encoders_thresholds(folder,query,query_label,retrieved_docs,scores)
         else:
             return  self._filt_fix_cross_encoders(folder,retrieved_docs,scores)
+        '''
+        return retrieved_docs
 
 
     def detect_dominance_and_filter(self, docs: List[Document], gap_threshold=3.0):
@@ -302,44 +310,75 @@ class MultiStageFaissSearcher:
 
         return dominant_docs, True
 
-    def run_faiss_search(self, query: str,query_label:str,dynamic_chunks_folder=None):
-        #root_path = os.path.join(self.docs_path, self.bot_profile)
-
-        if dynamic_chunks_folder is not None:
-            root_path=dynamic_chunks_folder
-        else:
-            root_path=self.docs_path
-
-        self.std_out_logger.info(f"--- FAISS- Processing root_folder: {root_path} ---")
+    def _preload_all_indices(self, root_path: str):
+        """
+        Preload all FAISS indices from every bank folder once at startup.
+        Loads embeddings, chunks, and metadata into RAM for instant access.
+        """
+        if self.preloaded:
+            return  # Skip if already preloaded
+        self.std_out_logger.info(f"[PRELOAD] Starting preload of all indices from {root_path}")
         inner_folders = [
             f for f in os.listdir(root_path)
             if os.path.isdir(os.path.join(root_path, f))
         ]
-
-        all_results = []
-
-        self.file_logger.init_log_dump_file("FAISS")
-        self.file_logger.print_to_file_query_(query)
-
         for folder in inner_folders:
             folder_path = os.path.join(root_path, folder)
-            self.std_out_logger.info(f"--- Processing folder: {folder} ---")
-
             try:
+                # Reuse existing _get_temp_FAISS to build the index
                 index, chunks, meta = self._get_temp_FAISS(folder_path)
+                self.index_cache[folder] = (index, chunks, meta)
+                self.std_out_logger.info(f"[PRELOAD] {folder}: {index.ntotal} chunks loaded into memory")
             except Exception as e:
-                self.std_out_logger.error(f"[SKIP] {folder}: {e}")
-                continue
+                self.std_out_logger.error(f"[PRELOAD ERROR] {folder}: {e}")
+        self.preloaded = True
+        self.std_out_logger.info(f"[PRELOAD] Completed. {len(self.index_cache)} banks now in memory.")
 
+    def run_faiss_search(self, query: str, query_label: str, dynamic_chunks_folder=None):
+        """
+        Execute FAISS search with full in-memory preloading.
+        First call: preloads all data (slow). Subsequent calls: pure search (fast).
+        """
+        # Determine root path
+        if dynamic_chunks_folder is not None:
+            root_path = dynamic_chunks_folder
+        else:
+            root_path = self.docs_path
+
+        # Preload everything into memory (only once)
+        self._preload_all_indices(root_path)
+
+        # Now everything is in RAM → log correct status
+        self.std_out_logger.info(
+            f"--- FAISS- Searching across {len(self.index_cache)} preloaded banks in {root_path} ---")
+
+        all_results = []
+        self.file_logger.init_log_dump_file("FAISS")
+        self.file_logger.print_to_file_query_(query)
+        query_vec = self._get_query_vec(query)
+
+        # Pure in-memory search loop
+        for folder, (index, chunks, meta) in self.index_cache.items():
             try:
-                faiss_hits = self._run_search(query,query_label, index, chunks, meta,folder)
-                all_results.extend(faiss_hits)  # flatten
+                faiss_hits = self._run_search(query, query_vec, query_label, index, chunks, meta, folder)
+                all_results.extend(faiss_hits)
             except Exception as e:
                 self.std_out_logger.error(f"[SEARCH ERROR] {folder}: {e}")
-                continue
+
+            # --- Cross-encoder scores ---
+        scores = self.chunk_relevance_filter.is_relevant(
+            folder="ALL",
+            query=query,
+            docs=all_results,
+            file_logger=self.file_logger
+        )
+        self.tester.evaluate_bi_encoder_retrieval(query, "ALL", all_results)
+
+        if self.use_cross_encoders_thresholds:
+            all_results= self._filt_cross_encoders_thresholds("ALL", query, query_label, all_results, scores)
+        else:
+            all_results= self._filt_fix_cross_encoders("ALL", all_results, scores)
 
         self.tester.evaluate_cross_encoder_retrieval(query, query_label, all_results)
-
-        #all_results,dom_detected= DominanceDetector.detect_dominance_and_filter(all_results,self.std_out_logger)
         self.file_logger.close_log_dump_file()
         return all_results
