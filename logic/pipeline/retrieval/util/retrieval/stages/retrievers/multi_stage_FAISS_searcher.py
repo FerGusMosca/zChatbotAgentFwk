@@ -350,7 +350,7 @@ class MultiStageFaissSearcher:
 
         # Now everything is in RAM → log correct status
         self.std_out_logger.info(
-            f"--- FAISS- Searching across {len(self.index_cache)} preloaded banks in {root_path} ---")
+            f"--- FAISS- Searching across {len(self.index_cache)} preloaded folders in {root_path} ---")
 
         all_results = []
         self.file_logger.init_log_dump_file("FAISS")

@@ -360,6 +360,10 @@ class RetrievalHarnessTester:
         Fully guarded against missing keys / unexpected states.
         """
 
+        if not self.enabled:
+            #self.std_out_logger.debug("[FAISS_SKIP] Testing harness disabled")
+            return
+
         if not query or not isinstance(query, str):
             self.std_out_logger.error(
                 "[TEST_PERSIST_ERROR] Invalid query input"
