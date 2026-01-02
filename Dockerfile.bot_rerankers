@@ -3,11 +3,19 @@ FROM python:3.10-slim
 WORKDIR /app
 
 # System-level dependencies required by pyodbc (even if DB is only used in tests)
-RUN apt-get update && apt-get install -y \
-    unixodbc \
-    unixodbc-dev \
-    gcc \
- && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        gnupg \
+        unixodbc \
+        unixodbc-dev && \
+    curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - && \
+    curl https://packages.microsoft.com/config/debian/11/prod.list \
+        > /etc/apt/sources.list.d/mssql-release.list && \
+    apt-get update && \
+    ACCEPT_EULA=Y apt-get install -y msodbcsql18 && \
+    rm -rf /var/lib/apt/lists/*
+
 
 # Copy application code
 COPY . /app
