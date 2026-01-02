@@ -173,7 +173,7 @@ class MultiStageBM25Searcher:
         return out
 
     # -----------------------------------------------------
-    def run_bm25_search(self, query: str,label:str,dynamic_chunks_folder=None) -> List[Document]:
+    def run_bm25_search(self, query: str,label:str,dynamic_chunks_folder=None,retr_id=None) -> List[Document]:
         """
         Traverse every top-level folder and every internal subfolder,
         loading BM25 chunks + metadata and running BM25 on each shard.
@@ -239,6 +239,7 @@ class MultiStageBM25Searcher:
 
         #all_results,dom_detected= DominanceDetector.detect_dominance_and_filter(all_results,self.std_out_logger)
         self.tester.evaluate_bm25_retrieval(query, label, all_results)
+        self.tester.evaluate_persist_bm25_chunks(retr_id,all_results,"BM25")
         self.file_logger.close_log_dump_file()
         return all_results
 

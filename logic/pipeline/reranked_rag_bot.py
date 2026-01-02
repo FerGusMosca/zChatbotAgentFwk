@@ -279,17 +279,7 @@ class RerankedRagBot:
         self._log("hybrid_start", {"query": q})
 
         try:
-            '''
-            qv = np.array(self.embed.embed_query(q), dtype="float32")
-            if self.norm_on_search:
-                qv /= np.linalg.norm(qv)
 
-            idxs, scores = self.vectordb.index.search(qv.reshape(1, -1), self.top_k_faiss)
-
-            id_map = {str(k): v for k, v in self.meta["index_to_docstore_id"].items()}
-            faiss_hits = [self.vectordb.docstore._dict[str(id_map[str(int(fid))])] for fid in idxs[0]]
-            
-            '''
             faiss_hits=self.faiss_searcher.run_faiss_search(q)
             self._log("faiss_ok", {"hits": len(faiss_hits)})
         except Exception as e:
@@ -321,7 +311,7 @@ class RerankedRagBot:
             ChunksDebugger._log_retrieved_document(batch["context"],"FUSION",self.logger)
 
 
-        return batch
+        return batch,None
 
     def stage_ssi(self, batch: dict, flags: dict) -> dict:
         """Apply SSI only if flagged – minimal, safe, production-ready"""
@@ -357,7 +347,7 @@ class RerankedRagBot:
         return batch
 
     def stage_context_compression(self, batch):
-        # keep original objects → compressor extrae texto solo adentro
+
         docs = batch.get("context", [])
         batch["context"] = self.context_compressor.compress(docs, batch["question"])
         return batch
@@ -451,9 +441,10 @@ class RerankedRagBot:
             }
 
             try:
+
                 batch = self.stage_rewrite(batch, flags)
                 batch = self.stage_expand(batch, flags)
-                batch = self.stage_hybrid_search(batch,label,dynamic_chunk_folder)
+                batch,retr_id = self.stage_hybrid_search(batch,label,dynamic_chunk_folder)
                 batch = self.stage_dedup(batch,label)
                 batch = self.stage_ssi(batch, flags)
                 batch = self.stage_rerank(batch, flags)
@@ -502,7 +493,6 @@ class RerankedRagBot:
         """
         Entry point: classify intent, build pipeline, run.
         """
-        import traceback
 
         dto = DynamicQuery.parse(user_query)
         dynamic_chunks_folder=None

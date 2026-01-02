@@ -114,7 +114,7 @@ class FaissSearcher():
         except Exception as ex:
             raise RuntimeError(f"[FAISS-RERANKERS] Load failed: {ex}")
 
-    def run_faiss_search(self, query: str):
+    def run_faiss_search(self, query: str,retr_id):
         """
         FAISS search that returns exactly the same format as BM25 retriever.
         Returns a list of langchain Document objects (page_content + metadata).

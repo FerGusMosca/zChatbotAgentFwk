@@ -16,6 +16,7 @@ from langchain.schema import Document
 @dataclass
 class RetrievedDocument:
     text: str
+    page_content:str
     metadata: Dict[str, Any] = field(default_factory=dict)
     score_faiss: float = 0.0
     score_bm25: float = 0.0
@@ -37,8 +38,9 @@ class RetrievedDocument:
 # ===============================
 
 class WeightedFusion:
-    def __init__(self,logger):
+    def __init__(self,logger,tester):
         self.logger=logger
+        self.tester=tester
 
     def perform_weighted_fusion(
             self,
@@ -46,7 +48,8 @@ class WeightedFusion:
             bm25_docs: List[Document],
             *,
             fusion_top_faiss: int = 40,
-            fusion_top_bm25: int = 8
+            fusion_top_bm25: int = 8,
+            retr_id=None
     ) -> List[RetrievedDocument]:
         """
         Production-grade simple fusion:
@@ -70,6 +73,7 @@ class WeightedFusion:
                     seen.add(key)
                     result.append(
                         RetrievedDocument(
+                            page_content=doc.page_content,
                             text=doc.page_content,
                             metadata=doc.metadata,
                         )
@@ -79,6 +83,7 @@ class WeightedFusion:
                 f"Simple fusion completed → BM25[:{fusion_top_bm25}] + FAISS[:{fusion_top_faiss}] "
                 f"→ {len(result)} unique chunks after dedup by ID"
             )
+            self.tester.evaluate_persist_fusion_chunks(retr_id,result,stage="fusion")
             return result
 
         except Exception as ex:

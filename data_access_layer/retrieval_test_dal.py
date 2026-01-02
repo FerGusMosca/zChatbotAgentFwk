@@ -2,6 +2,8 @@ import json
 import pyodbc
 from typing import Dict
 
+from langchain_core.documents import Document
+
 from common.dto.test.retrieval_test_result_dto import RetrievalTestResultDTO
 
 
@@ -45,6 +47,85 @@ class RetrievalTestDAL:
     # ------------------------------------------------------------------
     # INTERNAL
     # ------------------------------------------------------------------
+
+    def persist_retrieval(self, query: str) -> int:
+        """
+        Persist retrieval execution and return DB-generated retrieval_id.
+        """
+
+        self.std_out_logger.debug("[DAL_PERSIST_RETRIEVAL] persisting retrieval")
+
+        with pyodbc.connect(self.connection_string) as conn:
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "EXEC dbo.sp_insert_retrieval @query=?",
+                query
+            )
+
+            row = cursor.fetchone()
+            conn.commit()
+
+        if row is None or row[0] is None:
+            raise RuntimeError("[DAL_PERSIST_RETRIEVAL_ERROR] retrieval_id not returned")
+
+        retrieval_id = int(row[0])
+
+        self.std_out_logger.debug(
+            f"[DAL_PERSIST_RETRIEVAL_OK] retrieval_id={retrieval_id}"
+        )
+
+        return retrieval_id
+
+    def persist_retrieval_chunk(
+            self,
+            retr_id: str,
+            stage: str,
+            folder: str,
+            query: str,
+            doc: Document
+    ) -> None:
+        """
+        Persist a single retrieval chunk (LangChain Document) using stored procedure.
+        """
+
+        md = doc.metadata or {}
+
+        with pyodbc.connect(self.connection_string) as conn:
+            cursor = conn.cursor()
+
+            cursor.execute(
+                """
+                EXEC dbo.sp_insert_retrieval_chunk
+                    @retrieval_id=?,
+                    @stage=?,
+                    @folder=?,
+                    @source_pdf=?,
+                    @query=?,
+                    @chunk_text=?,
+                    @faiss_similarity=?,
+                    @faiss_distance=?,
+                    @faiss_rank=?,
+                    @dominance_score=?,
+                    @cross_encoder_score=?,
+                    @metadata=?
+                """,
+                retr_id,
+                stage,
+                folder,
+                md.get("source_pdf"),
+                query,
+                doc.page_content,
+                md.get("faiss_similarity"),
+                md.get("faiss_distance"),
+                md.get("faiss_rank"),
+                md.get("dominance_score"),
+                md.get("cross_encoder_score"),  # puede venir None
+                json.dumps(md),
+            )
+
+            conn.commit()
+
 
     def persist_single_test(self, dto: RetrievalTestResultDTO) -> None:
         """

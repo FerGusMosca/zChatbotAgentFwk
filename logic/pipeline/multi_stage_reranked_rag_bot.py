@@ -212,17 +212,16 @@ class MultiStageRerankedRagBot(RerankedRagBot):
         q = batch["input"]
 
         self._log("hybrid_start", {"query": q})
-
+        retr_id = self.test_harness.initialize_retrieval_record(q)
         try:
-            faiss_hits=self.ms_FAISS_searcher.run_faiss_search(q,label,dynamic_chunks_folder=dynamic_chunks_folder)
-            #faiss_hits=[]
+            faiss_hits=self.ms_FAISS_searcher.run_faiss_search(q,label,dynamic_chunks_folder=dynamic_chunks_folder,retr_id=retr_id)
             self._log("faiss_ok", {"hits": len(faiss_hits)})
         except Exception as e:
             self._log("faiss_error", {"error": str(e)})
             faiss_hits = []
 
         try:
-            bm25_hits = self.bm25_searcher.run_bm25_search(q,label,dynamic_chunks_folder=dynamic_chunks_folder)
+            bm25_hits = self.bm25_searcher.run_bm25_search(q,label,dynamic_chunks_folder=dynamic_chunks_folder,retr_id=retr_id)
             self._log("bm25_ok", {"hits": len(bm25_hits)})
         except Exception as e:
             self._log("bm25_error", {"error": str(e)})
@@ -234,13 +233,14 @@ class MultiStageRerankedRagBot(RerankedRagBot):
                 f"[FUSION] starting | faiss={len(faiss_hits)} | bm25={len(bm25_hits)}"
             )
 
-            weight_fusion = WeightedFusion(self.logger)
+            weight_fusion = WeightedFusion(self.logger,self.test_harness)
 
             fusion_docs = weight_fusion.perform_weighted_fusion(
                 faiss_docs=faiss_hits,
                 bm25_docs=bm25_hits,
                 fusion_top_faiss=self.rerankers_cfg["fusion_top_faiss"],
-                fusion_top_bm25=self.rerankers_cfg["fusion_top_bm25"]
+                fusion_top_bm25=self.rerankers_cfg["fusion_top_bm25"],
+                retr_id=retr_id
             )
 
             self._log("fusion_ok", {"hits": len(fusion_docs)})
@@ -261,6 +261,6 @@ class MultiStageRerankedRagBot(RerankedRagBot):
             #ChunksDebugger._log_retrieved_document(batch["context"],"FUSION",self.logger)
 
 
-        return batch
+        return batch,retr_id
 
 

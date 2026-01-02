@@ -50,6 +50,9 @@ class ChunkRelevanceFilter:
             logits = self.model(**inputs).logits
             scores = logits.squeeze(-1).cpu().tolist()  # list of floats, same order as docs
 
+        for doc, score in zip(docs, scores):
+            doc.metadata["cross_encoder_score"] = score
+
         # Optional: sorted logging
         if file_logger:
             scored_pairs = sorted(zip(docs, scores), key=lambda x: x[1], reverse=True)

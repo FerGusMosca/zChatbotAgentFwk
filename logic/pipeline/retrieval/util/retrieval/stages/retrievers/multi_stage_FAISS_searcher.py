@@ -173,7 +173,7 @@ class MultiStageFaissSearcher:
 
         return results
 
-    def _filt_fix_cross_encoders(self,folder,retrieved_docs,scores):
+    def _filt_fix_cross_encoders(self,folder,query,retrieved_docs,scores,retr_id):
         # --- Take TOP-K documents ---
         top_k = self.rerankers_cfg["top_cross_encoders_chunks"]
         top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:top_k]
@@ -183,9 +183,12 @@ class MultiStageFaissSearcher:
 
         self._log_kept_docs(filt_docs, folder)
 
+        self.tester.evaluate_persist_cross_encoder_chunks(retr_id=retr_id, folder="ALL", stage="cross_encoder_filtered",
+                                                          query=query, docs=filt_docs)
+
         return filt_docs
 
-    def _filt_cross_encoders_thresholds(self, folder,query, query_label, retrieved_docs, scores):
+    def _filt_cross_encoders_thresholds(self, folder,query, query_label, retrieved_docs, scores,retr_id):
         """
         Filter docs using threshold based on query type.
         """
@@ -212,6 +215,8 @@ class MultiStageFaissSearcher:
             f"[RELEVANT] {folder}: threshold={threshold:.2f} ({query_label.value}) → kept {kept} chunks")
 
         self._log_kept_docs(filt_docs, folder)
+        self.tester.evaluate_persist_cross_encoder_chunks(retr_id=retr_id, folder="ALL", stage="cross_encoder_filtered",
+                                                          query=query, docs=filt_docs)
 
         # Fallback: if nothing passes threshold, keep the best one
         if kept == 0 and retrieved_docs:
@@ -240,7 +245,8 @@ class MultiStageFaissSearcher:
             index: faiss.IndexFlatIP,
             chunks: List[str],
             metas: List[Dict],
-            folder: str
+            folder: str,
+            retr_id
     ) -> List[Document]:
         """Run FAISS search on a single bank folder and filter relevant chunks."""
 
@@ -255,6 +261,8 @@ class MultiStageFaissSearcher:
             metas=metas,
             folder=folder
         )
+
+        self.tester.evaluate_persist_bi_encoder_chunks(retr_id, retrieved_docs,"bi_encoder")
         '''
         # --- Cross-encoder scores ---
         scores = self.chunk_relevance_filter.is_relevant(
@@ -334,7 +342,7 @@ class MultiStageFaissSearcher:
         self.preloaded = True
         self.std_out_logger.info(f"[PRELOAD] Completed. {len(self.index_cache)} banks now in memory.")
 
-    def run_faiss_search(self, query: str, query_label: str, dynamic_chunks_folder=None):
+    def run_faiss_search(self, query: str, query_label: str, dynamic_chunks_folder=None,retr_id=None):
         """
         Execute FAISS search with full in-memory preloading.
         First call: preloads all data (slow). Subsequent calls: pure search (fast).
@@ -360,7 +368,7 @@ class MultiStageFaissSearcher:
         # Pure in-memory search loop
         for folder, (index, chunks, meta) in self.index_cache.items():
             try:
-                faiss_hits = self._run_search(query, query_vec, query_label, index, chunks, meta, folder)
+                faiss_hits = self._run_search(query, query_vec, query_label, index, chunks, meta, folder,retr_id)
                 all_results.extend(faiss_hits)
             except Exception as e:
                 self.std_out_logger.error(f"[SEARCH ERROR] {folder}: {e}")
@@ -373,11 +381,12 @@ class MultiStageFaissSearcher:
             file_logger=self.file_logger
         )
         self.tester.evaluate_bi_encoder_retrieval(query, "ALL", all_results)
+        self.tester.evaluate_persist_cross_encoder_chunks(retr_id=retr_id,folder="ALL",stage="cross_encoder",query=query,docs=all_results)
 
         if self.use_cross_encoders_thresholds:
-            all_results= self._filt_cross_encoders_thresholds("ALL", query, query_label, all_results, scores)
+            all_results= self._filt_cross_encoders_thresholds("ALL", query, query_label, all_results, scores,retr_id)
         else:
-            all_results= self._filt_fix_cross_encoders("ALL", all_results, scores)
+            all_results= self._filt_fix_cross_encoders("ALL",query, all_results, scores,retr_id)
 
         self.tester.evaluate_cross_encoder_retrieval(query, query_label, all_results)
         self.file_logger.close_log_dump_file()

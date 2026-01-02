@@ -31,6 +31,7 @@ class RetrievalHarnessTester:
 
 
         self.enabled = testing_harness_cfg.get("enabled", False)
+        self.persist_chunks=testing_harness_cfg.get("persist_chunks", False)
         self.connection_string = testing_harness_cfg.get("connection_string")
         self.testing_prompt = testing_harness_cfg.get("testing_prompt")
 
@@ -50,6 +51,101 @@ class RetrievalHarnessTester:
     # ------------------------------------------------------------------
     # BI-ENCODER (FAISS) RETRIEVAL EVALUATION
     # ------------------------------------------------------------------
+
+    def initialize_retrieval_record(self, query: str) -> int | None:
+        """
+        Initialize a retrieval execution record in DB.
+
+        Returns:
+            retrieval_id (int) if persisted
+            None if persistence is disabled or failed
+        """
+
+        if not self.persist_chunks:
+            self.std_out_logger.debug(
+                "[RETR_INIT_SKIP] persist_chunks disabled"
+            )
+            return None
+
+        if not query or not isinstance(query, str):
+            self.std_out_logger.error(
+                "[RETR_INIT_ERROR] invalid query input"
+            )
+            return None
+
+        try:
+            retrieval_id = self.test_mgr.persist_retrieval(query)
+        except Exception as exc:
+            self.std_out_logger.error(
+                f"[RETR_INIT_ERROR] failed persisting retrieval → {exc}"
+            )
+            return None
+
+        if retrieval_id is None:
+            self.std_out_logger.error(
+                "[RETR_INIT_ERROR] DB returned NULL retrieval_id"
+            )
+            return None
+
+        self.std_out_logger.debug(
+            f"[RETR_INIT_OK] retrieval_id={retrieval_id}"
+        )
+
+        return retrieval_id
+
+    def evaluate_persist_bi_encoder_chunks(
+            self,
+            retr_id: int,
+            docs: List[Document],
+            stage="bi_encoder"
+    ) -> None:
+        self._persist_retrieval_chunks(
+            retr_id=retr_id,
+            docs=docs,
+            stage=stage,
+        )
+
+    def evaluate_persist_bm25_chunks(
+            self,
+            retr_id: int,
+            docs: List[Document],
+            stage="bm25"
+    ) -> None:
+        self._persist_retrieval_chunks(
+            retr_id=retr_id,
+            docs=docs,
+            stage=stage,
+        )
+
+    def evaluate_persist_fusion_chunks(
+            self,
+            retr_id: int,
+            docs: List[Document],
+            stage="fusion"
+    ) -> None:
+        self._persist_retrieval_chunks(
+            retr_id=retr_id,
+            docs=docs,
+            stage=stage,
+        )
+
+
+
+    def evaluate_persist_cross_encoder_chunks(
+            self,
+            retr_id: int,
+            folder: str,
+            query: str,
+            docs: List[Document],
+            stage
+    ) -> None:
+        self._persist_retrieval_chunks(
+            retr_id=retr_id,
+            docs=docs,
+            stage=stage,
+            folder=folder,
+            query=query,
+        )
 
     def evaluate_bi_encoder_retrieval(
             self,
@@ -255,6 +351,9 @@ class RetrievalHarnessTester:
             f"{llm_judgement.get('noise_ratio')}"
         )
 
+
+
+
     def evaluate_bm25_retrieval(
             self,
             query: str,
@@ -428,6 +527,59 @@ class RetrievalHarnessTester:
     # ------------------------------------------------------------------
     # INTERNAL UTILITIES
     # ------------------------------------------------------------------
+
+    def _persist_retrieval_chunks(
+            self,
+            retr_id: int,
+            docs: List[Document],
+            stage: str,
+            folder: str | None = None,
+            query: str | None = None,
+    ) -> None:
+        """
+        Persist retrieval chunks (bi-encoder or cross-encoder).
+
+        - Batch-level logging only
+        - Append-only
+        - Safe against empty docs / invalid state
+        """
+
+        if not self.persist_chunks:
+            return
+
+        if retr_id is None:
+            self.std_out_logger.error(
+                "[RETR_CHUNKS_ERROR] retrieval_id is None"
+            )
+            return
+
+        if not docs:
+            return
+
+        # --- batch-level log ---
+        self.std_out_logger.debug(
+            f"[RETR_CHUNKS_PERSIST] retrieval_id={retr_id} "
+            f"stage={stage} docs={len(docs)}"
+        )
+
+        for idx, doc in enumerate(docs):
+            try:
+                self.test_mgr.persist_retrieval_chunk(
+                    retr_id=retr_id,
+                    stage=stage,
+                    folder=folder or doc.metadata.get("source_folder", "UNKNOWN"),
+                    query=query or doc.metadata.get("query", ""),
+                    doc=doc,
+                )
+            except Exception as exc:
+                self.std_out_logger.error(
+                    f"[RETR_CHUNK_ERROR] "
+                    f"retrieval_id={retr_id} idx={idx} → {exc}"
+                )
+
+        self.std_out_logger.debug(
+            f"[RETR_CHUNKS_PERSIST_OK] retrieval_id={retr_id} stage={stage}"
+        )
 
     def _load_llm_judges(self, llm_prov, model_name, temperature):
         """
