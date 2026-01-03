@@ -494,17 +494,24 @@ class RerankedRagBot:
         Entry point: classify intent, build pipeline, run.
         """
 
+        self._log("[QUERY_ANN] raw_query_received", {"query": user_query})
+
         dto = DynamicQuery.parse(user_query)
         dynamic_chunks_folder=None
         if dto.is_dynamic:
+            self._log(f"[QUERY_ANN] dynamic_query_found!: folder:{dto.chunks_folder}...", {})
+            self._log("[QUERY_ANN] query_processed", {"query": user_query})
             user_query=dto.query
             dynamic_chunks_folder=dto.chunks_folder
+        else:
+            self._log("[QUERY_ANN] simple_query_found! --> using default folder", {})
+            self._log("[QUERY_ANN] query_processed", {"query": user_query})
 
         session_id = "default"
         user_query = str(user_query).strip()
 
 
-        self._log("query_received", {"query": user_query})
+
 
         try:
             # 1) classify

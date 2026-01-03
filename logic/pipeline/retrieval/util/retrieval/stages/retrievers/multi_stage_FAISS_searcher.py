@@ -33,7 +33,7 @@ class MultiStageFaissSearcher:
         self.chunk_relevance_filter=ChunkRelevanceFilter(self.rerankers_cfg["chunk_filter_model"])
 
         self.index_cache = {}  # Dictionary to cache {folder_name: (faiss_index, chunks_list, metadata_list)}
-        self.preloaded = False  # Flag to track if all indices have been preloaded already
+        self.preloaded = {}  #  track if all indices have been preloaded already
 
         #Tester
         self.tester=tester
@@ -323,7 +323,7 @@ class MultiStageFaissSearcher:
         Preload all FAISS indices from every bank folder once at startup.
         Loads embeddings, chunks, and metadata into RAM for instant access.
         """
-        if self.preloaded:
+        if root_path in self.preloaded:
             return  # Skip if already preloaded
         self.std_out_logger.info(f"[PRELOAD] Starting preload of all indices from {root_path}")
         inner_folders = [
@@ -339,7 +339,7 @@ class MultiStageFaissSearcher:
                 self.std_out_logger.info(f"[PRELOAD] {folder}: {index.ntotal} chunks loaded into memory")
             except Exception as e:
                 self.std_out_logger.error(f"[PRELOAD ERROR] {folder}: {e}")
-        self.preloaded = True
+        self.preloaded[root_path] = True
         self.std_out_logger.info(f"[PRELOAD] Completed. {len(self.index_cache)} banks now in memory.")
 
     def run_faiss_search(self, query: str, query_label: str, dynamic_chunks_folder=None,retr_id=None):
