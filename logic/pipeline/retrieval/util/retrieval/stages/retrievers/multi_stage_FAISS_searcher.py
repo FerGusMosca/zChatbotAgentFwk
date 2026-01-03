@@ -374,12 +374,15 @@ class MultiStageFaissSearcher:
                 self.std_out_logger.error(f"[SEARCH ERROR] {folder}: {e}")
 
             # --- Cross-encoder scores ---
+        self.std_out_logger.info(f"[STARTING_CROSS_ENCODER] --> to process: {len(all_results)}")
         scores = self.chunk_relevance_filter.is_relevant(
             folder="ALL",
             query=query,
             docs=all_results,
             file_logger=self.file_logger
         )
+        self.std_out_logger.info(f"[CROSS_ENCODER_FINISHED]: processed {len(all_results)}")
+
         self.tester.evaluate_bi_encoder_retrieval(query, "ALL", all_results)
         self.tester.evaluate_persist_cross_encoder_chunks(retr_id=retr_id,folder="ALL",stage="cross_encoder",query=query,docs=all_results)
 
@@ -388,6 +391,7 @@ class MultiStageFaissSearcher:
         else:
             all_results= self._filt_fix_cross_encoders("ALL",query, all_results, scores,retr_id)
 
+        self.std_out_logger.info(f"[CROSS_ENCODER_FILTERS_FINISHED]: OUT {len(all_results)}")
         self.tester.evaluate_cross_encoder_retrieval(query, query_label, all_results)
         self.file_logger.close_log_dump_file()
         return all_results

@@ -1,7 +1,7 @@
 import json
 from typing import List, Dict
 import hashlib
-
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain_core.documents import Document
 from common.dto.test.retrieval_test_result_dto import RetrievalTestResultDTO, StageMetricsDTO
 from common.util.loader.prompt_loader import PromptLoader
@@ -454,19 +454,8 @@ class RetrievalHarnessTester:
         )
 
     def persist_last_query_tests(self, query: str) -> None:
-        """
-        Persist the DTO corresponding to the latest test run for the given query.
-        Fully guarded against missing keys / unexpected states.
-        """
 
-        if not self.enabled:
-            #self.std_out_logger.debug("[FAISS_SKIP] Testing harness disabled")
-            return
-
-        if not query or not isinstance(query, str):
-            self.std_out_logger.error(
-                "[TEST_PERSIST_ERROR] Invalid query input"
-            )
+        if not self.enabled or not query or not isinstance(query, str):
             return
 
         try:
@@ -478,27 +467,20 @@ class RetrievalHarnessTester:
             return
 
         if not last_test_id:
-            self.std_out_logger.warning(
-                "[TEST_PERSIST_SKIP] No tests found for query hash"
-            )
             return
 
         dto = self.tests.get(last_test_id)
         if dto is None:
-            self.std_out_logger.error(
-                f"[TEST_PERSIST_ERROR] test_id='{last_test_id}' not found in tests registry"
-            )
             return
 
-        try:
-            self.std_out_logger.debug(
-                f"[TEST_PERSIST] Persisting last test → {last_test_id}"
-            )
+        def _persist():
             self.test_mgr.persist_single_test(dto)
-        except Exception as exc:
-            self.std_out_logger.error(
-                f"[TEST_PERSIST_ERROR] Persist failed for test_id='{last_test_id}' → {exc}"
-            )
+
+        self.std_out_logger.debug(
+            f"[TEST_PERSIST_ASYNC] Scheduling persist → {last_test_id}"
+        )
+
+        ThreadPoolExecutor(max_workers=1).submit(_persist)
 
     def initialize_query(self, query:str, query_type: str = None, gold_chunks: List[str] = []):
 
@@ -544,38 +526,35 @@ class RetrievalHarnessTester:
         - Safe against empty docs / invalid state
         """
 
-        if not self.persist_chunks:
+        if not self.persist_chunks or not retr_id or not docs:
             return
 
-        if retr_id is None:
-            self.std_out_logger.error(
-                "[RETR_CHUNKS_ERROR] retrieval_id is None"
-            )
-            return
-
-        if not docs:
-            return
-
-        # --- batch-level log ---
         self.std_out_logger.debug(
-            f"[RETR_CHUNKS_PERSIST] retrieval_id={retr_id} "
-            f"stage={stage} docs={len(docs)}"
+            f"[RETR_CHUNKS_PERSIST] retrieval_id={retr_id} stage={stage} docs={len(docs)}"
         )
 
-        for idx, doc in enumerate(docs):
-            try:
-                self.test_mgr.persist_retrieval_chunk(
-                    retr_id=retr_id,
-                    stage=stage,
-                    folder=folder or doc.metadata.get("source_folder", "UNKNOWN"),
-                    query=query or doc.metadata.get("query", ""),
-                    doc=doc,
-                )
-            except Exception as exc:
-                self.std_out_logger.error(
-                    f"[RETR_CHUNK_ERROR] "
-                    f"retrieval_id={retr_id} idx={idx} → {exc}"
-                )
+        def _persist(idx, doc):
+            self.test_mgr.persist_retrieval_chunk(
+                retr_id=retr_id,
+                stage=stage,
+                folder=folder or doc.metadata.get("source_folder", "UNKNOWN"),
+                query=query or doc.metadata.get("query", ""),
+                doc=doc,
+            )
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = [
+                pool.submit(_persist, idx, doc)
+                for idx, doc in enumerate(docs)
+            ]
+
+            for idx, f in enumerate(as_completed(futures)):
+                try:
+                    f.result()
+                except Exception as exc:
+                    self.std_out_logger.error(
+                        f"[RETR_CHUNK_ERROR] retrieval_id={retr_id} idx={idx} → {exc}"
+                    )
 
         self.std_out_logger.debug(
             f"[RETR_CHUNKS_PERSIST_OK] retrieval_id={retr_id} stage={stage}"
