@@ -1,4 +1,4 @@
-name: Build & Push zerohedge_faiss
+name: Zerohedge FAISS
 
 on:
   push:
