@@ -7,8 +7,8 @@ on:
       - zzLotteryTicket
 
 jobs:
-  cross-encoder-build:
-    name: CrossEncoder Docker Build
+  build-and-push:
+    name: cross-encoder-svc
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

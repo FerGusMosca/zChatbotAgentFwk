@@ -6,7 +6,8 @@ on:
       - zzLotteryTicket
 
 jobs:
-  build:
+  build-and-push:
+    name: rerankers-bot
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
