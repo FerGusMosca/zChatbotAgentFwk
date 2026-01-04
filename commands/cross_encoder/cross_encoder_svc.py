@@ -3,18 +3,10 @@ import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from logic.pipeline.retrieval.util.retrieval.stages.common.chunk_relevance_filter import ChunkRelevanceFilter
 
-MODEL_NAME = "BAAI/bge-reranker-large"
+MODEL_NAME = os.getenv("CROSS_ENCODER_MODEL", "BAAI/bge-reranker-large")
 print(f"Loading model {MODEL_NAME}...")
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
-model.eval()
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.to(device)
-print(f"Model loaded on {device}")
-
-reranker = ChunkRelevanceFilter()
-reranker.tokenizer = tokenizer
-reranker.model = model
+reranker = ChunkRelevanceFilter(model_name=MODEL_NAME)
+print(f"Model loaded on {reranker.device}")
 
 def score(query: str, texts: list[str]):
     """Compute relevance scores between query and list of texts."""

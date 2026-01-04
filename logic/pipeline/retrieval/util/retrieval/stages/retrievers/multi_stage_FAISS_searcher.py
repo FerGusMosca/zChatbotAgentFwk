@@ -13,6 +13,7 @@ from collections import defaultdict
 from logic.pipeline.retrieval.util.retrieval.stages.common.chunk_relevance_filter import ChunkRelevanceFilter
 from logic.pipeline.retrieval.util.retrieval.util.dominance_detector import DominanceDetector
 from logic.pipeline.retrieval.util.retrieval.util.retrieval_logger import RetrievalLogger
+from service_client.cross_encoder_client.cross_encoder_client import CrossEncoderClient
 
 
 class MultiStageFaissSearcher:
@@ -35,6 +36,10 @@ class MultiStageFaissSearcher:
         self.index_cache = {}  # Dictionary to cache {folder_name: (faiss_index, chunks_list, metadata_list)}
         self.preloaded = {}  #  track if all indices have been preloaded already
 
+        self.use_run_pod_GPU_for_cross_encoder=self.rerankers_cfg["use_run_pod_GPU_for_cross_encoder"]
+        if self.use_run_pod_GPU_for_cross_encoder:
+            self.cross_encoder_client= CrossEncoderClient(self.rerankers_cfg["run_pod_url"],self.rerankers_cfg["run_pod_api"],
+                                                          self.std_out_logger)
         #Tester
         self.tester=tester
 
@@ -375,12 +380,17 @@ class MultiStageFaissSearcher:
 
             # --- Cross-encoder scores ---
         self.std_out_logger.info(f"[STARTING_CROSS_ENCODER] --> to process: {len(all_results)}")
-        scores = self.chunk_relevance_filter.is_relevant(
-            folder="ALL",
-            query=query,
-            docs=all_results,
-            file_logger=self.file_logger
-        )
+
+
+        if self.use_run_pod_GPU_for_cross_encoder:
+            scores =self.cross_encoder_client.is_relevant(folder="ALL",query=query,docs=all_results,file_logger=self.file_logger)
+        else:
+            scores = self.chunk_relevance_filter.is_relevant(
+                folder="ALL",
+                query=query,
+                docs=all_results,
+                file_logger=self.file_logger
+            )
         self.std_out_logger.info(f"[CROSS_ENCODER_FINISHED]: processed {len(all_results)}")
 
         self.tester.evaluate_bi_encoder_retrieval(query, "ALL", all_results)
