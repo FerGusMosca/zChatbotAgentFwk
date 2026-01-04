@@ -1,5 +1,6 @@
 # venv / env
 venv/
+venv_*/
 .env
 *.env
 .env_*
