@@ -31,7 +31,7 @@ class MultiStageFaissSearcher:
         # Load model once at init
         self.model = SentenceTransformer(self.rerankers_cfg["chunk_exploration_model"])
         self.normalize_embeddings = self.rerankers_cfg.get("normalize_L2", True)
-        self.chunk_relevance_filter=ChunkRelevanceFilter(self.rerankers_cfg["chunk_filter_model"])
+
 
         self.index_cache = {}  # Dictionary to cache {folder_name: (faiss_index, chunks_list, metadata_list)}
         self.preloaded = {}  #  track if all indices have been preloaded already
@@ -40,6 +40,9 @@ class MultiStageFaissSearcher:
         if self.use_run_pod_GPU_for_cross_encoder:
             self.cross_encoder_client= CrossEncoderClient(self.rerankers_cfg["run_pod_url"],self.rerankers_cfg["run_pod_api"],
                                                           self.std_out_logger)
+        else:
+            self.chunk_relevance_filter = ChunkRelevanceFilter(self.rerankers_cfg["chunk_filter_model"])
+
         #Tester
         self.tester=tester
 
