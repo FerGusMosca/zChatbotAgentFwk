@@ -99,10 +99,6 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("RESEARCH_CONNECTION_STRING", "RESEARCH_CONNECTION_STRING"))
 
 
-
-
-
-
     #
 
 @lru_cache

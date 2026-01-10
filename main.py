@@ -6,6 +6,7 @@ import uvicorn
 from starlette.middleware.sessions import SessionMiddleware
 from common.config.settings import get_settings
 from controllers.calendar_controller import CalendarController
+from controllers.document_tag_indexer_controller import DocumentTagIndexerController
 from controllers.funds_reports_controller import FundsReportsController
 from controllers.management_competition_controller import ManagementCompetitionController
 from controllers.management_news_indexed_controller import NewsIndexedController
@@ -76,8 +77,10 @@ app.include_router(funds_reports.router)
 calendar = CalendarController()
 app.include_router(calendar.router)
 
-# Chat
+doc_tag_indexer= DocumentTagIndexerController()
+app.include_router(doc_tag_indexer.router)
 
+# Chat
 app.include_router(chat_router)
 
 

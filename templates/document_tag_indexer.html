@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document Tag Indexer</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/document_tag_indexer.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <ul>
+    <li><a href="/">🏠 Home</a></li>
+    <li><a href="/document_tag_indexer">🏷️ Document Tag Indexer</a></li>
+  </ul>
+</nav>
+
+<div class="content">
+  <div class="panel dti-panel">
+
+    <!-- Big centered title -->
+    <h1 class="dti-title">🏷️ Document Tag Indexer</h1>
+
+    <!-- Toggle switch -->
+    <div class="dti-toggle-wrapper">
+      <div class="dti-toggle">
+        <input type="radio" id="modeOld" name="mode" value="old">
+        <input type="radio" id="modeNew" name="mode" value="new" checked>
+        <label for="modeOld" class="dti-mode-label">Check Old Runs</label>
+        <label for="modeNew" class="dti-mode-label">Create New Run</label>
+        <span class="dti-mode-slider"></span>
+      </div>
+    </div>
+
+    <!-- NEW RUN SECTION -->
+    <div id="newRunSection" class="dti-section">
+      <form id="newRunForm" style="border: 0px solid blue">
+        <table class="dti-controls-table" style="border: 0px solid red;" width="90%">
+          <tr>
+            <td><select name="portfolio" id="portfolioSelect" required><option value="" disabled selected>Select portfolio</option></select></td>
+            <td><select name="source" id="sourceSelect" required><option value="" disabled selected>Source</option></select></td>
+            <td><select name="quarter" id="quarterSelect" class="dti-hidden">
+                <option value="" disabled >Quarter</option>
+                <option value="Q1">Q1</option>
+                <option value="Q2">Q2</option>
+                <option value="Q3">Q3</option>
+              </select></td>
+            <td><select name="tag_model" id="tagModelSelect" required><option value="" disabled selected>Tag model</option></select></td>
+            <td><input type="text" name="tag_name" id="tagNameInput" placeholder="Tag name" required></td>
+            <td><select name="doc_type" id="docTypeSelect" required><option value="" disabled selected>Doc type</option></select></td>
+          </tr>
+          <tr>
+            <td colspan="6">
+              <textarea name="tag_content" id="tagContent" class="dti-textarea" placeholder="Tag lines (one per line)" required rows="10"></textarea>
+            </td>
+          </tr>
+        </table>
+      </form>
+
+      <!-- Fixed button at bottom right -->
+      <div class="dti-button-container">
+        <button type="submit" form="newRunForm" class="dti-submit-btn">
+          Create Tag Index
+        </button>
+      </div>
+
+      <!-- Result message -->
+      <div id="resultMessage" class="dti-result"></div>
+    </div>
+
+    <!-- OLD RUNS SECTION -->
+    <div id="oldRunsSection" class="dti-section dti-hidden">
+      <p class="dti-placeholder">Old runs will be shown here...</p>
+    </div>
+
+  </div>
+</div>
+
+<script src="/static/js/document_tag_indexer.js"></script>
+</body>
+</html>
