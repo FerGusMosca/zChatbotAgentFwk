@@ -1,4 +1,4 @@
-// document_tag_indexer.js - Robust version with full error handling
+// document_tag_indexer.js - Robust version with full error handling + spinner
 
 const BASE_URL = '/document_tag_indexer';
 
@@ -14,9 +14,11 @@ const els = {
   tagModelSelect: document.getElementById('tagModelSelect'),
   tagNameInput: document.getElementById('tagNameInput'),
   docTypeSelect: document.getElementById('docTypeSelect'),
+  tagTypeSelect: document.getElementById('tagTypeSelect'),
   tagContent: document.getElementById('tagContent'),
   form: document.getElementById('newRunForm'),
-  resultMsg: document.getElementById('resultMessage')
+  resultMsg: document.getElementById('resultMessage'),
+  createBtn: document.getElementById('createRunBtn') // 🔄 spinner button
 };
 
 // Toggle between modes
@@ -35,14 +37,15 @@ function handleSourceChange() {
   els.quarterSelect.required = isQ10;
 }
 
-// Load dropdown options from API with robust error handling
+// Load dropdown options from API
 async function loadDropdownData() {
   try {
     const responses = await Promise.all([
       fetch(`${BASE_URL}/portfolios`),
       fetch(`${BASE_URL}/sources`),
       fetch(`${BASE_URL}/tag_models`),
-      fetch(`${BASE_URL}/doc_types`)
+      fetch(`${BASE_URL}/doc_types`),
+      fetch(`${BASE_URL}/tag_types`)
     ]);
 
     const jsons = await Promise.all(responses.map(async res => {
@@ -50,70 +53,68 @@ async function loadDropdownData() {
       return res.json();
     }));
 
-    const [portfolios, sources, models, docTypes] = jsons;
+    const [portfolios, sources, models, docTypes, tagTypes] = jsons;
 
-    // Populate portfolios
     (portfolios.portfolios || []).forEach(p => {
       const opt = document.createElement('option');
       opt.value = opt.textContent = p;
       els.portfolioSelect.appendChild(opt);
     });
+    if (portfolios.error) throw new Error(portfolios.error);
 
-   if (portfolios.error)
-        throw new Error(portfolios.error);
-
-    // Populate sources
     (sources.sources || []).forEach(s => {
-          const opt = document.createElement('option');
-          opt.value = s.code;
-          opt.textContent = s.name;
-          els.sourceSelect.appendChild(opt);
-        });
+      const opt = document.createElement('option');
+      opt.value = s.code;
+      opt.textContent = s.name;
+      els.sourceSelect.appendChild(opt);
+    });
+    if (sources.error) throw new Error(sources.error);
 
-    if (sources.error)
-        throw new Error(sources.error);
-
-    // Populate tag models
     (models.models || []).forEach(m => {
-
       const opt = document.createElement('option');
       opt.value = opt.textContent = m;
       els.tagModelSelect.appendChild(opt);
     });
+    if (models.error) throw new Error(models.error);
 
-    if (models.error)
-        throw new Error(models.error);
-
-    // Populate doc types
     (docTypes.doc_types || []).forEach(dt => {
       const opt = document.createElement('option');
       opt.value = dt.code;
       opt.textContent = dt.name;
       els.docTypeSelect.appendChild(opt);
     });
+    if (docTypes.error) throw new Error(docTypes.error);
 
-    if (docTypes.error)
-        throw new Error(docTypes.error);
+    (tagTypes.tag_types || []).forEach(tt => {
+      const opt = document.createElement('option');
+      opt.value = tt.code;
+      opt.textContent = tt.name;
+      els.tagTypeSelect.appendChild(opt);
+    });
+    if (tagTypes.error) throw new Error(tagTypes.error);
 
   } catch (err) {
-        console.error('Dropdown load failed:', err);
-        showResult( err);
-
+    console.error('Dropdown load failed:', err);
+    showResult(err.message || err, 'error');
   }
 }
 
-// Show result message
-function showResult(message) {
+function showResult(message, status) {
   els.resultMsg.textContent = message;
-  els.resultMsg.className = `dti-result dti-error dti-visible`;
+  els.resultMsg.className =
+    status === 'error'
+      ? 'dti-result dti-error dti-visible'
+      : 'dti-result dti-success dti-visible';
 }
 
-// Handle form submission with robust error handling
+// Handle form submission + spinner
 async function handleFormSubmit(e) {
   e.preventDefault();
 
   const formData = new FormData(els.form);
   if (els.sourceSelect.value !== 'q10') formData.delete('quarter');
+
+  els.createBtn.classList.add('loading'); // 🔄 SHOW SPINNER
 
   try {
     const response = await fetch(`${BASE_URL}/create_run`, {
@@ -121,26 +122,24 @@ async function handleFormSubmit(e) {
       body: formData
     });
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || errData.error || `HTTP ${response.status}`);
-    }
-
     const data = await response.json();
 
-    if (data.status === 'ok') {
-      showResult(`✓ Run created: ${data.run_id}`, 'success');
-    } else {
-      showResult(data.detail || data.error || 'Unknown server error', 'error');
+    if (!response.ok || data.status !== 'ok') {
+      throw new Error(data.message || data.error || `HTTP ${response.status}`);
     }
+
+    showResult(`✓ Run created: ${data.message}`, 'success');
 
   } catch (err) {
     console.error('Form submit failed:', err);
     showResult(`Submission error: ${err.message || 'Please try again'}`, 'error');
+
+  } finally {
+    els.createBtn.classList.remove('loading'); // ✅ HIDE SPINNER
   }
 }
 
-// Initialize application
+// Initialize
 function init() {
   els.modeOld.addEventListener('change', toggleMode);
   els.modeNew.addEventListener('change', toggleMode);

@@ -42,6 +42,9 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("NEWS_REPORTS_URL", "NEWS_REPORTS_URL"))
 
+    reports_mcp_server: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("REPORTS_MCP_SERVER", "REPORTS_MCP_SERVER"))
 
     documents_path: str | None = Field(
         default=None,

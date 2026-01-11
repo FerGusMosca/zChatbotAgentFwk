@@ -40,18 +40,23 @@
           <tr>
             <td><select name="portfolio" id="portfolioSelect" required><option value="" disabled selected>Select portfolio</option></select></td>
             <td><select name="source" id="sourceSelect" required><option value="" disabled selected>Source</option></select></td>
+            <td><input type="text" name="year" id="sourceYear" placeholder="year" required></td>
             <td><select name="quarter" id="quarterSelect" class="dti-hidden">
                 <option value="" disabled >Quarter</option>
                 <option value="Q1">Q1</option>
                 <option value="Q2">Q2</option>
                 <option value="Q3">Q3</option>
+                <option value="Q4">Q4</option>
               </select></td>
-            <td><select name="tag_model" id="tagModelSelect" required><option value="" disabled selected>Tag model</option></select></td>
-            <td><input type="text" name="tag_name" id="tagNameInput" placeholder="Tag name" required></td>
-            <td><select name="doc_type" id="docTypeSelect" required><option value="" disabled selected>Doc type</option></select></td>
           </tr>
           <tr>
-            <td colspan="6">
+            <td><select name="tag_model" id="tagModelSelect" required><option value="" disabled selected>Tag model</option></select></td>
+            <td><select name="doc_type" id="docTypeSelect" required><option value="" disabled selected>Doc type</option></select></td>
+            <td><input type="text" name="tag_name" id="tagNameInput" placeholder="Tag name" required></td>
+            <td><select name="tag_type" id="tagTypeSelect" required><option value="" disabled selected>Tag Type</option></select></td>
+          </tr>
+          <tr>
+            <td colspan="7">
               <textarea name="tag_content" id="tagContent" class="dti-textarea" placeholder="Tag lines (one per line)" required rows="10"></textarea>
             </td>
           </tr>
@@ -59,11 +64,12 @@
       </form>
 
       <!-- Fixed button at bottom right -->
-      <div class="dti-button-container">
-        <button type="submit" form="newRunForm" class="dti-submit-btn">
-          Create Tag Index
-        </button>
-      </div>
+    <div class="dti-button-container">
+      <button type="submit" form="newRunForm" class="dti-submit-btn" id="createRunBtn">
+        <span class="btn-text">Create Tag Index</span>
+        <div class="spinner"></div>
+      </button>
+    </div>
 
       <!-- Result message -->
       <div id="resultMessage" class="dti-result"></div>
