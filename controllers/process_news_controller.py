@@ -22,6 +22,7 @@ from common.util.ui.process_stream_runner import ProcessStreamRunner
 from data_access_layer.portfolio_securities_manager import PortfolioSecuritiesManager
 from common.dto.ingest_state import ingest_state
 from service_client.mcp_client.download_news_mcp_client import DownloadNewsMCPClient
+from service_client.mcp_client.rag_ingest_mcp_client import RAGIngestMCPClient
 
 
 class ChatRequest(BaseModel):
@@ -63,16 +64,14 @@ class ProcessNewsController:
         self.router = APIRouter(prefix="/process_news")
 
         # Store last generated report in memory
-        self.last_output_file = None
+        self.last_news_output_file = None
 
-        base = Path(__file__).parent.parent
+        base = RootLocator.get_root()
         self.templates = Jinja2Templates(directory=base / "templates")
 
         self.logger = AppLogger.get_logger("ProcessNewsController")
 
         self.sec_mgr = PortfolioSecuritiesManager(settings.research_connection_string)
-
-        #TO TEST
 
 
         @self.router.get("/", response_class=HTMLResponse)
@@ -101,6 +100,8 @@ class ProcessNewsController:
                 for x in items
             ]
 
+
+
         @self.router.post("/download_news")
         async def download_news(symbol: str = Form(...)):
             """
@@ -120,9 +121,10 @@ class ProcessNewsController:
 
                     # After stream completes, check result
                     if client.last_output_file:
-                        self.last_output_file = client.last_output_file
+                        self.last_news_output_file = client.last_output_file
                         yield msg
-                        yield f"[CONTROLLER] Success - Final path saved: {self.last_output_file}\n\n"
+                        yield f"[CONTROLLER] Success - Final path saved: {self.last_news_output_file}\n\n"
+                        return
                     elif client.download_error:
                         error_msg = client.last_error or "Unknown download error"
                         self.last_error = error_msg  # Optional: store in controller too
@@ -140,11 +142,11 @@ class ProcessNewsController:
         @self.router.get("/download_last")
         async def download_last():
             # comment: send last generated report if available
-            if not self.last_output_file or not os.path.exists(self.last_output_file):
+            if not self.last_news_output_file or not os.path.exists(self.last_news_output_file):
                 return PlainTextResponse("No report available.", status_code=404)
 
-            f = open(self.last_output_file, "rb")
-            filename = os.path.basename(self.last_output_file)
+            f = open(self.last_news_output_file, "rb")
+            filename = os.path.basename(self.last_news_output_file)
             return StreamingResponse(
                 f,
                 media_type="application/octet-stream",
@@ -204,90 +206,46 @@ class ProcessNewsController:
                 return f"Ingestion OK but News Bot failed: {str(e)}"
 
         @self.router.post("/ingest_news")
-        async def ingest_news(request: Request,symbol: str = Form(...)):
-            try:
-                # Safety check: ensure we have a downloaded file from run_stream
-                if not self.last_output_file:
-                    return PlainTextResponse(
-                        "❌ No downloaded news found. Run news download first.",
-                        status_code=400
-                    )
+        async def ingest_news(request: Request, symbol: str = Form(...)):
+            """
+            Endpoint to trigger RAG ingest via MCP client.
+            Requires last_output_file from previous download.
+            """
 
-                # Resolve the folder containing the downloaded JSON
-                # Example:
-                # /zzLotteryTicket/documents/.../CAMP_xxx/2025-12-16_17-06-03_full_news.json --> we want the parent directory
-                downloaded_path = os.path.dirname(self.last_output_file)
+            if not self.last_news_output_file:
+                return PlainTextResponse("❌ No downloaded news found. Run news download first.", status_code=400)
 
-                news_path=self._resolve_news_root_folder(downloaded_path,settings.news_folder_rel_path)
+            downloaded_path = os.path.dirname(self.last_news_output_file)
+            news_path = self._resolve_news_root_folder(downloaded_path, settings.news_folder_rel_path)
 
-                # Generate unique identifier
-                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-
-                # Build full path to commands_mgr.ini
-                commands_ini = str(Path(settings.commands_ini_path) / "commands_mgr.ini")
-
-                # Documents root path (same as download)
-                documents_path = settings.documents_path
-                news_chunks_rel_path=settings.news_chunks_rel_path
-                news_vendor = settings.news_vendor
-                embedding_model = settings.news_embedding_model
-
-                # Command template file from settings
-                ingest_cmd_file = settings.docker_ingest_news_cmd
-
-                # Load command template
-                template_path = (
-                        Path(__file__).parent.parent /
-                        "static" / "containers_cmds" / ingest_cmd_file
-                )
-                template_raw = template_path.read_text()
-
-                # Inject variables into template
-                cmd_str = template_raw.format(
-                    timestamp=timestamp,
-                    commands_ini=commands_ini,
-                    documents_path=documents_path,
-                    news_path=news_path,
-                    news_chunks_rel_path=news_chunks_rel_path,
-                    news_vendor=news_vendor,
-                    embedding_model=embedding_model,
-                    symbol=symbol
-                )
-
-                # Convert command string into argument list (Windows-safe)
-                cmd = shlex.split(cmd_str, posix=False)
-
-                self.logger.info(f"[INGEST] Using downloaded path: {downloaded_path}")
-
-            except Exception as ex:
-                self.logger.exception("[INGEST] Error preparing ingest command")
-                return PlainTextResponse(
-                    f"❌ Error preparing ingest command: {ex}",
-                    status_code=500
-                )
-
-            def extract_path(line: str):
-                marker = "Artifacts saved →"
-                if marker in line:
-                    raw_path = line.split(marker, 1)[1].strip()
-                    folder_path = str(Path(raw_path).parent)
-                    session_id = request.session.get("sid")
-                    ingest_state.context_by_session[session_id] = folder_path
-
-                if "Ingestion completed" in line:
-                    session_id = request.session.get("sid")
-                    ingest_state.ready_by_session[session_id]=True
-
-            # Stream ingest process output to UI in real time
-            return StreamingResponse(
-                ProcessStreamRunner.stream_process(
-                    cmd=cmd,
-                    logger=self.logger,
-                    on_line=extract_path,
-                    tag="INGEST"
-                ),
-                media_type="text/plain; charset=utf-8"
+            client = RAGIngestMCPClient(
+                mode="incremental",
+                source=downloaded_path,
+                dest_root=settings.news_vendor,
+                chunk_name=settings.news_chunks_rel_path,
+                embedding_model=settings.news_embedding_model,
+                clustering_model=settings.news_embedding_model,
+                log_posfix=symbol,
+                uri=settings.ingest_mcp_server
             )
+
+            async def wrapped_generator():
+                async for msg in client.execute_and_stream():
+                    yield msg
+
+                    if client.last_output_folder:
+                        self.last_ingest_folder = client.last_output_folder
+                        session_id = request.session.get("sid")
+                        ingest_state.ready_by_session[session_id] = True
+                        ingest_state.context_by_session[session_id] = self.last_ingest_folder
+                        yield f"[CONTROLLER] Success - Ingest folder: {self.last_ingest_folder}\n\n"
+                        return
+                    elif client.ingest_error:
+                        error_msg = client.last_error or "Unknown ingest error"
+                        self.last_error = error_msg
+                        yield f"[CONTROLLER] ERROR: {error_msg}\n\n"
+
+            return StreamingResponse(wrapped_generator(), media_type="text/event-stream")
 
 
 

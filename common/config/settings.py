@@ -46,6 +46,11 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("REPORTS_MCP_SERVER", "REPORTS_MCP_SERVER"))
 
+    ingest_mcp_server: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("INGEST_MCP_SERVER", "INGEST_MCP_SERVER"))
+
+
     documents_path: str | None = Field(
         default=None,
         validation_alias=AliasChoices("DOCUMENTS_PATH", "DOCUMENTS_PATH"))

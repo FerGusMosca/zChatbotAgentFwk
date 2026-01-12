@@ -70,21 +70,23 @@ async function runProcessNews(ev) {
 
     while (true) {
         const { value, done } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: false });
-        outputBox.textContent += chunk;
-        outputBox.scrollTop = outputBox.scrollHeight;
-
-        // ===== ENABLE DOWNLOAD ONLY WHEN "event": "saved" APPEARS =====
-        if (chunk.includes('"event": "saved"')) {
+        if (done)
+        {
+            // ===== ENABLE DOWNLOAD ONLY WHEN "event": "saved" APPEARS =====
             dl.classList.remove("disabled-btn");
             dl.classList.add("enabled-btn");
             dp.classList.remove("disabled-btn");
             dp.classList.add("enabled-btn");
             ra.classList.remove("disabled-btn");
             ra.classList.add("enabled-btn");
+
+            break;
         }
+
+        const chunk = decoder.decode(value, { stream: false });
+        outputBox.textContent += chunk;
+        outputBox.scrollTop = outputBox.scrollHeight;
+
     }
 
     runBtn.classList.remove("loading"); // hide spinner
@@ -127,14 +129,19 @@ async function ingestNews(ev) {
 
     while (true) {
         const { value, done } = await reader.read();
-        if (done) break;
+        if (done)
+
+        {
+            ingestBtn.classList.remove("loading"); // hide spinner
+            document.getElementById("chat-toggle-btn").classList.remove("disabled-btn");
+            break;
+        }
 
         const chunk = decoder.decode(value, { stream: false });
         outputBox.textContent += chunk;
         outputBox.scrollTop = outputBox.scrollHeight;
     }
 
-    ingestBtn.classList.remove("loading"); // hide spinner
-    document.getElementById("chat-toggle-btn").classList.remove("disabled-btn");
+
 }
 
