@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import json
 import os
 import shlex
 import uuid
@@ -16,9 +17,12 @@ from starlette.templating import Jinja2Templates
 
 from common.config.settings import settings
 from common.util.app_logger import AppLogger
+from common.util.std_in_out.root_locator import RootLocator
 from common.util.ui.process_stream_runner import ProcessStreamRunner
 from data_access_layer.portfolio_securities_manager import PortfolioSecuritiesManager
 from common.dto.ingest_state import ingest_state
+from service_client.mcp_client.download_news_mcp_client import DownloadNewsMCPClient
+
 
 class ChatRequest(BaseModel):
     question: str
@@ -97,71 +101,42 @@ class ProcessNewsController:
                 for x in items
             ]
 
-        @self.router.post("/run_stream")
-        async def run_stream(symbol: str = Form(...)):
-            try:
-                # Generate unique identifier based on timestamp
-                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-
-                # Build full path to commands_mgr.ini using settings (no hardcoding)
-                commands_ini = str(Path(settings.commands_ini_path) / "commands_mgr.ini")
-
-                # Documents folder path from settings
-                documents_path = settings.documents_path
-                news_folder_rel_path=settings.news_folder_rel_path
-
-                # Command template file name from settings
-                prcess_news_cmd_file = settings.docker_process_news_cmd
-
-                # Load command template
-                template_path = (
-                        Path(__file__).parent.parent /
-                        "static" / "containers_cmds" / prcess_news_cmd_file
-                )
-                template_raw = template_path.read_text()
-
-                # Inject variables into template (single-line Windows command)
-                cmd_str = template_raw.format(
-                    timestamp=timestamp,
-                    commands_ini=commands_ini,
-                    documents_path=documents_path,
-                    news_folder_rel_path=news_folder_rel_path,
-                    symbol=symbol
-                )
-
-                # Convert command string into argument list
-                cmd = shlex.split(cmd_str, posix=False)
-
-            except KeyError as ex:
-                return PlainTextResponse(f"❌ Missing template variable: {ex}", status_code=500)
-            except Exception as ex:
-                return PlainTextResponse(f"❌ Error preparing command: {ex}", status_code=500)
-
-            # Callback executed for each stdout line
-            def on_line(line: str):
-                # Detect "saved" event and extract output file path
-                if '"path":' in line:
-                    try:
-                        part = line.split('"path":', 1)[1]
-                        extracted = part.split('"')[1]  # first quoted string
-                        self.last_output_file = extracted
-                        self.logger.info(f"[OK] Extracted output file: {self.last_output_file}")
-                    except Exception as ex:
-                        self.logger.error(
-                            f"[FAIL] Could not extract path from line: {line.strip()} | Error: {ex}"
-                        )
-
-            # Stream process output to the UI in real time
-            return StreamingResponse(
-                ProcessStreamRunner.stream_process(
-                    cmd=cmd,
-                    logger=self.logger,
-                    tag="DOWNLOAD",
-                    on_line=on_line
-                ),
-                media_type="text/plain; charset=utf-8"
+        @self.router.post("/download_news")
+        async def download_news(symbol: str = Form(...)):
+            """
+            Endpoint to trigger news download via MCP client.
+            Streams messages in real-time, saves final path or error in controller.
+            """
+            client = DownloadNewsMCPClient(
+                symbol=symbol,
+                portfolio="SINGLE_STOCKS",
+                uri=settings.reports_mcp_server
             )
 
+            async def wrapped_generator():
+                # Stream all messages from the client in real-time
+                async for msg in client.execute_and_stream():
+
+
+                    # After stream completes, check result
+                    if client.last_output_file:
+                        self.last_output_file = client.last_output_file
+                        yield msg
+                        yield f"[CONTROLLER] Success - Final path saved: {self.last_output_file}\n\n"
+                    elif client.download_error:
+                        error_msg = client.last_error or "Unknown download error"
+                        self.last_error = error_msg  # Optional: store in controller too
+                        yield msg
+                        yield f"[CONTROLLER] ERROR: {error_msg}\n\n"
+                        # No need to "cut repetition" → async for already finishes the loop
+                    else:
+                        yield msg
+
+
+            return StreamingResponse(
+                wrapped_generator(),
+                media_type="text/event-stream"
+            )
         @self.router.get("/download_last")
         async def download_last():
             # comment: send last generated report if available

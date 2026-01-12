@@ -44,7 +44,7 @@ async function runProcessNews(ev) {
     const formData = new FormData();
     formData.append("symbol", symbol);
 
-    const resp = await fetch("/process_news/run_stream", {
+    const resp = await fetch("/process_news/download_news", {
         method: "POST",
         body: formData
     });
