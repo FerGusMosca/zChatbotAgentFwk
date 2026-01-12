@@ -2,9 +2,10 @@
 import asyncio
 import json
 import os.path
+from typing import Optional, List
 
 import websockets
-from fastapi import APIRouter, Request, Form
+from fastapi import APIRouter, Request, Form, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
@@ -16,6 +17,7 @@ from common.util.std_in_out.root_locator import RootLocator
 from data_access_layer.document_type_manager import DocumentTypeManager
 from data_access_layer.manager_portfolios import PortfolioManager
 from data_access_layer.tag_model_manager import TagModelManager
+from data_access_layer.tag_run_manager import TagRunManager
 from data_access_layer.tag_source_manager import TagSourceManager
 from data_access_layer.tag_type_manager import TagTypeManager
 
@@ -34,6 +36,7 @@ class DocumentTagIndexerController:
         self.tag_model_mgr=TagModelManager(settings.research_connection_string)
         self.doc_type_mgr=DocumentTypeManager(settings.research_connection_string)
         self.tag_type_mgr=TagTypeManager(settings.research_connection_string)
+        self.tag_run_mgr=TagRunManager(settings.research_connection_string)
 
         @self.router.get("/", response_class=HTMLResponse)
         async def document_tag_indexer_page(request: Request):
@@ -94,16 +97,41 @@ class DocumentTagIndexerController:
             except Exception as e:
                 return JSONResponse({"error": f"Error loading tag models: {str(e)}"})
 
-
         @self.router.get("/old_runs")
-        async def get_old_tag_runs(tag_topic: str):
-            #TODO to be completed from DB
-            runs = [
-                f"K10_run_{tag_topic}_2024-01-10_09-30",
-                f"K10_run_{tag_topic}_2023-11-22_18-15",
-            ]
-            return JSONResponse({"runs": runs})
+        async def get_old_tag_runs(
+                tag_name: Optional[str] = Query(None, description="Filter by tag name"),
+                portfolio: Optional[str] = Query(None, description="Filter by portfolio code"),
+                year: Optional[str] = Query(None, description="Filter by year"),
+                limit: int = Query(20, ge=1, le=100, description="Number of results"),
+                offset: int = Query(0, ge=0, description="Skip this many records")
+        ):
+            """
+            Returns paginated list of previous document tagging runs using stored procedure
+            """
+            manager = TagRunManager(settings.research_connection_string)
 
+            runs = manager.get_paginated(
+                tag_name=tag_name,
+                portfolio=portfolio,
+                year=year,
+                limit=limit,
+                offset=offset
+            )
+
+            return [
+                {
+                    "id": run.id,
+                    "portfolio": run.portfolio,
+                    "source": run.source,
+                    "year": run.year,
+                    "tag_model": run.tag_model,
+                    "doc_type": run.doc_type,
+                    "tag_name": run.tag_name,
+                    "run_date": run.run_date,
+                    "tag_json": run.tag_json or "{}"
+                }
+                for run in runs
+            ]
         @self.router.post("/create_run")
         async def create_document_tag_run(
                 portfolio: str = Form(...),

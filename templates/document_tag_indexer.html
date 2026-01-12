@@ -77,7 +77,46 @@
 
     <!-- OLD RUNS SECTION -->
     <div id="oldRunsSection" class="dti-section dti-hidden">
-      <p class="dti-placeholder">Old runs will be shown here...</p>
+      <div class="dti-old-runs-header">
+        <h2 class="dti-old-title">Previous Tagging Runs</h2>
+        <div class="dti-pagination-controls">
+          <button id="prevPage" class="dti-page-btn" disabled>← Previous</button>
+          <span id="pageInfo">Page 1 of 1</span>
+          <button id="nextPage" class="dti-page-btn">Next →</button>
+        </div>
+      </div>
+
+      <div class="dti-table-container">
+        <table id="oldRunsTable" class="dti-runs-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Portfolio</th>
+              <th>Source</th>
+              <th>Year</th>
+              <th>Tag Model</th>
+              <th>Doc Type</th>
+              <th>Tag Name</th>
+              <th>Run Date</th>
+              <th>JSON</th>
+            </tr>
+          </thead>
+          <tbody id="runsTableBody">
+            <!-- Las filas se generan dinámicamente con JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Modal para ver JSON -->
+      <div id="jsonModal" class="dti-modal dti-hidden">
+        <div class="dti-modal-content">
+          <div class="dti-modal-header">
+            <h3>Tag JSON Content</h3>
+            <button id="closeModal" class="dti-modal-close">×</button>
+          </div>
+          <pre id="jsonContent"></pre>
+        </div>
+      </div>
     </div>
 
   </div>
