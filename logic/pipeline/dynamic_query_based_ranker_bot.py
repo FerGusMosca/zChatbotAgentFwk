@@ -105,12 +105,12 @@ class DynamicQueryBasedRankerBot:
             dto = DynamicQuery.parse(question)
 
             if dto.is_dynamic:
-                self.logger.info(f"[QUERY_ANN] dynamic_query_found!: folder:{dto.chunks_folder}...", {})
+                self.logger.info(f"[QUERY_ANN] dynamic_query_found!: folder:{dto.chunks_folder}")
                 self.logger.info("[QUERY_ANN] query_processed", {"query": dto.query})
                 question = dto.query
                 self.rank_root_path = dto.chunks_folder
             else:
-                self.logger.info("[QUERY_ANN] simple_query_found! --> using default folder", {})
+                self.logger.info("[QUERY_ANN] simple_query_found! --> using default folder")
                 self.logger.info("[QUERY_ANN] query_processed", {"query": question})
                 return "Query received must be in dynamic query format: query and root path"
 
