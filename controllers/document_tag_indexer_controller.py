@@ -210,6 +210,7 @@ class DocumentTagIndexerController:
                 # 🔧 Hardcoded chunks folder (temporary)
                 chunks_folder=os.path.join(settings.documents_path,req.rank_folder)
 
+                #temp
                 payload = {
                     "query": req.query,
                     "chunks_folder": chunks_folder
