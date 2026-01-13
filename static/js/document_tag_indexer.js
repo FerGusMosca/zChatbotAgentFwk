@@ -247,6 +247,17 @@ async loadRuns() {
         <td class="json-cell">
             <button class="view-rank-btn" data-rank='${run.rank_folder}'>View Rank</button>
         </td>
+        <td class="json-cell">
+          <button class="run-query-btn"
+                  data-id="${run.id}"
+                  data-portfolio="${run.portfolio}"
+                  data-source="${run.source}"
+                  data-year="${run.year}"
+                  data-tag="${run.tag_name}">
+            Run Query
+          </button>
+        </td>
+
       `;
       tbody.appendChild(row);
     });
@@ -321,3 +332,110 @@ function toggleModeEnhanced() {
     oldRuns.loadRuns();
   }
 }
+
+// Run Query button
+document.addEventListener('click', async e => {
+  if (!e.target.classList.contains('run-query-btn')) return;
+
+  const payload = {
+    run_id: e.target.dataset.id,
+    portfolio: e.target.dataset.portfolio,
+    source: e.target.dataset.source,
+    year: e.target.dataset.year,
+    tag_name: e.target.dataset.tag
+  };
+
+  e.target.disabled = true;
+  e.target.textContent = 'Running...';
+});
+
+
+let currentRunQueryPayload = null;
+
+// Open Run Query modal
+document.addEventListener('click', e => {
+  if (!e.target.classList.contains('run-query-btn')) return;
+
+  currentRunQueryPayload = {
+    run_id: Number(e.target.dataset.id),
+    portfolio: e.target.dataset.portfolio,
+    source: e.target.dataset.source,
+    year: Number(e.target.dataset.year),
+    tag_name: e.target.dataset.tag
+  };
+
+  document.getElementById('runQueryInput').value = '';
+  document.getElementById('runQueryResponse').textContent = '';
+  document.getElementById('runQueryModal').classList.remove('dti-hidden');
+});
+
+// Submit query
+document.getElementById('submitRunQueryBtn').addEventListener('click', async () => {
+  const queryText = document.getElementById('runQueryInput').value.trim();
+  if (!queryText || !currentRunQueryPayload) return;
+
+  document.getElementById('runQueryResponse').textContent = 'Running query...';
+
+  try {
+    const res = await fetch(`${BASE_URL}/run_query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...currentRunQueryPayload,
+        query: queryText
+      })
+    });
+
+    const data = await res.json();
+
+    document.getElementById('runQueryResponse').textContent =
+      data.answer || 'No response';
+
+  } catch (err) {
+    document.getElementById('runQueryResponse').textContent =
+      'Error executing query';
+  }
+});
+
+// Close modal
+document.addEventListener('click', e => {
+  if (
+    e.target.classList.contains('close-run-query-modal') ||
+    e.target === document.getElementById('runQueryModal')
+  ) {
+    document.getElementById('runQueryModal').classList.add('dti-hidden');
+  }
+});
+
+
+document.getElementById('submitRunQueryBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('submitRunQueryBtn');
+  const queryText = document.getElementById('runQueryInput').value.trim();
+  if (!queryText || !currentRunQueryPayload) return;
+
+  btn.classList.add('loading');
+  document.getElementById('runQueryResponse').textContent = 'Running query...';
+
+  try {
+    const res = await fetch(`${BASE_URL}/run_query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...currentRunQueryPayload,
+        query: queryText
+      })
+    });
+
+    const data = await res.json();
+
+    document.getElementById('runQueryResponse').textContent =
+      data.answer || 'No response';
+
+  } catch (err) {
+    document.getElementById('runQueryResponse').textContent =
+      'Error executing query';
+
+  } finally {
+    btn.classList.remove('loading');
+  }
+});

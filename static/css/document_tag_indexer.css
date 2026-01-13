@@ -557,3 +557,43 @@
   font-size: 14px;
   line-height: 1.6;
 }
+
+.dti-runs-table .run-query-btn {
+  background: #8250DF;          /* violeta: acción distinta */
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  min-width: 96px;
+  text-align: center;
+}
+
+.dti-runs-table .run-query-btn:hover {
+  background: #6E40C9;
+}
+
+
+#runQueryModal .dti-modal-content {
+  max-width: 1000px;
+}
+
+#runQueryResponse {
+  margin: 0;
+  padding: 20px;
+  background: #0D1117;
+  color: #C9D1D9;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 180px;
+  white-space: pre-wrap;
+  overflow-y: auto;
+  border-top: 1px solid #30363D;
+}
+
+
+#runQueryResponse {
+  text-align: left;
+}

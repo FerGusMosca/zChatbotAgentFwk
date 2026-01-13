@@ -13,6 +13,7 @@ from datetime import datetime
 
 from business_entities.tag_type import TagType
 from common.config.settings import settings
+from common.dto.run_query_req import RunQueryReq
 from common.util.std_in_out.root_locator import RootLocator
 from data_access_layer.document_type_manager import DocumentTypeManager
 from data_access_layer.manager_portfolios import PortfolioManager
@@ -202,4 +203,44 @@ class DocumentTagIndexerController:
                     },
                     status_code=400
                 )
+
+        @self.router.post("/run_query")
+        def run_query(req: RunQueryReq):
+            """
+            Temporary stub endpoint.
+            Will be replaced by real Bot 7 execution.
+            """
+
+            return {
+                "status": "ok",
+                "run_id": req.run_id,
+                "bot": "bot_7",
+                "answer": (
+                    f"Stub response from Bot 7\n\n"
+                    f"Portfolio: {req.portfolio}\n"
+                    f"Source: {req.source}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Year: {req.year}\n"
+                    f"Tag: {req.tag_name}\n\n"
+                    f"User query:\n{req.query}\n\n"
+                    "→ This response will be replaced by real Bot 7 execution."
+                )
+            }
+
 

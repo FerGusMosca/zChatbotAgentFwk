@@ -100,6 +100,7 @@
               <th>Run Date</th>
               <th>JSON</th>
               <th>Rank Folder</th>
+              <th>Query</th>
             </tr>
           </thead>
           <tbody id="runsTableBody">
@@ -129,6 +130,37 @@
         <pre id="rankContent"></pre>
       </div>
     </div>
+
+    <div id="runQueryModal" class="dti-modal dti-hidden">
+      <div class="dti-modal-content">
+        <div class="dti-modal-header">
+          <h3>Run Query</h3>
+          <button class="close-run-query-modal dti-modal-close">×</button>
+        </div>
+
+        <!-- Query input -->
+        <div style="padding: 16px 20px; border-bottom: 1px solid #30363D;">
+          <textarea
+            id="runQueryInput"
+            placeholder="Type your query here..."
+            rows="4"
+            style="width:100%; resize:vertical;"
+            class="dti-textarea"
+          ></textarea>
+
+          <div style="margin-top:12px; text-align:right;">
+            <button id="submitRunQueryBtn" class="dti-submit-btn">
+              <span class="btn-text">Run Query</span>
+              <div class="spinner"></div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Query response -->
+        <pre id="runQueryResponse"></pre>
+      </div>
+    </div>
+
 
 
   </div>
