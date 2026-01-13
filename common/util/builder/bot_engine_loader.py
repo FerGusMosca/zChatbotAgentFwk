@@ -47,12 +47,12 @@ def load_hybrid_bot(
     if not force_reload and cache_key in _HYBRID_BOT_CACHE:
         return _HYBRID_BOT_CACHE[cache_key]
 
-    # --- Load FAISS index using the full path directly ---
+    # --- Load FAISS index using the full path directly (if exists) ---
     vectorstore_path = Path(client_id).expanduser().resolve()
-
+    '''
     if not vectorstore_path.exists():
         raise FileNotFoundError(f"❌ Vectorstore not found at: {vectorstore_path}")
-
+    '''
 
     # --- Load sett ---
     settings=get_settings()
