@@ -253,7 +253,9 @@ async loadRuns() {
                   data-portfolio="${run.portfolio}"
                   data-source="${run.source}"
                   data-year="${run.year}"
-                  data-tag="${run.tag_name}">
+                  data-tag="${run.tag_name}"
+                  data-rank-folder="${run.rank_folder}"
+                  >
             Run Query
           </button>
         </td>
@@ -342,7 +344,8 @@ document.addEventListener('click', async e => {
     portfolio: e.target.dataset.portfolio,
     source: e.target.dataset.source,
     year: e.target.dataset.year,
-    tag_name: e.target.dataset.tag
+    tag_name: e.target.dataset.tag,
+    rank_folder: e.target.dataset.rankFolder
   };
 
   e.target.disabled = true;
@@ -361,7 +364,8 @@ document.addEventListener('click', e => {
     portfolio: e.target.dataset.portfolio,
     source: e.target.dataset.source,
     year: Number(e.target.dataset.year),
-    tag_name: e.target.dataset.tag
+    tag_name: e.target.dataset.tag,
+    rank_folder: e.target.dataset.rankFolder
   };
 
   document.getElementById('runQueryInput').value = '';
@@ -404,6 +408,15 @@ document.addEventListener('click', e => {
     e.target === document.getElementById('runQueryModal')
   ) {
     document.getElementById('runQueryModal').classList.add('dti-hidden');
+
+
+    const btns = document.querySelectorAll('.run-query-btn');
+    btns.forEach(btn => {
+      btn.disabled = false;
+      btn.textContent = 'Run Query';
+    });
+
+    currentRunQueryPayload = null;
   }
 });
 

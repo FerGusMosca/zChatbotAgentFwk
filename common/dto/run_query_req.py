@@ -8,3 +8,4 @@ class RunQueryReq(BaseModel):
     year: int
     tag_name: str
     query: str
+    rank_folder: str

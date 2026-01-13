@@ -5,7 +5,7 @@ import os.path
 from typing import Optional, List
 
 import websockets
-from fastapi import APIRouter, Request, Form, Query
+from fastapi import APIRouter, Request, Form, Query, Body
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
@@ -205,42 +205,40 @@ class DocumentTagIndexerController:
                 )
 
         @self.router.post("/run_query")
-        def run_query(req: RunQueryReq):
-            """
-            Temporary stub endpoint.
-            Will be replaced by real Bot 7 execution.
-            """
+        async def run_query(req: RunQueryReq = Body(...)):
+            try:
+                # 🔧 Hardcoded chunks folder (temporary)
+                chunks_folder=os.path.join(settings.documents_path,req.rank_folder)
 
-            return {
-                "status": "ok",
-                "run_id": req.run_id,
-                "bot": "bot_7",
-                "answer": (
-                    f"Stub response from Bot 7\n\n"
-                    f"Portfolio: {req.portfolio}\n"
-                    f"Source: {req.source}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Year: {req.year}\n"
-                    f"Tag: {req.tag_name}\n\n"
-                    f"User query:\n{req.query}\n\n"
-                    "→ This response will be replaced by real Bot 7 execution."
+                payload = {
+                    "query": req.query,
+                    "chunks_folder": chunks_folder
+                }
+
+                payload_str = json.dumps(payload)
+
+                uri = settings.dynamic_query_ranking_url
+                print(f"[run_query] Invoking bot_7 at {uri} → {payload_str}")
+
+                async with websockets.connect(uri) as ws:
+                    await ws.send(payload_str)
+                    response = await ws.recv()
+
+                return JSONResponse({
+                    "status": "ok",
+                    "bot": "bot_7",
+                    "run_id": req.run_id,
+                    "answer": response
+                })
+
+            except Exception as e:
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "status": "error",
+                        "bot": "bot_7",
+                        "error": str(e)
+                    }
                 )
-            }
 
 
