@@ -458,6 +458,33 @@
   cursor: pointer;
 }
 
+/* Make main DTI panel larger */
+.dti-panel {
+  max-width: 90vw;        /* before: limited by main.css */
+  width: 90vw;
+
+  padding: 1rem 1.5rem;  /* more breathing room */
+}
+
+/* Same size & style for View JSON / View Rank */
+.dti-runs-table .view-json-btn,
+.dti-runs-table .view-rank-btn {
+  background: #238636;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  min-width: 96px;     /* 👈 asegura mismo ancho */
+  text-align: center;
+}
+
+.dti-runs-table .view-json-btn:hover,
+.dti-runs-table .view-rank-btn:hover {
+  background: #2EA043;
+}
+
 #jsonContent {
   margin: 0;
   padding: 20px;
@@ -496,4 +523,37 @@
 /* Ensure the pre element has no unwanted margins */
 .dti-modal-content pre {
   margin: 0 !important;
+}
+
+/* Rank Folder modal tweaks */
+#rankModal .dti-modal-content {
+  max-width: 1100px;      /* más ancho que JSON */
+}
+
+#rankContent {
+  white-space: pre-wrap; /* permite cortar líneas */
+  word-break: break-all; /* paths largos no rompen layout */
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Rank modal: compact header, more room for path */
+#rankModal .dti-modal-header {
+  padding: 8px 16px;          /* antes 16px 24px */
+  min-height: unset;
+}
+
+#rankModal .dti-modal-header h3 {
+  font-size: 16px;
+  margin: 0;
+}
+
+#rankModal .dti-modal-close {
+  font-size: 22px;
+}
+
+#rankContent {
+  padding: 24px 24px 28px;    /* más aire para el path */
+  font-size: 14px;
+  line-height: 1.6;
 }

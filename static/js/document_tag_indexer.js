@@ -30,7 +30,7 @@ function toggleMode() {
 
 // Show/hide quarter select based on source
 function handleSourceChange() {
-  const isQ10 = els.sourceSelect.value === 'q10';
+  const isQ10 = els.sourceSelect.value === 'Q10';
   els.quarterSelect.classList.toggle('dti-hidden', !isQ10);
 
   if (!isQ10) els.quarterSelect.value = '';
@@ -208,7 +208,8 @@ async loadRuns() {
       doc_type: run.doc_type,
       tag_name: run.tag_name || "N/A",          // fallback if field doesn't exist
       run_date: run.run_date,
-      tag_json: run.tag_json || "{}"
+      tag_json: run.tag_json || "{}",
+      rank_folder: run.rank_folder || "N/A"
     }));
 
     this.renderTable();
@@ -242,6 +243,9 @@ async loadRuns() {
         <td>${run.run_date}</td>
         <td class="json-cell">
           <button class="view-json-btn" data-json='${run.tag_json}'>View JSON</button>
+        </td>
+        <td class="json-cell">
+            <button class="view-rank-btn" data-rank='${run.rank_folder}'>View Rank</button>
         </td>
       `;
       tbody.appendChild(row);
@@ -287,6 +291,23 @@ function setupOldRunsEvents() {
       document.getElementById('jsonModal').classList.add('dti-hidden');
     }
   });
+
+   // View Rank Folder modal
+    document.addEventListener('click', e => {
+      if (e.target.classList.contains('view-rank-btn')) {
+        const rank = e.target.dataset.rank;
+        document.getElementById('rankContent').textContent = rank;
+        document.getElementById('rankModal').classList.remove('dti-hidden');
+      }
+
+      if (
+        e.target.classList.contains('close-rank-modal') ||
+        e.target === document.getElementById('rankModal')
+      ) {
+        document.getElementById('rankModal').classList.add('dti-hidden');
+      }
+    });
+
 }
 
 // Enhanced toggle mode: loads old runs data only the first time we switch to "Old Runs" view

@@ -127,6 +127,7 @@ class DocumentTagIndexerController:
                     "tag_model": run.tag_model,
                     "doc_type": run.doc_type,
                     "tag_name": run.tag_name,
+                    "rank_folder": run.rank_folder,
                     "run_date": run.run_date,
                     "tag_json": run.tag_json or "{}"
                 }
