@@ -208,6 +208,7 @@ async loadRuns() {
       doc_type: run.doc_type,
       tag_name: run.tag_name || "N/A",          // fallback if field doesn't exist
       run_date: run.run_date,
+      status: run.status,
       tag_json: run.tag_json || "{}",
       rank_folder: run.rank_folder || "N/A"
     }));
@@ -241,6 +242,7 @@ async loadRuns() {
         <td>${run.doc_type}</td>
         <td>${run.tag_name}</td>
         <td>${run.run_date}</td>
+        <td>${run.status}</td>
         <td class="json-cell">
           <button class="view-json-btn" data-json='${run.tag_json}'>View JSON</button>
         </td>

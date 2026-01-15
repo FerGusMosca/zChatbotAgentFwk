@@ -130,6 +130,7 @@ class DocumentTagIndexerController:
                     "tag_name": run.tag_name,
                     "rank_folder": run.rank_folder,
                     "run_date": run.run_date,
+                    "status": run.status,
                     "tag_json": run.tag_json or "{}"
                 }
                 for run in runs
