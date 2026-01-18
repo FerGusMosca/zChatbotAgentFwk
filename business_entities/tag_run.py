@@ -12,6 +12,8 @@ class TagRun:
     source: str
     rank_folder: str
     year: str
+    quarter: str
+    sec_processed:int
     tag_model: str
     doc_type: str
     tag_json: Optional[str] = None

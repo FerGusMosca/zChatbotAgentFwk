@@ -125,6 +125,8 @@ class DocumentTagIndexerController:
                     "portfolio": run.portfolio,
                     "source": run.source,
                     "year": run.year,
+                    "quarter": run.quarter,
+                    "sec_processed": run.sec_processed,
                     "tag_model": run.tag_model,
                     "doc_type": run.doc_type,
                     "tag_name": run.tag_name,
@@ -159,7 +161,7 @@ class DocumentTagIndexerController:
                 rank_folder = f"{portfolio}_{tag_name.replace(' ', '_').upper()}_{tag_type}"
 
                 tag_json_dict = {
-                    tag_name: [l.strip() for l in tag_content.splitlines() if l.strip()]
+                    tag_name: [l.strip().strip('",') for l in tag_content.splitlines() if l.strip()]
                 }
                 tag_json_str = json.dumps(tag_json_dict, ensure_ascii=False)
 
@@ -177,6 +179,7 @@ class DocumentTagIndexerController:
                 args["source"] = f_source
                 args["rank_folder"] = rank_folder
                 args["year"] = year
+                args["quarter"] = quarter
                 args["tag_model"] = tag_model
                 args["doc_type"] = doc_type
                 args["tag_json"] = tag_json_str

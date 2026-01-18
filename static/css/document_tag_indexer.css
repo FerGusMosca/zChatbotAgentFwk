@@ -527,7 +527,9 @@
 
 /* Rank Folder modal tweaks */
 #rankModal .dti-modal-content {
-  max-width: 1100px;      /* más ancho que JSON */
+  max-width: 1200px;
+  width: 90vw;
+  max-height: 70vh;
 }
 
 #rankContent {
@@ -553,9 +555,12 @@
 }
 
 #rankContent {
-  padding: 24px 24px 28px;    /* más aire para el path */
+  padding: 16px 24px;
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.5;
+  white-space: normal;
+  word-break: break-all;
+  text-align: left;
 }
 
 .dti-runs-table .run-query-btn {

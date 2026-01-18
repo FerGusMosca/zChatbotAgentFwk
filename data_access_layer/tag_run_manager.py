@@ -50,6 +50,8 @@ class TagRunManager:
                     source=row.source,
                     rank_folder=row.rank_folder,
                     year=row.year,
+                    quarter=row.quarter,
+                    sec_processed=row.securities_processed,
                     tag_model=row.tag_model,
                     doc_type=row.doc_type,
                     tag_json=row.tag_json,

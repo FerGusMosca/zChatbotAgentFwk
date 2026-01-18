@@ -112,7 +112,7 @@ async function handleFormSubmit(e) {
   e.preventDefault();
 
   const formData = new FormData(els.form);
-  if (els.sourceSelect.value !== 'q10') formData.delete('quarter');
+  if (els.sourceSelect.value !== 'Q10') formData.delete('quarter');
 
   els.createBtn.classList.add('loading'); // 🔄 SHOW SPINNER
 
@@ -204,6 +204,8 @@ async loadRuns() {
       portfolio: run.portfolio,
       source: run.source,
       year: run.year,
+      quarter: run.quarter,
+      sec_processed: run.sec_processed,
       tag_model: run.tag_model,
       doc_type: run.doc_type,
       tag_name: run.tag_name || "N/A",          // fallback if field doesn't exist
@@ -244,10 +246,17 @@ async loadRuns() {
         <td>${run.run_date}</td>
         <td>${run.status}</td>
         <td class="json-cell">
-          <button class="view-json-btn" data-json='${run.tag_json}'>View JSON</button>
+          <button class="view-json-btn" data-json='${run.tag_json}'>JSON</button>
         </td>
         <td class="json-cell">
-            <button class="view-rank-btn" data-rank='${run.rank_folder}'>View Rank</button>
+            <button class="view-rank-btn"
+              data-rank="${run.rank_folder}"
+              data-year="${run.year}"
+              data-quarter="${run.quarter || ''}"
+              data-secprocessed="${run.sec_processed || ''}"
+            >
+              Details
+            </button>
         </td>
         <td class="json-cell">
           <button class="run-query-btn"
@@ -309,11 +318,18 @@ function setupOldRunsEvents() {
 
    // View Rank Folder modal
     document.addEventListener('click', e => {
-      if (e.target.classList.contains('view-rank-btn')) {
-        const rank = e.target.dataset.rank;
-        document.getElementById('rankContent').textContent = rank;
-        document.getElementById('rankModal').classList.remove('dti-hidden');
-      }
+    if (e.target.classList.contains('view-rank-btn')) {
+          const { rank, year, quarter, secprocessed } = e.target.dataset;
+
+          document.getElementById('rankContent').innerHTML = `
+            <div><strong>Rank:</strong><br>${rank}</div><br>
+            <div><strong>Year:</strong> ${year}</div>
+            <div><strong>Quarter:</strong> ${quarter || '-'}</div>
+            <div><strong>Securities processed:</strong> ${secprocessed || '-'}</div>
+          `;
+
+          document.getElementById('rankModal').classList.remove('dti-hidden');
+    }
 
       if (
         e.target.classList.contains('close-rank-modal') ||
