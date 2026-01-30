@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deep Company Analysis</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/deep_company_analysis.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <ul>
+    <li><a href="/">🏠 Home</a></li>
+    <li><a href="/document_tag_indexer">🏷️ Document Tag Indexer</a></li>
+    <li><a href="/deep_company_analysis">🔬 Deep Company Analysis</a></li>
+  </ul>
+</nav>
+
+<div class="content">
+  <div class="panel dca-panel">
+
+    <h1 class="dca-title">🔬 Deep Company Analysis</h1>
+
+    <form id="analysisForm">
+      <table class="dca-controls-table">
+        <tr>
+          <td>
+            <input type="text" name="symbol" id="symbolInput" placeholder="Symbol (e.g., AAPL)" required>
+          </td>
+          <td>
+            <select name="doc_type" id="docTypeSelect" required>
+              <option value="" disabled selected>Document Type</option>
+              <option value="10K">10-K</option>
+              <option value="10Q">10-Q</option>
+              <option value="FREE_TEXT">Free Text</option>
+            </select>
+          </td>
+          <td>
+            <input type="text" name="year" id="yearInput" placeholder="Year" required>
+          </td>
+          <td>
+            <select name="quarter" id="quarterSelect" class="dca-hidden">
+              <option value="" disabled selected>Quarter</option>
+              <option value="Q1">Q1</option>
+              <option value="Q2">Q2</option>
+              <option value="Q3">Q3</option>
+              <option value="Q4">Q4</option>
+            </select>
+          </td>
+        </tr>
+        <tr id="freeTextRow" class="dca-hidden">
+          <td colspan="4">
+            <textarea name="free_text" id="freeTextArea" class="dca-textarea" placeholder="Paste your text here (earnings call transcript, press release, etc.)" rows="12"></textarea>
+          </td>
+        </tr>
+      </table>
+    </form>
+
+    <!-- Action Buttons -->
+    <div class="dca-button-container">
+      <button type="button" id="sentimentBtn" class="dca-action-btn">
+        <span class="btn-text">📊 Analyze Sentiment</span>
+        <div class="spinner"></div>
+      </button>
+
+      <button type="button" id="topicsBtn" class="dca-action-btn">
+        <span class="btn-text">🏷️ Analyze Topics</span>
+        <div class="spinner"></div>
+      </button>
+
+      <button type="button" id="freeAnalysisBtn" class="dca-action-btn dca-hidden">
+        <span class="btn-text">🤖 Free Analysis</span>
+        <div class="spinner"></div>
+      </button>
+    </div>
+
+    <!-- Free Analysis Prompt (only visible when FREE_TEXT selected) -->
+    <div id="freeAnalysisPromptSection" class="dca-hidden">
+      <div class="dca-prompt-section">
+        <label for="freeAnalysisPrompt">Custom Analysis Prompt:</label>
+        <textarea id="freeAnalysisPrompt" class="dca-textarea" placeholder="Enter your custom prompt for LLM analysis (e.g., 'Extract all mentions of AI initiatives and their expected impact')" rows="4"></textarea>
+      </div>
+    </div>
+
+    <!-- Result message -->
+    <div id="resultMessage" class="dca-result"></div>
+
+    <!-- Topic Input Modal -->
+    <div id="topicModal" class="dca-modal dca-hidden">
+      <div class="dca-modal-content dca-modal-small">
+        <div class="dca-modal-header">
+          <h3>🏷️ Configure Topics for Analysis</h3>
+          <button id="closeTopicModal" class="dca-modal-close">×</button>
+        </div>
+        <div class="dca-modal-body">
+          <p style="color:#8B949E; margin-bottom:16px;">
+            Enter topics/tags you want to extract from the document. One per line.
+          </p>
+          <textarea
+            id="topicsInput"
+            class="dca-textarea"
+            placeholder="Example:&#10;AI Implementation&#10;Cost Management&#10;Pricing Power&#10;Market Competition&#10;Regulatory Risk"
+            rows="10"
+          ></textarea>
+          <button id="submitTopics" class="dca-action-btn" style="margin-top:16px; width:100%;">
+            <span class="btn-text">Run Topic Analysis</span>
+            <div class="spinner"></div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="/static/js/deep_company_analysis.js"></script>
+</body>
+</html>
