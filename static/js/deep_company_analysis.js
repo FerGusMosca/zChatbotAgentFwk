@@ -264,7 +264,9 @@ async function handleAnalysis(analysisType) {
 
     const data = await response.json();
 
-    if (!response.ok || data.status !== 'ok') {
+    // For sentiment analysis, don't check data.status === 'ok' because MCP returns 'completed'
+    // Only check HTTP response status
+    if (!response.ok) {
       throw new Error(data.message || `HTTP ${response.status}`);
     }
 
@@ -283,41 +285,99 @@ function displayResults(data, analysisType) {
   let html = '';
 
   if (analysisType === 'sentiment') {
-    const analysis = data.analysis;
-    html = `
-      <div class="dca-result-display">
-        <h4>📊 Sentiment Analysis Results</h4>
-
-        <div class="metric">
-          <span class="metric-label">Overall Tone</span>
-          <span class="metric-value" style="color: ${getToneColor(analysis.overall_tone)};">
-            ${(analysis.overall_tone * 100).toFixed(0)}%
-          </span>
+    // Check if analysis failed (MCP returns status: "failed" or "error")
+    if (data.status === 'failed' || data.status === 'error') {
+      html = `
+        <div class="dca-result-display">
+          <h4>❌ Analysis Failed</h4>
+          <p style="color:#F85149; font-size:15px;">
+            <strong>Error:</strong> ${data.message || 'Unknown error occurred'}
+          </p>
+          ${data.error_type ? `<p style="color:#8B949E; font-size:13px;">Error type: ${data.error_type}</p>` : ''}
         </div>
+      `;
+    }
+    // Check if analysis succeeded (MCP returns status: "completed")
+    else if (data.status === 'completed' && data.analysis) {
+      const analysis = data.analysis || {};
+      const metrics = analysis.metrics || {};
+      const topPos = analysis.top_positive || [];
+      const topNeg = analysis.top_negative || [];
+      const forwardSnippets = analysis.forward_snippets || [];
 
-        <div class="metric">
-          <span class="metric-label">Confidence Level</span>
-          <span class="metric-value">${(analysis.confidence_level * 100).toFixed(0)}%</span>
+      html = `
+        <div class="dca-result-display">
+          <h4>📊 Sentiment Analysis Results</h4>
+
+          <div style="background:#161B22; padding:16px; border-radius:8px; margin-bottom:16px;">
+            <div style="color:#8B949E; font-size:13px; margin-bottom:8px;">
+              <strong>Symbol:</strong> ${data.symbol || 'N/A'} |
+              <strong>Year:</strong> ${data.year || 'N/A'} |
+              <strong>Period:</strong> ${data.period || 'N/A'}
+            </div>
+          </div>
+
+          <div class="metric">
+            <span class="metric-label">MD&A Sentiment Score</span>
+            <span class="metric-value" style="color: ${getToneColor(metrics.mdna_sentiment || 0)};">
+              ${(metrics.mdna_sentiment || 0).toFixed(3)}
+            </span>
+          </div>
+
+          <div class="metric">
+            <span class="metric-label">Financial Sentences Analyzed</span>
+            <span class="metric-value">${metrics.financial_sentences || 0}</span>
+          </div>
+
+          <div class="metric">
+            <span class="metric-label">Forward-Looking Language</span>
+            <span class="metric-value" style="color: ${(metrics.forward_ratio || 0) > 0.3 ? '#3FB950' : '#8B949E'};">
+              ${((metrics.forward_ratio || 0) * 100).toFixed(1)}%
+            </span>
+          </div>
+
+          <div class="metric">
+            <span class="metric-label">Hedging Language</span>
+            <span class="metric-value" style="color: ${(metrics.hedge_ratio || 0) > 0.2 ? '#F85149' : '#8B949E'};">
+              ${((metrics.hedge_ratio || 0) * 100).toFixed(1)}%
+            </span>
+          </div>
+
+          ${topPos.length > 0 ? `
+            <h5 style="color:#3FB950; margin-top:24px; font-size:16px;">✅ Most Positive Statements:</h5>
+            <div style="max-height:200px; overflow-y:auto;">
+              ${topPos.map(item => `
+                <div style="background:#1A3421; padding:12px; margin:8px 0; border-radius:6px; border-left:3px solid #3FB950;">
+                  <div style="color:#E6EDF3; font-size:14px; line-height:1.5; margin-bottom:6px;">${item.sent}</div>
+                  <div style="color:#8B949E; font-size:12px;">Score: ${item.score.toFixed(3)}</div>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+
+          ${topNeg.length > 0 ? `
+            <h5 style="color:#F85149; margin-top:24px; font-size:16px;">⚠️ Most Negative Statements:</h5>
+            <div style="max-height:200px; overflow-y:auto;">
+              ${topNeg.map(item => `
+                <div style="background:#3A1214; padding:12px; margin:8px 0; border-radius:6px; border-left:3px solid #F85149;">
+                  <div style="color:#E6EDF3; font-size:14px; line-height:1.5; margin-bottom:6px;">${item.sent}</div>
+                  <div style="color:#8B949E; font-size:12px;">Score: ${item.score.toFixed(3)}</div>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
         </div>
-
-        <div class="metric">
-          <span class="metric-label">Defensive Language</span>
-          <span class="metric-value" style="color: ${analysis.defensive_language > 0.2 ? '#F85149' : '#3FB950'};">
-            ${(analysis.defensive_language * 100).toFixed(0)}%
-          </span>
+      `;
+    } else {
+      // Unexpected response format
+      html = `
+        <div class="dca-result-display">
+          <h4>⚠️ Unexpected Response</h4>
+          <p style="color:#9E6A03;">Received data but in unexpected format. Status: ${data.status || 'unknown'}</p>
+          <pre style="background:#161B22; padding:12px; border-radius:6px; font-size:12px; overflow-x:auto;">${JSON.stringify(data, null, 2)}</pre>
         </div>
-
-        <div class="metric">
-          <span class="metric-label">Forward Looking</span>
-          <span class="metric-value">${(analysis.forward_looking * 100).toFixed(0)}%</span>
-        </div>
-
-        <h5 style="color:#58A6FF; margin-top:20px;">Key Sentiment Signals:</h5>
-        <ul>
-          ${analysis.key_sentiment_signals.map(signal => `<li>${signal}</li>`).join('')}
-        </ul>
-      </div>
-    `;
+      `;
+    }
 
   } else if (analysisType === 'topics') {
     const topics = data.topics;
