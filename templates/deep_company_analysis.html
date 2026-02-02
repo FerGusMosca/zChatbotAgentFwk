@@ -95,14 +95,36 @@
         </div>
         <div class="dca-modal-body">
           <p style="color:#8B949E; margin-bottom:16px;">
-            Enter topics/tags you want to extract from the document. One per line.
+            Enter a tag name and the topic phrases you want to extract from the document.
           </p>
+
+          <!-- Tag Name Input -->
+          <label for="tagNameInput" style="display:block; color:#58A6FF; font-weight:600; font-size:14px; margin-bottom:8px;">
+            Tag Name (e.g., ai_innovation):
+          </label>
+          <input
+            type="text"
+            id="tagNameInput"
+            placeholder="ai_innovation"
+            style="width:100%; padding:12px; background:#21262D; border:1px solid #30363D; border-radius:8px; color:#E6EDF3; font-size:14px; margin-bottom:20px; box-sizing:border-box;"
+          />
+
+          <!-- Topics Input -->
+          <label for="topicsInput" style="display:block; color:#58A6FF; font-weight:600; font-size:14px; margin-bottom:8px;">
+            Topic Phrases (one per line):
+          </label>
           <textarea
             id="topicsInput"
             class="dca-textarea"
-            placeholder="Example:&#10;AI Implementation&#10;Cost Management&#10;Pricing Power&#10;Market Competition&#10;Regulatory Risk"
+            placeholder="commercial AI product launch&#10;artificial intelligence embedded in products&#10;AI-powered features released to customers&#10;machine learning models integrated into products&#10;AI-based products offered to customers"
             rows="10"
           ></textarea>
+
+          <!-- Progress Messages Display -->
+          <div id="topicProgressContainer" class="dca-hidden" style="margin-top:16px; max-height:200px; overflow-y:auto; background:#0D1117; border:1px solid #30363D; border-radius:8px; padding:12px;">
+            <div id="topicProgressMessages" style="font-family:monospace; font-size:12px; color:#8B949E; line-height:1.6;"></div>
+          </div>
+
           <button id="submitTopics" class="dca-action-btn" style="margin-top:16px; width:100%;">
             <span class="btn-text">Run Topic Analysis</span>
             <div class="spinner"></div>

@@ -4,6 +4,7 @@ import json
 import os.path
 from typing import Optional
 
+import websockets
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -24,6 +25,13 @@ class DeepCompanyAnalysisController:
 
     SINGLE_SEC_SENTIMENT_10K_REP="sentiment_summary_single_security_report_k10"
     SINGLE_SEC_SENTIMENT_10Q_REP = "sentiment_summary_single_security_report_q10"
+
+    SINGLE_SEC_TOPIC_REP = "document_tagging_single_security"
+
+    DEF_TAG_MODEL="sentence-transformers/all-mpnet-base-v2"
+
+    REF_DOC_TYPE_10_K= "K_Q_10"
+
 
     def __init__(self):
         self.router = APIRouter(prefix="/deep_company_analysis")
@@ -103,8 +111,6 @@ class DeepCompanyAnalysisController:
             Analyze sentiment of document by invoking MCP service
             """
             try:
-                import websockets
-
                 # Validate and parse inputs
                 symbol_upper = symbol.upper().strip()
                 year_str = year.strip()
@@ -226,41 +232,147 @@ class DeepCompanyAnalysisController:
                 symbol: str = Form(...),
                 doc_type: str = Form(...),
                 year: str = Form(...),
-                topics: str = Form(...),
+                tag_name: str = Form(...),
+                tag_json: str = Form(...),
                 quarter: str = Form(None),
                 free_text: str = Form(None)
         ):
             """
-            Extract and analyze topics from document
-            TODO: Implement actual topic extraction
+            Extract and analyze topics from document via MCP service
             """
             try:
-                # Parse topics (one per line)
-                topic_list = [t.strip() for t in topics.split('\n') if t.strip()]
+                import websockets
 
-                # Placeholder response
-                result = {
-                    "status": "ok",
-                    "symbol": symbol.upper(),
-                    "doc_type": doc_type,
-                    "year": year,
-                    "quarter": quarter,
-                    "topics_requested": topic_list,
-                    "topics": [
-                        {
-                            "topic": "AI Integration",
-                            "relevance": 0.92,
-                            "mentions": 15,
-                            "key_phrases": ["machine learning deployment", "AI-driven productivity"]
+                # Validate and parse inputs
+                symbol_upper = symbol.upper().strip()
+                year_str = year.strip()
+                tag_name_clean = tag_name.strip()
+
+                # Validate symbol exists
+                results = self.sec_mgr.search(symbol_upper)
+                if not results:
+                    return JSONResponse({
+                        "status": "error",
+                        "message": f"Symbol {symbol_upper} not found in database"
+                    }, status_code=404)
+
+                # Find exact match
+                security = next((x for x in results if x.symbol.upper() == symbol_upper), results[0])
+                portfolio = DeepCompanyAnalysisController.DEFAULT_REMOTE_PORTF
+
+                # Determine report name and source based on doc_type
+                proc_doc_type=None
+                if doc_type == DeepCompanyAnalysisController.DOC_TYPE_10K:
+                    report_name = DeepCompanyAnalysisController.SINGLE_SEC_TOPIC_REP
+                    source = f"{portfolio}/K10"
+                    proc_doc_type=DeepCompanyAnalysisController.REF_DOC_TYPE_10_K
+                elif doc_type == DeepCompanyAnalysisController.DOC_TYPE_10Q:
+                    report_name = DeepCompanyAnalysisController.SINGLE_SEC_TOPIC_REP
+                    source = f"{portfolio}/Q10"
+                    proc_doc_type=DeepCompanyAnalysisController.REF_DOC_TYPE_10_K
+                else:
+                    raise ValueError(f"Invalid doc_type: {doc_type}. Must be '10K' or '10Q'")
+
+                # Build MCP payload
+                payload = {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "run_report",
+                        "arguments": {
+                            "report": report_name,
+                            "symbol": symbol_upper,
+                            "portfolio": portfolio,
+                            "tag_model":DeepCompanyAnalysisController.DEF_TAG_MODEL,
+                            "doc_type":proc_doc_type,
+                            "source": source,
+                            "year": year_str,
+                            "tag_json": tag_json
                         }
-                    ],
-                    "message": f"Topic analysis completed for {len(topic_list)} topics (placeholder)"
+                    }
                 }
-                return JSONResponse(result)
-            except Exception as e:
+
+                # Add quarter if it's a 10Q
+                if doc_type == DeepCompanyAnalysisController.DOC_TYPE_10Q and quarter:
+                    quarter_num = quarter.replace('Q', '').strip()
+                    payload["params"]["arguments"]["quarter"] = quarter_num
+
+                # Invoke MCP
+                async with websockets.connect(settings.reports_mcp_server) as ws:
+                    # First, list tools (handshake)
+                    await ws.send(json.dumps({
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "tools/list",
+                        "params": {}
+                    }))
+                    await asyncio.sleep(0.2)
+
+                    # Then, call the report
+                    await ws.send(json.dumps(payload))
+
+                    # Wait for initial response (job accepted)
+                    response = await ws.recv()
+                    initial_result = json.loads(response)
+
+                    # Extract job_id
+                    job_id = None
+                    if "result" in initial_result and "content" in initial_result["result"]:
+                        content = initial_result["result"]["content"][0]
+                        if content.get("type") == "text":
+                            job_data = json.loads(content["text"])
+                            job_id = job_data.get("job_id")
+
+                    # Collect ALL progress messages and final result
+                    progress_messages = []
+                    final_result = None
+
+                    while True:
+                        try:
+                            msg = await asyncio.wait_for(ws.recv(), timeout=180.0)
+                            msg_data = json.loads(msg)
+
+                            # Check if it's a progress message
+                            if msg_data.get("method") == "job/progress":
+                                message = msg_data.get("params", {}).get("message", "")
+
+                                # Store progress message
+                                progress_messages.append(message)
+
+                                # Try to parse as JSON (completion event)
+                                try:
+                                    event_data = json.loads(message)
+                                    if event_data.get("event") == "completed":
+                                        final_result = event_data.get("result")
+                                        break
+                                except:
+                                    # Not a JSON message, just a progress update
+                                    pass
+                        except asyncio.TimeoutError:
+                            break
+
+                # Return the final result with progress messages
+                if final_result:
+                    final_result["progress_messages"] = progress_messages
+                    return JSONResponse(final_result)
+                else:
+                    return JSONResponse({
+                        "status": "error",
+                        "message": "Analysis completed but no final result received",
+                        "job_id": job_id,
+                        "progress_messages": progress_messages
+                    })
+
+            except ValueError as e:
                 return JSONResponse(
                     {"status": "error", "message": str(e)},
                     status_code=400
+                )
+            except Exception as e:
+                return JSONResponse(
+                    {"status": "error", "message": f"MCP invocation failed: {str(e)}"},
+                    status_code=500
                 )
 
         @self.router.post("/free_analysis")

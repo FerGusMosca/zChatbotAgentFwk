@@ -19,8 +19,11 @@ const els = {
   resultMessage: document.getElementById('resultMessage'),
   topicModal: document.getElementById('topicModal'),
   closeTopicModal: document.getElementById('closeTopicModal'),
+  tagNameInput: document.getElementById('tagNameInput'),
   topicsInput: document.getElementById('topicsInput'),
-  submitTopics: document.getElementById('submitTopics')
+  submitTopics: document.getElementById('submitTopics'),
+  topicProgressContainer: document.getElementById('topicProgressContainer'),
+  topicProgressMessages: document.getElementById('topicProgressMessages')
 };
 
 // State
@@ -42,7 +45,7 @@ function setupEventListeners() {
 
   // Action buttons
   els.sentimentBtn.addEventListener('click', () => handleAnalysis('sentiment'));
-  els.topicsBtn.addEventListener('click', openTopicModal);  // Open modal instead
+  els.topicsBtn.addEventListener('click', openTopicModal);
   els.freeAnalysisBtn.addEventListener('click', () => handleAnalysis('free'));
 
   // Topic modal
@@ -133,6 +136,12 @@ function openTopicModal() {
     return;
   }
 
+  // Reset modal state
+  els.tagNameInput.value = '';
+  els.topicsInput.value = '';
+  els.topicProgressContainer.classList.add('dca-hidden');
+  els.topicProgressMessages.innerHTML = '';
+
   els.topicModal.classList.remove('dca-hidden');
 }
 
@@ -143,16 +152,27 @@ function closeTopicModal() {
 
 // Handle topic analysis from modal
 async function handleTopicAnalysis() {
-  const topics = els.topicsInput.value.trim();
+  const tagName = els.tagNameInput.value.trim();
+  const topicsText = els.topicsInput.value.trim();
 
-  if (!topics) {
-    alert('Please enter at least one topic');
+  if (!tagName) {
+    alert('Please enter a tag name (e.g., ai_innovation)');
+    els.tagNameInput.focus();
+    return;
+  }
+
+  if (!topicsText) {
+    alert('Please enter at least one topic phrase');
     els.topicsInput.focus();
     return;
   }
 
   const btn = els.submitTopics;
   btn.classList.add('loading');
+
+  // Show progress container
+  els.topicProgressContainer.classList.remove('dca-hidden');
+  els.topicProgressMessages.innerHTML = '<div style="color:#58A6FF;">🚀 Starting analysis...</div>';
 
   try {
     const symbol = els.symbolInput.value.trim().toUpperCase();
@@ -161,11 +181,22 @@ async function handleTopicAnalysis() {
     const quarter = els.quarterSelect.value || null;
     const freeText = els.freeTextArea.value || null;
 
+    // Parse topics (one per line)
+    const topicList = topicsText.split('\n')
+      .map(t => t.trim())
+      .filter(t => t);
+
+    // Build tag JSON: { "tag_name": ["phrase1", "phrase2", ...] }
+    const tagJson = JSON.stringify({
+      [tagName]: topicList
+    });
+
     const formData = new FormData();
     formData.append('symbol', symbol);
     formData.append('doc_type', docType);
     formData.append('year', year);
-    formData.append('topics', topics);  // Send the topics list
+    formData.append('tag_name', tagName);
+    formData.append('tag_json', tagJson);
     if (quarter) formData.append('quarter', quarter);
     if (freeText) formData.append('free_text', freeText);
 
@@ -176,9 +207,18 @@ async function handleTopicAnalysis() {
 
     const data = await response.json();
 
-    if (!response.ok || data.status !== 'ok') {
+    // Display progress messages if available
+    if (data.progress_messages && data.progress_messages.length > 0) {
+      displayProgressMessages(data.progress_messages);
+    }
+
+    // Don't check data.status === 'ok' because MCP returns 'completed'
+    if (!response.ok) {
       throw new Error(data.message || `HTTP ${response.status}`);
     }
+
+    // Wait a bit to show final progress
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // Close modal
     closeTopicModal();
@@ -188,10 +228,53 @@ async function handleTopicAnalysis() {
 
   } catch (err) {
     console.error('Topic analysis failed:', err);
+
+    // Show error in progress
+    els.topicProgressMessages.innerHTML += `<div style="color:#F85149;">❌ Error: ${err.message}</div>`;
+
     alert(`Analysis error: ${err.message}`);
   } finally {
     btn.classList.remove('loading');
   }
+}
+
+// Display progress messages in modal
+function displayProgressMessages(messages) {
+  let html = '<div style="color:#58A6FF;">🚀 Starting analysis...</div>';
+
+  messages.forEach(msg => {
+    // Color code different message types
+    let color = '#8B949E';
+    let icon = '📝';
+
+    if (msg.includes('ERROR') || msg.includes('❌')) {
+      color = '#F85149';
+      icon = '❌';
+    } else if (msg.includes('✅') || msg.includes('completed')) {
+      color = '#3FB950';
+      icon = '✅';
+    } else if (msg.includes('🚀') || msg.includes('Starting')) {
+      color = '#58A6FF';
+      icon = '🚀';
+    } else if (msg.includes('🔍') || msg.includes('Loading')) {
+      color = '#9E6A03';
+      icon = '🔍';
+    }
+
+    html += `<div style="color:${color}; margin-top:4px;">${icon} ${escapeHtml(msg)}</div>`;
+  });
+
+  els.topicProgressMessages.innerHTML = html;
+
+  // Auto-scroll to bottom
+  els.topicProgressContainer.scrollTop = els.topicProgressContainer.scrollHeight;
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 // Handle analysis button clicks (sentiment and free only now)
@@ -264,7 +347,7 @@ async function handleAnalysis(analysisType) {
 
     const data = await response.json();
 
-    // For sentiment analysis, don't check data.status === 'ok' because MCP returns 'completed'
+    // For sentiment/topic analysis, don't check data.status === 'ok' because MCP returns 'completed'
     // Only check HTTP response status
     if (!response.ok) {
       throw new Error(data.message || `HTTP ${response.status}`);
@@ -380,24 +463,108 @@ function displayResults(data, analysisType) {
     }
 
   } else if (analysisType === 'topics') {
-    const topics = data.topics;
-    html = `
-      <div class="dca-result-display">
-        <h4>🏷️ Topic Analysis Results</h4>
-        ${topics.map(topic => `
-          <div class="dca-topic-card">
-            <h5>${topic.topic}</h5>
-            <div class="relevance">
-              Relevance: ${(topic.relevance * 100).toFixed(0)}% •
-              Mentions: ${topic.mentions}
+    // Check if analysis failed
+    if (data.status === 'failed' || data.status === 'error') {
+      html = `
+        <div class="dca-result-display">
+          <h4>❌ Topic Analysis Failed</h4>
+          <p style="color:#F85149; font-size:15px;">
+            <strong>Error:</strong> ${data.message || 'Unknown error occurred'}
+          </p>
+          ${data.error_type ? `<p style="color:#8B949E; font-size:13px;">Error type: ${data.error_type}</p>` : ''}
+        </div>
+      `;
+    }
+    // Check if analysis succeeded
+    else if (data.status === 'completed' && data.analysis) {
+      const analysis = data.analysis || {};
+      const topics = analysis.topics || {};
+      const topicKeys = Object.keys(topics);
+
+      html = `
+        <div class="dca-result-display">
+          <h4>🏷️ Topic Analysis Results</h4>
+
+          <div style="background:#161B22; padding:16px; border-radius:8px; margin-bottom:16px;">
+            <div style="color:#8B949E; font-size:13px; margin-bottom:8px;">
+              <strong>Symbol:</strong> ${data.symbol || 'N/A'} |
+              <strong>Year:</strong> ${data.year || 'N/A'} |
+              <strong>Period:</strong> ${data.period || 'N/A'}
             </div>
-            <div class="phrases">
-              Key phrases: ${topic.key_phrases.join(', ')}
+            <div style="color:#8B949E; font-size:13px;">
+              <strong>Source:</strong> ${data.source || 'N/A'} |
+              <strong>Topics:</strong> ${topicKeys.length}
             </div>
           </div>
-        `).join('')}
-      </div>
-    `;
+
+          ${topicKeys.map(topicKey => {
+            const topic = topics[topicKey];
+            const matches = topic.matches || [];
+            const topScore = topic.top_score || 0;
+
+            return `
+              <div class="dca-topic-card" style="margin-bottom:20px; background:#161B22; padding:16px; border-radius:8px; border-left:4px solid #58A6FF;">
+                <h5 style="color:#58A6FF; margin:0 0 12px 0; font-size:18px;">
+                  ${topicKey.replace(/_/g, ' ').toUpperCase()}
+                </h5>
+
+                <div style="margin-bottom:16px;">
+                  <span style="color:#8B949E; font-size:14px;">
+                    Top Score: <span style="color:#3FB950; font-weight:bold;">${(topScore * 100).toFixed(1)}%</span> |
+                    Matches: <span style="color:#58A6FF; font-weight:bold;">${matches.length}</span>
+                  </span>
+                </div>
+
+                ${topic.summary ? `
+                  <div style="color:#8B949E; font-size:13px; font-style:italic; margin-bottom:16px; padding:12px; background:#0D1117; border-radius:6px;">
+                    ${topic.summary}
+                  </div>
+                ` : ''}
+
+                ${matches.length > 0 ? `
+                  <div style="margin-top:16px;">
+                    <h6 style="color:#C9D1D9; font-size:14px; margin-bottom:12px;">📝 Top Matches:</h6>
+                    <div style="max-height:400px; overflow-y:auto;">
+                      ${matches.map((match, idx) => `
+                        <div style="background:#0D1117; padding:12px; margin-bottom:12px; border-radius:6px; border-left:3px solid ${getScoreColor(match.score)};">
+                          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <span style="color:#58A6FF; font-size:12px; font-weight:bold;">
+                              Match #${idx + 1} | Chunk ${match.chunk_idx || 'N/A'}
+                            </span>
+                            <span style="color:${getScoreColor(match.score)}; font-size:12px; font-weight:bold;">
+                              ${(match.score * 100).toFixed(1)}%
+                            </span>
+                          </div>
+
+                          ${match.matched_phrase ? `
+                            <div style="color:#3FB950; font-size:13px; margin-bottom:8px; padding:8px; background:#1A3421; border-radius:4px;">
+                              <strong>Phrase:</strong> "${match.matched_phrase}"
+                            </div>
+                          ` : ''}
+
+                          <div style="color:#C9D1D9; font-size:13px; line-height:1.6;">
+                            ${match.chunk_text || 'No text available'}
+                          </div>
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    } else {
+      // Unexpected response format
+      html = `
+        <div class="dca-result-display">
+          <h4>⚠️ Unexpected Response</h4>
+          <p style="color:#9E6A03;">Received data but in unexpected format. Status: ${data.status || 'unknown'}</p>
+          <pre style="background:#161B22; padding:12px; border-radius:6px; font-size:12px; overflow-x:auto;">${JSON.stringify(data, null, 2)}</pre>
+        </div>
+      `;
+    }
 
   } else if (analysisType === 'free') {
     const analysis = data.analysis;
@@ -435,6 +602,13 @@ function getToneColor(score) {
   if (score > 0.7) return '#3FB950';
   if (score > 0.4) return '#9E6A03';
   return '#F85149';
+}
+
+// Get color based on match score (for topics)
+function getScoreColor(score) {
+  if (score > 0.6) return '#3FB950';  // Green
+  if (score > 0.4) return '#9E6A03';  // Yellow
+  return '#F85149';  // Red
 }
 
 // Start app
