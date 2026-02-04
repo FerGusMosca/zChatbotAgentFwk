@@ -150,6 +150,13 @@ function closeTopicModal() {
   els.topicModal.classList.add('dca-hidden');
 }
 
+function addProgressMessage(msg) {
+  const html = `<div style="color:#8B949E; margin-top:4px;">${escapeHtml(msg)}</div>`;
+  els.topicProgressMessages.innerHTML += html;
+  els.topicProgressContainer.scrollTop = els.topicProgressContainer.scrollHeight;
+}
+
+// Handle topic analysis from modal
 // Handle topic analysis from modal
 async function handleTopicAnalysis() {
   const tagName = els.tagNameInput.value.trim();
@@ -170,9 +177,9 @@ async function handleTopicAnalysis() {
   const btn = els.submitTopics;
   btn.classList.add('loading');
 
-  // Show progress container
   els.topicProgressContainer.classList.remove('dca-hidden');
-  els.topicProgressMessages.innerHTML = '<div style="color:#58A6FF;">🚀 Starting analysis...</div>';
+  els.topicProgressMessages.innerHTML =
+    '<div style="color:#58A6FF;">🚀 Starting analysis...</div>';
 
   try {
     const symbol = els.symbolInput.value.trim().toUpperCase();
@@ -181,15 +188,12 @@ async function handleTopicAnalysis() {
     const quarter = els.quarterSelect.value || null;
     const freeText = els.freeTextArea.value || null;
 
-    // Parse topics (one per line)
-    const topicList = topicsText.split('\n')
+    const topicList = topicsText
+      .split('\n')
       .map(t => t.trim())
-      .filter(t => t);
+      .filter(Boolean);
 
-    // Build tag JSON: { "tag_name": ["phrase1", "phrase2", ...] }
-    const tagJson = JSON.stringify({
-      [tagName]: topicList
-    });
+    const tagJson = JSON.stringify({ [tagName]: topicList });
 
     const formData = new FormData();
     formData.append('symbol', symbol);
@@ -205,33 +209,49 @@ async function handleTopicAnalysis() {
       body: formData
     });
 
-    const data = await response.json();
-
-    // Display progress messages if available
-    if (data.progress_messages && data.progress_messages.length > 0) {
-      displayProgressMessages(data.progress_messages);
-    }
-
-    // Don't check data.status === 'ok' because MCP returns 'completed'
     if (!response.ok) {
-      throw new Error(data.message || `HTTP ${response.status}`);
+      throw new Error(`HTTP ${response.status}`);
     }
 
-    // Wait a bit to show final progress
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalData = null;
 
-    // Close modal
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split('\n\n');
+      buffer = events.pop();
+
+      for (const event of events) {
+        if (!event.startsWith('data: ')) continue;
+
+        const json = JSON.parse(event.slice(6));
+
+        if (json.type === 'progress') {
+          addProgressMessage(json.message);
+        } else if (json.type === 'result') {
+          finalData = json.data;
+        } else if (json.type === 'error') {
+          throw new Error(json.message);
+        }
+      }
+    }
+
+    if (!finalData) {
+      throw new Error('No result data received from server');
+    }
+
     closeTopicModal();
-
-    // Display results
-    displayResults(data, 'topics');
+    displayResults(finalData, 'topics');
 
   } catch (err) {
     console.error('Topic analysis failed:', err);
-
-    // Show error in progress
-    els.topicProgressMessages.innerHTML += `<div style="color:#F85149;">❌ Error: ${err.message}</div>`;
-
+    els.topicProgressMessages.innerHTML +=
+      `<div style="color:#F85149;">❌ Error: ${err.message}</div>`;
     alert(`Analysis error: ${err.message}`);
   } finally {
     btn.classList.remove('loading');
@@ -542,8 +562,8 @@ function displayResults(data, analysisType) {
                             </div>
                           ` : ''}
 
-                          <div style="color:#C9D1D9; font-size:13px; line-height:1.6;">
-                            ${match.chunk_text || 'No text available'}
+                          <div style="color:#C9D1D9; font-size:13px; line-height:1.6; text-decoration:none;">
+                            ${(match.chunk_text || 'No text available').replace(/<[^>]*>/g, '')}
                           </div>
                         </div>
                       `).join('')}

@@ -388,3 +388,47 @@
     padding: 1.5rem;
   }
 }
+
+/* Custom scrollbars for textareas and progress */
+.dca-scrollable::-webkit-scrollbar,
+.dca-progress-box::-webkit-scrollbar {
+  width: 10px;
+}
+
+.dca-scrollable::-webkit-scrollbar-track,
+.dca-progress-box::-webkit-scrollbar-track {
+  background: #161B22;
+  border-radius: 5px;
+}
+
+.dca-scrollable::-webkit-scrollbar-thumb,
+.dca-progress-box::-webkit-scrollbar-thumb {
+  background: #30363D;
+  border-radius: 5px;
+  border: 2px solid #161B22;
+}
+
+.dca-scrollable::-webkit-scrollbar-thumb:hover,
+.dca-progress-box::-webkit-scrollbar-thumb:hover {
+  background: #58A6FF;
+}
+
+/* Progress box styling */
+.dca-progress-box {
+  margin-top: 16px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: #0D1117;
+  border: 1px solid #30363D;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.dca-progress-content {
+  font-family: monospace;
+  font-size: 12px;
+  color: #8B949E;
+  line-height: 1.6;
+}
+
+.dca-chunk-text, .dca-chunk-text * { color:#C9D1D9 !important; }

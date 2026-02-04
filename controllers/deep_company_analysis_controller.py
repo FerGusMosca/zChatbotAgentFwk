@@ -2,6 +2,7 @@
 import asyncio
 import json
 import os.path
+import time
 from typing import Optional
 
 import websockets
@@ -187,7 +188,8 @@ class DeepCompanyAnalysisController:
                     final_result = None
                     while True:
                         try:
-                            msg = await asyncio.wait_for(ws.recv(), timeout=120.0)
+                            msg = await ws.recv()
+
                             msg_data = json.loads(msg)
 
                             # Check if it's a progress message with completion event
@@ -204,7 +206,8 @@ class DeepCompanyAnalysisController:
                                     # Not a JSON message, continue
                                     pass
                         except asyncio.TimeoutError:
-                            break
+                            #yield f"data: {json.dumps({'type': 'keepalive'})}\n\n"
+                            continue
 
                 # Return the final result
                 if final_result:
@@ -239,141 +242,165 @@ class DeepCompanyAnalysisController:
         ):
             """
             Extract and analyze topics from document via MCP service
+            Streams progress messages in real-time using Server-Sent Events
             """
-            try:
-                import websockets
+            import websockets
+            from fastapi.responses import StreamingResponse
+            import asyncio
 
-                # Validate and parse inputs
-                symbol_upper = symbol.upper().strip()
-                year_str = year.strip()
-                tag_name_clean = tag_name.strip()
+            async def event_generator():
+                try:
+                    # Validate and parse inputs
+                    symbol_upper = symbol.upper().strip()
+                    year_str = year.strip()
+                    tag_name_clean = tag_name.strip()
 
-                # Validate symbol exists
-                results = self.sec_mgr.search(symbol_upper)
-                if not results:
-                    return JSONResponse({
-                        "status": "error",
-                        "message": f"Symbol {symbol_upper} not found in database"
-                    }, status_code=404)
+                    # Send initial progress
+                    yield f"data: {json.dumps({'type': 'progress', 'message': f'🔍 Validating symbol {symbol_upper}...'})}\n\n"
 
-                # Find exact match
-                security = next((x for x in results if x.symbol.upper() == symbol_upper), results[0])
-                portfolio = DeepCompanyAnalysisController.DEFAULT_REMOTE_PORTF
+                    # Validate symbol exists
+                    results = self.sec_mgr.search(symbol_upper)
+                    if not results:
+                        yield f"data: {json.dumps({'type': 'error', 'message': f'Symbol {symbol_upper} not found in database'})}\n\n"
+                        return
 
-                # Determine report name and source based on doc_type
-                proc_doc_type=None
-                if doc_type == DeepCompanyAnalysisController.DOC_TYPE_10K:
-                    report_name = DeepCompanyAnalysisController.SINGLE_SEC_TOPIC_REP
-                    source = f"{portfolio}/K10"
-                    proc_doc_type=DeepCompanyAnalysisController.REF_DOC_TYPE_10_K
-                elif doc_type == DeepCompanyAnalysisController.DOC_TYPE_10Q:
-                    report_name = DeepCompanyAnalysisController.SINGLE_SEC_TOPIC_REP
-                    source = f"{portfolio}/Q10"
-                    proc_doc_type=DeepCompanyAnalysisController.REF_DOC_TYPE_10_K
-                else:
-                    raise ValueError(f"Invalid doc_type: {doc_type}. Must be '10K' or '10Q'")
+                    # Find exact match
+                    security = next((x for x in results if x.symbol.upper() == symbol_upper), results[0])
+                    portfolio = DeepCompanyAnalysisController.DEFAULT_REMOTE_PORTF
 
-                # Build MCP payload
-                payload = {
-                    "jsonrpc": "2.0",
-                    "id": 2,
-                    "method": "tools/call",
-                    "params": {
-                        "name": "run_report",
-                        "arguments": {
-                            "report": report_name,
-                            "symbol": symbol_upper,
-                            "portfolio": portfolio,
-                            "tag_model":DeepCompanyAnalysisController.DEF_TAG_MODEL,
-                            "doc_type":proc_doc_type,
-                            "source": source,
-                            "year": year_str,
-                            "tag_json": tag_json
+                    yield f"data: {json.dumps({'type': 'progress', 'message': f'✅ Symbol validated: {security.symbol}'})}\n\n"
+
+                    # Determine report name and source based on doc_type
+                    if doc_type == DeepCompanyAnalysisController.DOC_TYPE_10K:
+                        report_name =DeepCompanyAnalysisController.SINGLE_SEC_TOPIC_REP
+                        source = f"{portfolio}/K10"
+                        proc_doc_type = DeepCompanyAnalysisController.REF_DOC_TYPE_10_K
+                    elif doc_type == DeepCompanyAnalysisController.DOC_TYPE_10Q:
+                        report_name = DeepCompanyAnalysisController.SINGLE_SEC_TOPIC_REP
+                        source = f"{portfolio}/Q10"
+                        proc_doc_type = DeepCompanyAnalysisController.REF_DOC_TYPE_10_K
+                    else:
+                        yield f"data: {json.dumps({'type': 'error', 'message': f'Invalid doc_type: {doc_type}'})}\n\n"
+                        return
+
+                    yield f"data: {json.dumps({'type': 'progress', 'message': f'📊 Preparing analysis for {source}...'})}\n\n"
+
+                    # Build MCP payload
+                    payload = {
+                        "jsonrpc": "2.0",
+                        "id": 2,
+                        "method": "tools/call",
+                        "params": {
+                            "name": "run_report",
+                            "arguments": {
+                                "report": report_name,
+                                "symbol": symbol_upper,
+                                "portfolio": portfolio,
+                                "tag_model": DeepCompanyAnalysisController.DEF_TAG_MODEL,
+                                "doc_type": proc_doc_type,
+                                "source": source,
+                                "year": year_str,
+                                "tag_json": tag_json,
+                                "tag_dedup": False
+                            }
                         }
                     }
+
+                    # Add quarter if it's a 10Q
+                    if doc_type == DeepCompanyAnalysisController.DOC_TYPE_10Q and quarter:
+                        quarter_num = quarter.replace('Q', '').strip()
+                        payload["params"]["arguments"]["quarter"] = quarter_num
+
+                    yield f"data: {json.dumps({'type': 'progress', 'message': '🚀 Connecting to MCP service...'})}\n\n"
+
+                    # Invoke MCP
+                    async with websockets.connect(settings.reports_mcp_server) as ws:
+                        # First, list tools (handshake)
+                        await ws.send(json.dumps({
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "method": "tools/list",
+                            "params": {}
+                        }))
+                        await asyncio.sleep(0.2)
+
+                        yield f"data: {json.dumps({'type': 'progress', 'message': '✅ Connected to MCP service'})}\n\n"
+
+                        # Then, call the report
+                        await ws.send(json.dumps(payload))
+
+                        # Wait for initial response (job accepted)
+                        response = await ws.recv()
+                        initial_result = json.loads(response)
+
+
+                        # Extract job_id
+                        job_id = None
+                        if "result" in initial_result and "content" in initial_result["result"]:
+                            content = initial_result["result"]["content"][0]
+                            if content.get("type") == "text":
+                                job_data = json.loads(content["text"])
+                                job_id = job_data.get("job_id")
+
+                                yield f"data: {json.dumps({'type': 'progress', 'message': f'📝 Job started: {job_id}'})}\n\n"
+
+                        # Stream ALL progress messages in real-time
+                        final_result = None
+
+                        last_keepalive = time.time()
+
+                        while True:
+                            if time.time() - last_keepalive > 30:
+                                yield f"data: {json.dumps({'type': 'keepalive'})}\n\n"
+                                last_keepalive = time.time()
+
+                            try:
+                                msg = await ws.recv()
+
+                                msg_data = json.loads(msg)
+
+                                # Check if it's a progress message
+                                if msg_data.get("method") == "job/progress":
+                                    message = msg_data.get("params", {}).get("message", "")
+
+                                    # Send progress message to frontend immediately
+                                    yield f"data: {json.dumps({'type': 'progress', 'message': message})}\n\n"
+
+                                    # Try to parse as JSON (completion event)
+                                    try:
+                                        event_data = json.loads(message)
+                                        print(f"[MCP EVENT] {event_data.get('event')} - has result: {bool(event_data.get('result'))}")
+
+                                        if event_data.get("event") == "completed":
+                                            final_result = event_data.get("result")
+                                            break
+                                    except:
+                                        # Not a JSON message, just a progress update
+                                        pass
+                            except asyncio.TimeoutError:
+                                yield f"data: {json.dumps({'type': 'keepalive'})}\n\n"
+                                continue
+
+                    # Send final result
+                    if final_result:
+                        yield f"data: {json.dumps({'type': 'result', 'data': final_result})}\n\n"
+                    else:
+                        yield f"data: {json.dumps({'type': 'error', 'message': 'Analysis completed but no final result received', 'job_id': job_id})}\n\n"
+
+                except ValueError as e:
+                    yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+                except Exception as e:
+                    yield f"data: {json.dumps({'type': 'error', 'message': f'MCP invocation failed: {str(e)}'})}\n\n"
+
+            return StreamingResponse(
+                event_generator(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no"  # Disable nginx buffering
                 }
-
-                # Add quarter if it's a 10Q
-                if doc_type == DeepCompanyAnalysisController.DOC_TYPE_10Q and quarter:
-                    quarter_num = quarter.replace('Q', '').strip()
-                    payload["params"]["arguments"]["quarter"] = quarter_num
-
-                # Invoke MCP
-                async with websockets.connect(settings.reports_mcp_server) as ws:
-                    # First, list tools (handshake)
-                    await ws.send(json.dumps({
-                        "jsonrpc": "2.0",
-                        "id": 1,
-                        "method": "tools/list",
-                        "params": {}
-                    }))
-                    await asyncio.sleep(0.2)
-
-                    # Then, call the report
-                    await ws.send(json.dumps(payload))
-
-                    # Wait for initial response (job accepted)
-                    response = await ws.recv()
-                    initial_result = json.loads(response)
-
-                    # Extract job_id
-                    job_id = None
-                    if "result" in initial_result and "content" in initial_result["result"]:
-                        content = initial_result["result"]["content"][0]
-                        if content.get("type") == "text":
-                            job_data = json.loads(content["text"])
-                            job_id = job_data.get("job_id")
-
-                    # Collect ALL progress messages and final result
-                    progress_messages = []
-                    final_result = None
-
-                    while True:
-                        try:
-                            msg = await asyncio.wait_for(ws.recv(), timeout=180.0)
-                            msg_data = json.loads(msg)
-
-                            # Check if it's a progress message
-                            if msg_data.get("method") == "job/progress":
-                                message = msg_data.get("params", {}).get("message", "")
-
-                                # Store progress message
-                                progress_messages.append(message)
-
-                                # Try to parse as JSON (completion event)
-                                try:
-                                    event_data = json.loads(message)
-                                    if event_data.get("event") == "completed":
-                                        final_result = event_data.get("result")
-                                        break
-                                except:
-                                    # Not a JSON message, just a progress update
-                                    pass
-                        except asyncio.TimeoutError:
-                            break
-
-                # Return the final result with progress messages
-                if final_result:
-                    final_result["progress_messages"] = progress_messages
-                    return JSONResponse(final_result)
-                else:
-                    return JSONResponse({
-                        "status": "error",
-                        "message": "Analysis completed but no final result received",
-                        "job_id": job_id,
-                        "progress_messages": progress_messages
-                    })
-
-            except ValueError as e:
-                return JSONResponse(
-                    {"status": "error", "message": str(e)},
-                    status_code=400
-                )
-            except Exception as e:
-                return JSONResponse(
-                    {"status": "error", "message": f"MCP invocation failed: {str(e)}"},
-                    status_code=500
-                )
+            )
 
         @self.router.post("/free_analysis")
         async def free_analysis(

@@ -115,14 +115,14 @@
           </label>
           <textarea
             id="topicsInput"
-            class="dca-textarea"
+            class="dca-textarea dca-scrollable"
             placeholder="commercial AI product launch&#10;artificial intelligence embedded in products&#10;AI-powered features released to customers&#10;machine learning models integrated into products&#10;AI-based products offered to customers"
             rows="10"
           ></textarea>
 
           <!-- Progress Messages Display -->
-          <div id="topicProgressContainer" class="dca-hidden" style="margin-top:16px; max-height:200px; overflow-y:auto; background:#0D1117; border:1px solid #30363D; border-radius:8px; padding:12px;">
-            <div id="topicProgressMessages" style="font-family:monospace; font-size:12px; color:#8B949E; line-height:1.6;"></div>
+          <div id="topicProgressContainer" class="dca-hidden dca-progress-box">
+            <div id="topicProgressMessages" class="dca-progress-content"></div>
           </div>
 
           <button id="submitTopics" class="dca-action-btn" style="margin-top:16px; width:100%;">
