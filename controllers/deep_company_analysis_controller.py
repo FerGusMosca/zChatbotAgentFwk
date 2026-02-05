@@ -230,13 +230,26 @@ class DeepCompanyAnalysisController:
                     status_code=500
                 )
 
+        def _normalize_topics(tag_name: str, topic_list: str) -> dict[str, list[str]]:
+            cleaned = [
+                line.replace('\\"', '')
+                .replace('"', '')
+                .replace("'", '')
+                .rstrip(',')
+                .strip()
+                for line in topic_list.splitlines()
+                if line.strip()
+            ]
+
+            return {tag_name: cleaned}
+
         @self.router.post("/analyze_topics")
         async def analyze_topics(
                 symbol: str = Form(...),
                 doc_type: str = Form(...),
                 year: str = Form(...),
                 tag_name: str = Form(...),
-                tag_json: str = Form(...),
+                topic_list: str = Form(...),
                 quarter: str = Form(None),
                 free_text: str = Form(None)
         ):
@@ -254,6 +267,7 @@ class DeepCompanyAnalysisController:
                     symbol_upper = symbol.upper().strip()
                     year_str = year.strip()
                     tag_name_clean = tag_name.strip()
+                    tag_json_clean = json.dumps(_normalize_topics(tag_name_clean, topic_list))
 
                     # Send initial progress
                     yield f"data: {json.dumps({'type': 'progress', 'message': f'🔍 Validating symbol {symbol_upper}...'})}\n\n"
@@ -300,7 +314,7 @@ class DeepCompanyAnalysisController:
                                 "doc_type": proc_doc_type,
                                 "source": source,
                                 "year": year_str,
-                                "tag_json": tag_json,
+                                "tag_json": tag_json_clean,
                                 "tag_dedup": False
                             }
                         }

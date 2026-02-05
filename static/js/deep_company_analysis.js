@@ -188,19 +188,12 @@ async function handleTopicAnalysis() {
     const quarter = els.quarterSelect.value || null;
     const freeText = els.freeTextArea.value || null;
 
-    const topicList = topicsText
-      .split('\n')
-      .map(t => t.trim())
-      .filter(Boolean);
-
-    const tagJson = JSON.stringify({ [tagName]: topicList });
-
     const formData = new FormData();
     formData.append('symbol', symbol);
     formData.append('doc_type', docType);
     formData.append('year', year);
     formData.append('tag_name', tagName);
-    formData.append('tag_json', tagJson);
+    formData.append('topic_list', topicsText);
     if (quarter) formData.append('quarter', quarter);
     if (freeText) formData.append('free_text', freeText);
 
