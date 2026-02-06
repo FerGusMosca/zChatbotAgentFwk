@@ -17,6 +17,11 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("DYNAMIC_QUERY_RANKING_URL", "DYNAMIC_QUERY_RANKING_URL"))
 
+
+    standard_llm_query_bot: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("STANDARD_LLM_QUERY_BOT_URL", "STANDARD_LLM_QUERY_BOT_URL"))
+
     management_sentiment_url: str | None = Field(
         default=None,
         validation_alias=AliasChoices("MANAGEMENT_SENTIMENT_URL", "MANAGEMENT_SENTIMENT_URL"))

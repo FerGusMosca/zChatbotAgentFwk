@@ -6,6 +6,13 @@
   <title>Deep Company Analysis</title>
   <link rel="stylesheet" href="/static/css/main.css">
   <link rel="stylesheet" href="/static/css/deep_company_analysis.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 </head>
 <body>
 
@@ -25,9 +32,7 @@
     <form id="analysisForm">
       <table class="dca-controls-table">
         <tr>
-          <td>
-            <input type="text" name="symbol" id="symbolInput" placeholder="Symbol (e.g., AAPL)" required>
-          </td>
+          <td><input type="text" name="symbol" id="symbolInput" placeholder="Symbol (e.g., AAPL)" required></td>
           <td>
             <select name="doc_type" id="docTypeSelect" required>
               <option value="" disabled selected>Document Type</option>
@@ -36,9 +41,7 @@
               <option value="FREE_TEXT">Free Text</option>
             </select>
           </td>
-          <td>
-            <input type="text" name="year" id="yearInput" placeholder="Year" required>
-          </td>
+          <td><input type="text" name="year" id="yearInput" placeholder="Year" required></td>
           <td>
             <select name="quarter" id="quarterSelect" class="dca-hidden">
               <option value="" disabled selected>Quarter</option>
@@ -51,39 +54,46 @@
         </tr>
         <tr id="freeTextRow" class="dca-hidden">
           <td colspan="4">
-            <textarea name="free_text" id="freeTextArea" class="dca-textarea" placeholder="Paste your text here (earnings call transcript, press release, etc.)" rows="12"></textarea>
+            <div class="dca-file-upload-container">
+              <input type="file" id="fileUploadInput" accept=".txt,.pdf,.doc,.docx" class="dca-file-input" style="display: none;">
+              <button type="button" id="uploadFileBtn" class="dca-upload-btn">📄 Upload Document</button>
+              <span id="uploadedFileName" class="dca-file-name"></span>
+              <button type="button" id="clearFileBtn" class="dca-clear-btn dca-hidden">✕ Clear</button>
+            </div>
+            <textarea name="free_text" id="freeTextArea" class="dca-textarea" placeholder="Paste your text here OR upload a document above" rows="12"></textarea>
           </td>
         </tr>
       </table>
     </form>
 
-    <!-- Action Buttons -->
     <div class="dca-button-container">
       <button type="button" id="sentimentBtn" class="dca-action-btn">
         <span class="btn-text">📊 Analyze Sentiment</span>
         <div class="spinner"></div>
       </button>
-
       <button type="button" id="topicsBtn" class="dca-action-btn">
         <span class="btn-text">🏷️ Analyze Topics</span>
         <div class="spinner"></div>
       </button>
-
       <button type="button" id="freeAnalysisBtn" class="dca-action-btn dca-hidden">
         <span class="btn-text">🤖 Free Analysis</span>
         <div class="spinner"></div>
       </button>
     </div>
 
-    <!-- Free Analysis Prompt (only visible when FREE_TEXT selected) -->
     <div id="freeAnalysisPromptSection" class="dca-hidden">
       <div class="dca-prompt-section">
-        <label for="freeAnalysisPrompt">Custom Analysis Prompt:</label>
-        <textarea id="freeAnalysisPrompt" class="dca-textarea" placeholder="Enter your custom prompt for LLM analysis (e.g., 'Extract all mentions of AI initiatives and their expected impact')" rows="4"></textarea>
+        <label for="promptSelector" style="display: block; margin-bottom: 8px; color: #58A6FF; font-weight: 500;">
+          Custom Analysis Prompt:
+        </label>
+        <select id="promptSelector" class="dca-prompt-selector">
+          <option value="">-- Select a predefined prompt --</option>
+          <option value="standard_earnings">Standard Earnings Transcript Analysis</option>
+        </select>
+        <textarea id="freeAnalysisPrompt" class="dca-textarea" placeholder="Enter your custom prompt OR select a predefined prompt above" rows="6"></textarea>
       </div>
     </div>
 
-    <!-- Result message -->
     <div id="resultMessage" class="dca-result"></div>
 
     <!-- Topic Input Modal -->
@@ -95,40 +105,32 @@
         </div>
         <div class="dca-modal-body">
           <p style="color:#8B949E; margin-bottom:16px;">
-            Enter a tag name and the topic phrases you want to extract from the document.
+            Enter a tag name and topics you want to extract from the document.
           </p>
+          <input type="text" id="tagNameInput" class="dca-controls-table" style="width:100%; padding:12px; margin-bottom:12px; background:#21262D; border:1px solid #30363D; border-radius:8px; color:#E6EDF3;" placeholder="Tag name (e.g., ai_innovation)">
+          <textarea id="topicsInput" class="dca-textarea" placeholder="Enter topics, one per line:&#10;AI Implementation&#10;Cost Management&#10;Pricing Power&#10;Market Competition&#10;Regulatory Risk" rows="10"></textarea>
 
-          <!-- Tag Name Input -->
-          <label for="tagNameInput" style="display:block; color:#58A6FF; font-weight:600; font-size:14px; margin-bottom:8px;">
-            Tag Name (e.g., ai_innovation):
-          </label>
-          <input
-            type="text"
-            id="tagNameInput"
-            placeholder="ai_innovation"
-            style="width:100%; padding:12px; background:#21262D; border:1px solid #30363D; border-radius:8px; color:#E6EDF3; font-size:14px; margin-bottom:20px; box-sizing:border-box;"
-          />
-
-          <!-- Topics Input -->
-          <label for="topicsInput" style="display:block; color:#58A6FF; font-weight:600; font-size:14px; margin-bottom:8px;">
-            Topic Phrases (one per line):
-          </label>
-          <textarea
-            id="topicsInput"
-            class="dca-textarea dca-scrollable"
-            placeholder="commercial AI product launch&#10;artificial intelligence embedded in products&#10;AI-powered features released to customers&#10;machine learning models integrated into products&#10;AI-based products offered to customers"
-            rows="10"
-          ></textarea>
-
-          <!-- Progress Messages Display -->
-          <div id="topicProgressContainer" class="dca-hidden dca-progress-box">
-            <div id="topicProgressMessages" class="dca-progress-content"></div>
+          <div id="topicProgressContainer" class="dca-hidden" style="background:#0D1117; padding:12px; border-radius:6px; margin-top:12px; max-height:200px; overflow-y:auto;">
+            <div id="topicProgressMessages"></div>
           </div>
 
           <button id="submitTopics" class="dca-action-btn" style="margin-top:16px; width:100%;">
             <span class="btn-text">Run Topic Analysis</span>
             <div class="spinner"></div>
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Modal -->
+    <div id="resultsModal" class="dca-modal dca-hidden">
+      <div class="dca-modal-content dca-modal-large">
+        <div class="dca-modal-header">
+          <h3 id="resultsModalTitle">📊 Analysis Results</h3>
+          <button id="closeResultsModal" class="dca-modal-close">×</button>
+        </div>
+        <div class="dca-modal-body">
+          <div id="resultsModalContent"></div>
         </div>
       </div>
     </div>

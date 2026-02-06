@@ -422,25 +422,52 @@ class DeepCompanyAnalysisController:
                 free_text: str = Form(...),
                 prompt: str = Form(...)
         ):
-            """
-            Custom LLM-based analysis with user-provided prompt
-            TODO: Implement actual LLM call
-            """
             try:
-                # Placeholder response
-                result = {
-                    "status": "ok",
-                    "symbol": symbol.upper(),
-                    "prompt": prompt,
-                    "analysis": {
-                        "response": "Placeholder analysis response",
-                        "extracted_concepts": ["Concept 1", "Concept 2"]
-                    },
-                    "message": "Free analysis completed (placeholder)"
+                payload = {
+                    "query": free_text,
+                    "prompt": prompt
                 }
-                return JSONResponse(result)
+
+                payload_str = json.dumps(payload)
+                uri = settings.standard_llm_query_bot
+
+                print(f"[free_analysis] Invoking LLM bot at {uri}")
+
+                # TIMEOUT FIX - Disable pings, increase timeout
+                async with websockets.connect(
+                        uri,
+                        ping_interval=None,  # Disable keepalive pings
+                        close_timeout=600  # 10 minutes timeout
+                ) as ws:
+                    await ws.send(payload_str)
+
+                    # Wait with long timeout
+                    response = await asyncio.wait_for(
+                        ws.recv(),
+                        timeout=600  # 10 minutes
+                    )
+
+                return JSONResponse({
+                    "status": "completed",
+                    "symbol": symbol.upper(),
+                    "analysis": {
+                        "response": response
+                    }
+                })
+
+            except asyncio.TimeoutError:
+                return JSONResponse(
+                    {
+                        "status": "error",
+                        "message": "LLM response took too long (>10 minutes)"
+                    },
+                    status_code=504
+                )
             except Exception as e:
                 return JSONResponse(
-                    {"status": "error", "message": str(e)},
-                    status_code=400
+                    {
+                        "status": "error",
+                        "message": str(e)
+                    },
+                    status_code=500
                 )
