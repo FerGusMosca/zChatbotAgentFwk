@@ -1,8 +1,8 @@
-// deep_company_analysis.js - CÓDIGO ORIGINAL COMPLETO + POPUP
+// deep_company_analysis.js - CÓDIGO ORIGINAL + POPUP + VALIDACIÓN ARREGLADA
 
 const BASE_URL = '/deep_company_analysis';
 
-// DOM elements (COMPLETO CON TODOS LOS ELEMENTOS)
+// DOM elements
 const els = {
   form: document.getElementById('analysisForm'),
   symbolInput: document.getElementById('symbolInput'),
@@ -38,6 +38,7 @@ const els = {
 // State
 let currentSymbol = null;
 let symbolValidated = false;
+let validationDebounceTimer = null;
 
 // Initialize
 function init() {
@@ -45,12 +46,24 @@ function init() {
   setupFileUploadListeners();
   setupPromptSelectorListener();
   setupResultsModalListeners();
+  setAnalysisButtonsEnabled(false); // Deshabilitar al inicio
+}
+
+// NUEVO: Centralizar habilitación de botones
+function setAnalysisButtonsEnabled(enabled) {
+  els.sentimentBtn.disabled = !enabled;
+  els.topicsBtn.disabled = !enabled;
+  els.freeAnalysisBtn.disabled = !enabled;
 }
 
 // Setup event listeners
 function setupEventListeners() {
   els.docTypeSelect.addEventListener('change', handleDocTypeChange);
+
+  // CAMBIADO: Validar en input (con debounce) Y en blur
+  els.symbolInput.addEventListener('input', handleSymbolInput);
   els.symbolInput.addEventListener('blur', validateSymbol);
+
   els.sentimentBtn.addEventListener('click', () => handleAnalysis('sentiment'));
   els.topicsBtn.addEventListener('click', openTopicModal);
   els.freeAnalysisBtn.addEventListener('click', () => handleAnalysis('free'));
@@ -59,6 +72,26 @@ function setupEventListeners() {
     if (e.target === els.topicModal) closeTopicModal();
   });
   els.submitTopics.addEventListener('click', handleTopicAnalysis);
+}
+
+// NUEVO: Debounce para validación en input
+function handleSymbolInput() {
+  clearTimeout(validationDebounceTimer);
+
+  const symbol = els.symbolInput.value.trim();
+
+  if (!symbol) {
+    symbolValidated = false;
+    currentSymbol = null;
+    setAnalysisButtonsEnabled(false);
+    showResult('', 'info'); // Limpiar mensaje
+    return;
+  }
+
+  // Debounce 500ms
+  validationDebounceTimer = setTimeout(() => {
+    validateSymbol();
+  }, 500);
 }
 
 function setupResultsModalListeners() {
@@ -102,15 +135,15 @@ async function handleFileUpload(event) {
     } else if (fileType === 'doc' || fileType === 'docx') {
       extractedText = await extractTextFromWord(file);
     } else {
-      showResult('Unsupported file type. Please use .txt, .pdf, .doc, or .docx', 'error');
+      showResult('Unsupported file type. Please use .txt, .pdf, .doc, or .docx', 'error', false);
       clearUploadedFile();
       return;
     }
     els.freeTextArea.value = extractedText;
-    showResult(`✓ Text extracted from ${file.name} (${extractedText.length.toLocaleString()} characters)`, 'success');
+    showResult(`✓ Text extracted from ${file.name} (${extractedText.length.toLocaleString()} characters)`, 'info', true);
   } catch (error) {
     console.error('Error extracting text from file:', error);
-    showResult(`Error extracting text: ${error.message}`, 'error');
+    showResult(`Error extracting text: ${error.message}`, 'error', false);
     clearUploadedFile();
   }
 }
@@ -120,7 +153,6 @@ function clearUploadedFile() {
   els.uploadedFileName.textContent = '';
   els.clearFileBtn.classList.add('dca-hidden');
   els.freeTextArea.value = '';
-  showResult('File cleared', 'info');
 }
 
 function readTextFile(file) {
@@ -171,7 +203,7 @@ async function handlePromptSelection() {
     };
     const promptFile = promptFiles[selectedPrompt];
     if (!promptFile) {
-      showResult('Prompt file not found', 'error');
+      showResult('Prompt file not found', 'error', false);
       return;
     }
     const response = await fetch(promptFile);
@@ -180,10 +212,10 @@ async function handlePromptSelection() {
     }
     const promptText = await response.text();
     els.freeAnalysisPrompt.value = promptText;
-    showResult(`✓ Loaded prompt: ${els.promptSelector.options[els.promptSelector.selectedIndex].text}`, 'success');
+    showResult(`✓ Loaded prompt: ${els.promptSelector.options[els.promptSelector.selectedIndex].text}`, 'info', true);
   } catch (error) {
     console.error('Error loading prompt:', error);
-    showResult(`Error loading prompt: ${error.message}`, 'error');
+    showResult(`Error loading prompt: ${error.message}`, 'error', false);
   }
 }
 
@@ -212,34 +244,45 @@ function handleDocTypeChange() {
   }
 }
 
-// Validate symbol against backend
+// CAMBIADO: Validación mejorada
 async function validateSymbol() {
   const symbol = els.symbolInput.value.trim().toUpperCase();
+
   if (!symbol) {
     symbolValidated = false;
+    currentSymbol = null;
+    setAnalysisButtonsEnabled(false);
     return;
   }
+
   try {
     const formData = new FormData();
     formData.append('symbol', symbol);
+
     const response = await fetch(`${BASE_URL}/validate_symbol`, {
       method: 'POST',
       body: formData
     });
+
     const data = await response.json();
+
     if (data.status === 'ok' && data.valid) {
       currentSymbol = data.symbol;
       symbolValidated = true;
-      showResult(`✓ Symbol ${data.symbol} validated`, 'success');
+      setAnalysisButtonsEnabled(true); // Habilitar botones
+      showResult(`✓ Symbol ${data.symbol} validated: ${data.name}`, 'success', false); // NO auto-hide
     } else {
       symbolValidated = false;
-      showResult(`✗ Symbol ${symbol} not found in database`, 'error');
-      els.symbolInput.focus();
+      currentSymbol = null;
+      setAnalysisButtonsEnabled(false); // Deshabilitar botones
+      showResult(`✗ Symbol ${symbol} not found in database`, 'error', false); // NO auto-hide
     }
   } catch (err) {
     console.error('Symbol validation failed:', err);
-    showResult(`Error validating symbol: ${err.message}`, 'error');
     symbolValidated = false;
+    currentSymbol = null;
+    setAnalysisButtonsEnabled(false);
+    showResult(`Error validating symbol: ${err.message}`, 'error', false);
   }
 }
 
@@ -250,7 +293,7 @@ function openTopicModal() {
     return;
   }
   if (!symbolValidated) {
-    showResult('Please enter a valid symbol first', 'error');
+    showResult('Please enter a valid symbol first', 'error', true);
     els.symbolInput.focus();
     return;
   }
@@ -288,6 +331,7 @@ async function handleTopicAnalysis() {
   }
   const btn = els.submitTopics;
   btn.classList.add('loading');
+  btn.disabled = true; // AGREGADO
   els.topicProgressContainer.classList.remove('dca-hidden');
   els.topicProgressMessages.innerHTML =
     '<div style="color:#58A6FF;">🚀 Starting analysis...</div>';
@@ -346,6 +390,7 @@ async function handleTopicAnalysis() {
     alert(`Analysis error: ${err.message}`);
   } finally {
     btn.classList.remove('loading');
+    btn.disabled = false; // AGREGADO
   }
 }
 
@@ -363,7 +408,7 @@ async function handleAnalysis(analysisType) {
     return;
   }
   if (!symbolValidated) {
-    showResult('Please enter a valid symbol first', 'error');
+    showResult('Please enter a valid symbol first', 'error', true);
     els.symbolInput.focus();
     return;
   }
@@ -374,12 +419,12 @@ async function handleAnalysis(analysisType) {
   const freeText = els.freeTextArea.value || null;
   if (analysisType === 'free') {
     if (docType !== 'FREE_TEXT') {
-      showResult('Free Analysis is only available for Free Text documents', 'error');
+      showResult('Free Analysis is only available for Free Text documents', 'error', true);
       return;
     }
     const prompt = els.freeAnalysisPrompt.value.trim();
     if (!prompt) {
-      showResult('Please enter a custom prompt for Free Analysis', 'error');
+      showResult('Please enter a custom prompt for Free Analysis', 'error', true);
       els.freeAnalysisPrompt.focus();
       return;
     }
@@ -387,8 +432,10 @@ async function handleAnalysis(analysisType) {
   let btn;
   if (analysisType === 'sentiment') btn = els.sentimentBtn;
   else if (analysisType === 'free') btn = els.freeAnalysisBtn;
+
   btn.classList.add('loading');
-  els.resultMessage.classList.remove('dca-visible');
+  btn.disabled = true; // AGREGADO
+
   try {
     let endpoint;
     const formData = new FormData();
@@ -414,9 +461,10 @@ async function handleAnalysis(analysisType) {
     displayResults(data, analysisType);
   } catch (err) {
     console.error('Analysis failed:', err);
-    showResult(`Analysis error: ${err.message}`, 'error');
+    showResult(`Analysis error: ${err.message}`, 'error', true);
   } finally {
     btn.classList.remove('loading');
+    btn.disabled = false; // AGREGADO
   }
 }
 
@@ -635,11 +683,16 @@ function displayResults(data, analysisType) {
   else if (analysisType === 'free') title = '🤖 Free Analysis';
 
   showResultsModal(title, html);
-  showResult(`✓ ${analysisType} analysis completed successfully`, 'success');
+  showResult(`✓ Analysis completed successfully`, 'success', true);
 }
 
-// Show result message
-function showResult(message, type = 'info') {
+// CAMBIADO: Control de auto-hide
+function showResult(message, type = 'info', autoHide = true) {
+  if (!message) {
+    els.resultMessage.style.display = 'none';
+    return;
+  }
+
   const colors = {
     success: '#238636',
     error: '#DA3633',
@@ -652,10 +705,13 @@ function showResult(message, type = 'info') {
     info: 'ℹ',
     warning: '⚠'
   };
+
   els.resultMessage.style.color = colors[type] || colors.info;
   els.resultMessage.textContent = `${icons[type] || ''} ${message}`;
   els.resultMessage.style.display = 'block';
-  if (type === 'info' || type === 'success') {
+
+  // SOLO auto-hide si autoHide=true Y es info/success
+  if (autoHide && (type === 'info' || type === 'success')) {
     setTimeout(() => {
       if (els.resultMessage.textContent.includes(message)) {
         els.resultMessage.style.display = 'none';

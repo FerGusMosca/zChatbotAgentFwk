@@ -156,7 +156,7 @@ class DeepCompanyAnalysisController:
                 if doc_type == DeepCompanyAnalysisController.DOC_TYPE_10Q and quarter:
                     # Extract quarter number (Q1 -> 1)
                     quarter_num = quarter.replace('Q', '').strip()
-                    payload["params"]["arguments"]["quarter"] = quarter_num
+                    payload["params"]["arguments"]["quarter"] = int(quarter_num)
 
                 # Invoke MCP
                 async with websockets.connect(settings.reports_mcp_server) as ws:
