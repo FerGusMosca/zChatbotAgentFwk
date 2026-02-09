@@ -8,6 +8,7 @@ from common.config.settings import get_settings
 from controllers.calendar_controller import CalendarController
 from controllers.deep_company_analysis_controller import DeepCompanyAnalysisController
 from controllers.document_tag_indexer_controller import DocumentTagIndexerController
+from controllers.fund_security_ownership_controller import FundSecurityOwnershipController
 from controllers.funds_reports_controller import FundsReportsController
 from controllers.management_competition_controller import ManagementCompetitionController
 from controllers.management_news_indexed_controller import NewsIndexedController
@@ -83,6 +84,9 @@ app.include_router(doc_tag_indexer.router)
 
 deep_company_analysis= DeepCompanyAnalysisController()
 app.include_router(deep_company_analysis.router)
+
+fund_security_ownership= FundSecurityOwnershipController()
+app.include_router(fund_security_ownership.router)
 
 # Chat
 app.include_router(chat_router)

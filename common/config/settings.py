@@ -116,7 +116,17 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("RESEARCH_CONNECTION_STRING", "RESEARCH_CONNECTION_STRING"))
 
 
-    #
+    #Neo4j
+    neo4j_uri: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("NEO4J_URI", "NEO4J_URI"))
+    neo4j_user: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("NEO4J_USER", "NEO4J_USER"))
+    neo4j_pwd: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("NEO4J_PASS", "NEO4J_PASS"))
+
 
 @lru_cache
 def get_settings() -> Settings:
