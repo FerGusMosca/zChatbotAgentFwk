@@ -7,10 +7,9 @@ DTO for Manager Holdings - Anemic class for display purposes
 from dataclasses import dataclass
 from typing import Optional
 
-
 @dataclass
-class AssetDTO:
-    """DTO for asset info"""
-    cusip: str
-    name: str
-    ticker: Optional[str]
+class AssetStatsDTO:
+    """DTO for asset aggregated stats"""
+    total_owners: int
+    total_weight: float
+    crowd_score: float

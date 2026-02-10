@@ -11,5 +11,4 @@ from typing import Optional
 @dataclass
 class ManagerDTO:
     """DTO for manager info"""
-    cik: str
     name: str

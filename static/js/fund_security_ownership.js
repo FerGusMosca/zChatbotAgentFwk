@@ -254,23 +254,21 @@ async function searchAssets(query) {
 
     if (data.status === 'ok' && data.assets.length > 0) {
       els.assetSuggestions.innerHTML = data.assets.map(a => `
-        <div class="fso-suggestion-item" data-cusip="${a.cusip}" data-name="${escapeHtml(a.name)}" data-ticker="${a.ticker || ''}">
-          <span class="ticker">${a.ticker || 'N/A'}</span>
+        <div class="fso-suggestion-item" data-cusip="${a.cusip}" data-name="${escapeHtml(a.name)}">
+          <span class="ticker">${a.cusip}</span>
           <span class="name">${escapeHtml(a.name)}</span>
         </div>
       `).join('');
 
-      // Add click handlers
       els.assetSuggestions.querySelectorAll('.fso-suggestion-item').forEach(item => {
         item.addEventListener('click', () => {
           selectedAssetData = {
             cusip: item.dataset.cusip,
-            name: item.dataset.name,
-            ticker: item.dataset.ticker
+            name: item.dataset.name
           };
-          els.ownershipAsset.value = item.dataset.ticker || item.dataset.cusip;
+          els.ownershipAsset.value = item.dataset.name;
           els.assetSuggestions.classList.remove('active');
-          els.selectedAsset.textContent = `Selected: ${item.dataset.ticker || ''} - ${item.dataset.name}`;
+          els.selectedAsset.textContent = `Selected: ${item.dataset.cusip} - ${item.dataset.name}`;
           els.selectedAsset.classList.add('active');
         });
       });
@@ -573,29 +571,21 @@ function displayPortfolioResults(data) {
   els.exportContainer.classList.remove('fso-hidden');
 }
 
-// Display ownership results
+// Display ownership results - Uses 'name' field from AssetOwnerDTO
 function displayOwnershipResults(data) {
-  els.resultsTitle.textContent = `🏛️ Institutional Owners - ${data.selected_asset?.ticker || data.selected_asset?.cusip || 'Unknown'}`;
+  els.resultsTitle.textContent = `🏛️ Institutional Owners - ${data.selected_asset?.name || 'Unknown'}`;
 
-  // Build header
   els.tableHead.innerHTML = `
     <tr>
-      <th>Manager Name</th>
-      <th>CIK</th>
+      <th>Manager</th>
       <th class="numeric">Weight</th>
-      <th class="numeric">Shares</th>
-      <th class="numeric">Value ($)</th>
     </tr>
   `;
 
-  // Build body
   els.tableBody.innerHTML = data.data.map(row => `
     <tr>
       <td>${escapeHtml(row.name || 'Unknown')}</td>
-      <td>${row.cik}</td>
       <td class="numeric weight">${formatScientific(row.weight)}</td>
-      <td class="numeric">${row.shares ? row.shares.toLocaleString() : 'N/A'}</td>
-      <td class="numeric">${row.value ? formatCurrency(row.value) : 'N/A'}</td>
     </tr>
   `).join('');
 
@@ -618,10 +608,6 @@ function displayAssetStats(stats) {
     <div class="fso-stat">
       <div class="fso-stat-value">${formatScientific(stats.crowd_score)}</div>
       <div class="fso-stat-label">Crowd Score</div>
-    </div>
-    <div class="fso-stat">
-      <div class="fso-stat-value">${stats.total_value ? formatCurrency(stats.total_value) : 'N/A'}</div>
-      <div class="fso-stat-label">Total Value</div>
     </div>
   `;
   els.assetStats.classList.add('active');
