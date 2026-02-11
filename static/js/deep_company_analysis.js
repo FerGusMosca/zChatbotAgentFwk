@@ -32,7 +32,11 @@ const els = {
   resultsModal: document.getElementById('resultsModal'),
   resultsModalTitle: document.getElementById('resultsModalTitle'),
   resultsModalContent: document.getElementById('resultsModalContent'),
-  closeResultsModal: document.getElementById('closeResultsModal')
+  closeResultsModal: document.getElementById('closeResultsModal'),
+  k8Row: document.getElementById('k8Row'),
+  downloadK8Btn: document.getElementById('downloadK8Btn'),
+  k8Status: document.getElementById('k8Status'),
+  k8TextArea: document.getElementById('k8TextArea'),
 };
 
 // State
@@ -46,7 +50,8 @@ function init() {
   setupFileUploadListeners();
   setupPromptSelectorListener();
   setupResultsModalListeners();
-  setAnalysisButtonsEnabled(false); // Deshabilitar al inicio
+  setAnalysisButtonsEnabled(false);
+  els.downloadK8Btn.addEventListener('click', handleDownloadK8);
 }
 
 // NUEVO: Centralizar habilitación de botones
@@ -199,7 +204,8 @@ async function handlePromptSelection() {
   if (!selectedPrompt) return;
   try {
     const promptFiles = {
-      'standard_earnings': '/static/prompts/standard_earnings_transcripts.txt'
+      'standard_earnings': '/static/prompts/standard_earnings_transcripts.txt',
+      'k8_events_analysis': '/static/prompts/k8_events_analysis.txt'
     };
     const promptFile = promptFiles[selectedPrompt];
     if (!promptFile) {
@@ -222,25 +228,35 @@ async function handlePromptSelection() {
 // Handle document type change
 function handleDocTypeChange() {
   const docType = els.docTypeSelect.value;
+
+  // Hide all optional rows
+  els.freeTextRow.classList.add('dca-hidden');
+  els.k8Row.classList.add('dca-hidden');
+  els.quarterSelect.classList.add('dca-hidden');
+
+  // Hide free analysis section by default
+  els.freeAnalysisBtn.classList.add('dca-hidden');
+  els.freeAnalysisPromptSection.classList.add('dca-hidden');
+
+  // Show standard buttons by default
+  els.sentimentBtn.classList.remove('dca-hidden');
+  els.topicsBtn.classList.remove('dca-hidden');
+
   if (docType === '10Q') {
     els.quarterSelect.classList.remove('dca-hidden');
-    els.quarterSelect.required = true;
-  } else {
-    els.quarterSelect.classList.add('dca-hidden');
-    els.quarterSelect.required = false;
-    els.quarterSelect.value = '';
-  }
-  if (docType === 'FREE_TEXT') {
+  } else if (docType === 'FREE_TEXT') {
     els.freeTextRow.classList.remove('dca-hidden');
-    els.freeTextArea.required = true;
     els.freeAnalysisBtn.classList.remove('dca-hidden');
     els.freeAnalysisPromptSection.classList.remove('dca-hidden');
-  } else {
-    els.freeTextRow.classList.add('dca-hidden');
-    els.freeTextArea.required = false;
-    els.freeTextArea.value = '';
-    els.freeAnalysisBtn.classList.add('dca-hidden');
-    els.freeAnalysisPromptSection.classList.add('dca-hidden');
+    // Hide sentiment/topics for free text
+    els.sentimentBtn.classList.add('dca-hidden');
+    els.topicsBtn.classList.add('dca-hidden');
+  } else if (docType === '8K') {
+    els.k8Row.classList.remove('dca-hidden');
+    els.freeAnalysisBtn.classList.remove('dca-hidden');
+    els.freeAnalysisPromptSection.classList.remove('dca-hidden');
+    els.sentimentBtn.classList.add('dca-hidden');
+    els.topicsBtn.classList.add('dca-hidden');
   }
 }
 
@@ -402,70 +418,105 @@ function escapeHtml(text) {
 }
 
 // Handle analysis button clicks
+/**
+ * Main analysis handler. Designed to be resilient to new document sources.
+ * It automatically selects the correct text source based on the document type
+ * to ensure the backend always receives the required 'free_text' field.
+ */
 async function handleAnalysis(analysisType) {
-  if (!els.form.checkValidity()) {
-    els.form.reportValidity();
-    return;
-  }
-  if (!symbolValidated) {
-    showResult('Please enter a valid symbol first', 'error', true);
-    els.symbolInput.focus();
-    return;
-  }
-  const symbol = els.symbolInput.value.trim().toUpperCase();
-  const docType = els.docTypeSelect.value;
-  const year = els.yearInput.value;
-  const quarter = els.quarterSelect.value || null;
-  const freeText = els.freeTextArea.value || null;
-  if (analysisType === 'free') {
-    if (docType !== 'FREE_TEXT') {
-      showResult('Free Analysis is only available for Free Text documents', 'error', true);
-      return;
+    // 1. INITIAL FORM VALIDATION
+    if (!els.form.checkValidity()) {
+        els.form.reportValidity();
+        return;
     }
-    const prompt = els.freeAnalysisPrompt.value.trim();
-    if (!prompt) {
-      showResult('Please enter a custom prompt for Free Analysis', 'error', true);
-      els.freeAnalysisPrompt.focus();
-      return;
-    }
-  }
-  let btn;
-  if (analysisType === 'sentiment') btn = els.sentimentBtn;
-  else if (analysisType === 'free') btn = els.freeAnalysisBtn;
 
-  btn.classList.add('loading');
-  btn.disabled = true; // AGREGADO
+    if (!symbolValidated) {
+        showResult('Please enter a valid symbol first', 'error', true);
+        els.symbolInput.focus();
+        return;
+    }
 
-  try {
-    let endpoint;
-    const formData = new FormData();
-    formData.append('symbol', symbol);
-    formData.append('doc_type', docType);
-    formData.append('year', year);
-    if (quarter) formData.append('quarter', quarter);
-    if (freeText) formData.append('free_text', freeText);
-    if (analysisType === 'sentiment') {
-      endpoint = `${BASE_URL}/analyze_sentiment`;
-    } else if (analysisType === 'free') {
-      endpoint = `${BASE_URL}/free_analysis`;
-      formData.append('prompt', els.freeAnalysisPrompt.value.trim());
+    // 2. RESILIENT CONTENT EXTRACTION
+    // We determine the "Source of Truth" for the text based on the selected mode.
+    // This prevents sending empty data (Error 422) to the backend.
+    const docType = els.docTypeSelect.value;
+    let textToAnalyze = "";
+
+    if (docType === '8K') {
+        // If 8-K mode, pull from the specific K8 download area
+        textToAnalyze = els.k8TextArea.value.trim();
+    } else {
+        // For FREE_TEXT or any future manual inputs, pull from the main text area
+        textToAnalyze = els.freeTextArea.value.trim();
     }
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      body: formData
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.message || `HTTP ${response.status}`);
+
+    // Guard clause: stop if no text is found to prevent backend schema errors
+    if (!textToAnalyze) {
+        showResult(`No content found to analyze for ${docType}. Please download or paste text.`, 'error', true);
+        return;
     }
-    displayResults(data, analysisType);
-  } catch (err) {
-    console.error('Analysis failed:', err);
-    showResult(`Analysis error: ${err.message}`, 'error', true);
-  } finally {
-    btn.classList.remove('loading');
-    btn.disabled = false; // AGREGADO
-  }
+
+    // 3. UI STATE & BUTTON SETUP
+    let btn = (analysisType === 'sentiment') ? els.sentimentBtn : els.freeAnalysisBtn;
+    const promptValue = els.freeAnalysisPrompt.value.trim();
+
+    // The LLM "Free Analysis" requires a specific instructions prompt
+    if (analysisType === 'free' && !promptValue) {
+        showResult('Please enter a custom prompt for the free analysis', 'error', true);
+        els.freeAnalysisPrompt.focus();
+        return;
+    }
+
+    // Trigger loading state for the specific button
+    btn.classList.add('loading');
+    btn.disabled = true;
+
+    try {
+        // 4. DATA PACKAGING (FormData)
+        const formData = new FormData();
+        formData.append('symbol', els.symbolInput.value.trim().toUpperCase());
+        formData.append('doc_type', docType);
+        formData.append('year', els.yearInput.value);
+
+        // MAPPING: We always send 'free_text' as required by the Python controller
+        formData.append('free_text', textToAnalyze);
+
+        if (els.quarterSelect.value) {
+            formData.append('quarter', els.quarterSelect.value);
+        }
+
+        // Endpoint routing
+        let endpoint = `${BASE_URL}/analyze_sentiment`;
+        if (analysisType === 'free') {
+            endpoint = `${BASE_URL}/free_analysis`;
+            // The /free_analysis controller specifically expects a 'prompt' field
+            formData.append('prompt', promptValue);
+        }
+
+        // 5. ASYNC SERVER REQUEST
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        // If server returns error codes (422, 500, etc.), throw to the catch block
+        if (!response.ok) {
+            throw new Error(data.message || `Server Error: ${response.status}`);
+        }
+
+        // Success: Render results in the results modal
+        displayResults(data, analysisType);
+
+    } catch (err) {
+        console.error('Analysis execution failed:', err);
+        showResult(`Analysis error: ${err.message}`, 'error', true);
+    } finally {
+        // Release UI lock regardless of success or failure
+        btn.classList.remove('loading');
+        btn.disabled = false;
+    }
 }
 
 // Display analysis results - CON POPUP
@@ -739,4 +790,55 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {
   init();
+}
+
+
+async function handleDownloadK8() {
+  const symbol = els.symbolInput.value.trim().toUpperCase();
+  const year = els.yearInput.value.trim();
+
+  if (!symbol) {
+    showResult('Please enter a symbol', 'error');
+    return;
+  }
+
+  if (!year) {
+    showResult('Please enter a year', 'error');
+    return;
+  }
+
+  // Show loading state
+  els.downloadK8Btn.disabled = true;
+  els.downloadK8Btn.innerHTML = '⏳ Downloading...';
+  els.k8Status.textContent = 'Connecting to MCP service...';
+  els.k8TextArea.value = '';
+
+  try {
+    const formData = new FormData();
+    formData.append('symbol', symbol);
+    formData.append('year', year);
+
+    const response = await fetch(`${BASE_URL}/download_k8`, {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await response.json();
+
+    if (data.status === 'ok' || data.status === 'completed') {
+      els.k8TextArea.value = data.content || data.text || JSON.stringify(data.result, null, 2);
+      els.k8Status.textContent = `✅ Downloaded 8-K for ${symbol} (${year})`;
+      showResult(`8-K downloaded successfully for ${symbol}`, 'success');
+    } else {
+      els.k8Status.textContent = `❌ ${data.message || 'Download failed'}`;
+      showResult(data.message || 'Download failed', 'error');
+    }
+  } catch (err) {
+    console.error('Download 8-K failed:', err);
+    els.k8Status.textContent = `❌ Error: ${err.message}`;
+    showResult(`Error: ${err.message}`, 'error');
+  } finally {
+    els.downloadK8Btn.disabled = false;
+    els.downloadK8Btn.innerHTML = '📥 Download 8-K';
+  }
 }
