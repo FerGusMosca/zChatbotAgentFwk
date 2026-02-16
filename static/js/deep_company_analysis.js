@@ -451,25 +451,21 @@ async function handleAnalysis(analysisType) {
     }
 
     // 2. RESILIENT CONTENT EXTRACTION
-    // We determine the "Source of Truth" for the text based on the selected mode.
-    // This prevents sending empty data (Error 422) to the backend.
     const docType = els.docTypeSelect.value;
     let textToAnalyze = "";
 
     if (docType === '8K') {
-        // If 8-K mode, pull from the specific K8 download area
         textToAnalyze = els.k8TextArea.value.trim();
-    }
-    else if (docType === '4F') {
-    textToAnalyze = els.f4TextArea.value.trim();
-    }
-    else {
-        // For FREE_TEXT or any future manual inputs, pull from the main text area
+    } else if (docType === '4F') {
+        textToAnalyze = els.f4TextArea.value.trim();
+    } else if (docType === 'FREE_TEXT') {
         textToAnalyze = els.freeTextArea.value.trim();
     }
+    // Para 10K y 10Q, textToAnalyze queda vacío - el backend descarga de SEC
 
-    // Guard clause: stop if no text is found to prevent backend schema errors
-    if (!textToAnalyze) {
+    // Guard clause: SOLO para tipos que requieren texto local
+    const requiresLocalText = ['8K', '4F', 'FREE_TEXT'].includes(docType);
+    if (requiresLocalText && !textToAnalyze) {
         showResult(`No content found to analyze for ${docType}. Please download or paste text.`, 'error', true);
         return;
     }
@@ -496,8 +492,10 @@ async function handleAnalysis(analysisType) {
         formData.append('doc_type', docType);
         formData.append('year', els.yearInput.value);
 
-        // MAPPING: We always send 'free_text' as required by the Python controller
-        formData.append('free_text', textToAnalyze);
+        // Solo enviar free_text si hay contenido
+        if (textToAnalyze) {
+            formData.append('free_text', textToAnalyze);
+        }
 
         if (els.quarterSelect.value) {
             formData.append('quarter', els.quarterSelect.value);
@@ -507,7 +505,6 @@ async function handleAnalysis(analysisType) {
         let endpoint = `${BASE_URL}/analyze_sentiment`;
         if (analysisType === 'free') {
             endpoint = `${BASE_URL}/free_analysis`;
-            // The /free_analysis controller specifically expects a 'prompt' field
             formData.append('prompt', promptValue);
         }
 
@@ -519,7 +516,6 @@ async function handleAnalysis(analysisType) {
 
         const data = await response.json();
 
-        // If server returns error codes (422, 500, etc.), throw to the catch block
         if (!response.ok) {
             throw new Error(data.message || `Server Error: ${response.status}`);
         }
@@ -531,12 +527,10 @@ async function handleAnalysis(analysisType) {
         console.error('Analysis execution failed:', err);
         showResult(`Analysis error: ${err.message}`, 'error', true);
     } finally {
-        // Release UI lock regardless of success or failure
         btn.classList.remove('loading');
         btn.disabled = false;
     }
 }
-
 // Display analysis results - CON POPUP
 function displayResults(data, analysisType) {
   let html = '';
