@@ -26,7 +26,14 @@ class DeepCompanyAnalysisController:
 
     SINGLE_SEC_SENTIMENT_10K_REP="sentiment_summary_single_security_report_k10"
     SINGLE_SEC_SENTIMENT_10Q_REP = "sentiment_summary_single_security_report_q10"
+
+    MCP_EVENTS = {
+        "8K": "k8_single_security_ready",
+        "4F": "f4_single_security_ready"
+    }
+
     DOWNLOAD_K8_REPORT = "download_k8_single_security"
+    DOWNLOAD_F4_REPORT = "download_f4_single_security"
 
     SINGLE_SEC_TOPIC_REP = "document_tagging_single_security"
 
@@ -34,6 +41,218 @@ class DeepCompanyAnalysisController:
 
     REF_DOC_TYPE_10_K= "K_Q_10"
     DOC_TYPE_8K = "8K"
+
+    # ─────────────────────────────────────────────────────────────
+    # Common SEC Report Download Handler
+    # ─────────────────────────────────────────────────────────────
+
+    async def _download_sec_report(
+            self,
+            symbol: str,
+            year: str,
+            report_name: str,
+            report_type: str
+    ) -> JSONResponse:
+        """
+        Generic handler for downloading SEC reports (8-K, Form 4, etc.)
+
+        Args:
+            symbol: Stock ticker symbol
+            year: Filing year
+            report_name: MCP report identifier (e.g., 'download_k8_single_security')
+            report_type: Report type for display/events (e.g., '8K', '4F')
+
+        Returns:
+            JSONResponse with report content or error
+        """
+        try:
+            symbol_upper = symbol.upper().strip()
+            year_str = year.strip()
+
+            payload = {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "run_report",
+                    "arguments": {
+                        "report": report_name,
+                        "symbol": symbol_upper,
+                        "year": year_str
+                    }
+                }
+            }
+
+            async with websockets.connect(settings.reports_mcp_server) as ws:
+                # Handshake
+                await ws.send(json.dumps({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/list",
+                    "params": {}
+                }))
+                await asyncio.sleep(0.2)
+
+                # Call the report
+                await ws.send(json.dumps(payload))
+
+                # Process response
+                final_result = None
+                error_message = None
+
+                try:
+                    while True:
+                        msg = await asyncio.wait_for(ws.recv(), timeout=120)
+                        msg_data = json.loads(msg)
+
+                        # Check for direct error in response
+                        if "error" in msg_data:
+                            error_message = msg_data["error"].get("message", str(msg_data["error"]))
+                            break
+
+                        if msg_data.get("method") == "job/progress":
+                            message = msg_data.get("params", {}).get("message", "")
+
+                            # Check for ABORT in log messages
+                            if "ABORT" in message:
+                                error_message = message
+                                break
+
+                            try:
+                                event_data = json.loads(message)
+                                event_type = event_data.get("event", "")
+                                status = event_data.get("status", "")
+
+                                # Handle success - check for specific event or generic completed
+                                expected_event = self.MCP_EVENTS.get(report_type)
+                                if event_type == expected_event or event_type == "completed":
+                                    final_result = event_data.get("result", event_data)
+                                    if "reports" not in final_result and "reports" in event_data:
+                                        final_result = event_data
+                                    break
+
+                                # Handle no data
+                                if status == "no_data_available":
+                                    error_message = f"No {report_type} filings found for {symbol_upper} in {year_str}"
+                                    break
+
+                                # Handle explicit error
+                                if status == "error":
+                                    error_message = event_data.get("error", "Unknown error")
+                                    break
+
+                            except json.JSONDecodeError:
+                                # Not JSON, just a progress log message
+                                pass
+
+                except asyncio.TimeoutError:
+                    return JSONResponse({
+                        "status": "error",
+                        "message": "Request timed out after 120 seconds"
+                    }, status_code=504)
+
+            # Handle error
+            if error_message:
+                return JSONResponse({
+                    "status": "error",
+                    "message": error_message
+                })
+
+            # Handle success
+            if final_result:
+                return self._format_report_response(final_result, symbol_upper, year_str, report_type)
+
+            return JSONResponse({
+                "status": "error",
+                "message": "No response received from MCP"
+            })
+
+        except Exception as e:
+            return JSONResponse(
+                {"status": "error", "message": f"MCP invocation failed: {str(e)}"},
+                status_code=500
+            )
+
+    def _format_report_response(
+            self,
+            result: dict,
+            symbol: str,
+            year: str,
+            report_type: str
+    ) -> JSONResponse:
+        """
+        Format the MCP response into a standardized JSON response.
+        Handles both single reports and multiple reports.
+        """
+        reports = result.get("reports", [])
+
+        if reports:
+            # Concatenate all report contents
+            content_parts = []
+            for report in reports:
+                title = report.get("title", "Untitled")
+                body = report.get("content", "")
+                content_parts.append(f"=== {title} ===\n\n{body}\n")
+
+            full_content = "\n\n".join(content_parts)
+        else:
+            # Fallback: stringify the result
+            full_content = str(result)
+
+        return JSONResponse({
+            "status": "ok",
+            "content": full_content,
+            "symbol": symbol,
+            "year": year,
+            "report_type": report_type,
+            "report_count": len(reports)
+        })
+
+        # ─────────────────────────────────────────────────────────────
+        # Existing methods (unchanged, just moved to instance methods)
+        # ─────────────────────────────────────────────────────────────
+
+    async def _validate_symbol(self, symbol: str):
+        """Validate if symbol exists in backend"""
+        try:
+            symbol_upper = symbol.upper().strip()
+            results = self.sec_mgr.search(symbol_upper)
+
+            if not results:
+                return JSONResponse({
+                    "status": "error",
+                    "valid": False,
+                    "symbol": symbol_upper,
+                    "message": f"Symbol {symbol_upper} not found in database"
+                })
+
+            exact_match = next((x for x in results if x.symbol.upper() == symbol_upper), None)
+
+            if exact_match:
+                return JSONResponse({
+                    "status": "ok",
+                    "valid": True,
+                    "symbol": exact_match.symbol,
+                    "security_id": exact_match.id,
+                    "name": exact_match.name,
+                    "message": f"Symbol {exact_match.symbol} found: {exact_match.name}"
+                })
+
+            first_result = results[0]
+            return JSONResponse({
+                "status": "ok",
+                "valid": True,
+                "symbol": first_result.symbol,
+                "security_id": first_result.id,
+                "name": first_result.name,
+                "message": f"Symbol {first_result.symbol} found: {first_result.name}"
+            })
+
+        except Exception as e:
+            return JSONResponse(
+                {"status": "error", "valid": False, "message": str(e)},
+                status_code=400
+            )
 
 
     def __init__(self):
@@ -53,54 +272,7 @@ class DeepCompanyAnalysisController:
                 {"request": request}
             )
 
-        @self.router.post("/validate_symbol")
-        async def validate_symbol(symbol: str = Form(...)):
-            """
-            Validate if symbol exists in backend by searching in PortfolioSecuritiesManager
-            """
-            try:
-                symbol_upper = symbol.upper().strip()
 
-                # Search for the security
-                results = self.sec_mgr.search(symbol_upper)
-
-                if not results:
-                    return JSONResponse({
-                        "status": "error",
-                        "valid": False,
-                        "symbol": symbol_upper,
-                        "message": f"Symbol {symbol_upper} not found in database"
-                    })
-
-                # Find exact match (prioritize exact symbol match)
-                exact_match = next((x for x in results if x.symbol.upper() == symbol_upper), None)
-
-                if exact_match:
-                    return JSONResponse({
-                        "status": "ok",
-                        "valid": True,
-                        "symbol": exact_match.symbol,
-                        "security_id": exact_match.id,
-                        "name": exact_match.name,
-                        "message": f"Symbol {exact_match.symbol} found: {exact_match.name}"
-                    })
-
-                # If no exact match but results exist, return first result
-                first_result = results[0]
-                return JSONResponse({
-                    "status": "ok",
-                    "valid": True,
-                    "symbol": first_result.symbol,
-                    "security_id": first_result.id,
-                    "name": first_result.name,
-                    "message": f"Symbol {first_result.symbol} found: {first_result.name}"
-                })
-
-            except Exception as e:
-                return JSONResponse(
-                    {"status": "error", "valid": False, "message": str(e)},
-                    status_code=400
-                )
 
         @self.router.post("/analyze_sentiment")
         async def analyze_sentiment(
@@ -474,134 +646,25 @@ class DeepCompanyAnalysisController:
                     status_code=500
                 )
 
+
         @self.router.post("/download_k8")
-        async def download_k8(
-                symbol: str = Form(...),
-                year: str = Form(...)
-        ):
-            """Download 8-K report content via MCP service"""
-            try:
-                symbol_upper = symbol.upper().strip()
-                year_str = year.strip()
+        async def download_k8(symbol: str = Form(...), year: str = Form(...)):
+            return await self._download_sec_report(
+                symbol=symbol,
+                year=year,
+                report_name=self.DOWNLOAD_K8_REPORT,
+                report_type="8K"
+            )
 
-                payload = {
-                    "jsonrpc": "2.0",
-                    "id": 2,
-                    "method": "tools/call",
-                    "params": {
-                        "name": "run_report",
-                        "arguments": {
-                            "report": "download_k8_single_security",
-                            "symbol": symbol_upper,
-                            "year": year_str
-                        }
-                    }
-                }
+        @self.router.post("/download_f4")
+        async def download_f4(symbol: str = Form(...), year: str = Form(...)):
+            return await self._download_sec_report(
+                symbol=symbol,
+                year=year,
+                report_name=self.DOWNLOAD_F4_REPORT,
+                report_type="4F"
+            )
 
-                async with websockets.connect(settings.reports_mcp_server) as ws:
-                    # Handshake
-                    await ws.send(json.dumps({
-                        "jsonrpc": "2.0",
-                        "id": 1,
-                        "method": "tools/list",
-                        "params": {}
-                    }))
-                    await asyncio.sleep(0.2)
-
-                    # Call the report
-                    await ws.send(json.dumps(payload))
-
-                    # Wait for response
-                    final_result = None
-                    error_message = None
-
-                    try:
-                        while True:
-                            msg = await asyncio.wait_for(ws.recv(), timeout=120)
-                            msg_data = json.loads(msg)
-
-                            # Check for direct error in response
-                            if "error" in msg_data:
-                                error_message = msg_data["error"].get("message", str(msg_data["error"]))
-                                break
-
-                            if msg_data.get("method") == "job/progress":
-                                message = msg_data.get("params", {}).get("message", "")
-
-                                # Check for ABORT in log messages
-                                if "ABORT" in message:
-                                    error_message = message
-                                    break
-
-                                try:
-                                    event_data = json.loads(message)
-                                    event_type = event_data.get("event", "")
-                                    status = event_data.get("status", "")
-
-                                    # Handle success - k8 specific event
-                                    if event_type == "k8_single_security_ready":
-                                        final_result = event_data
-                                        break
-                                    # Handle completed (generic)
-                                    elif event_type == "completed":
-                                        final_result = event_data.get("result", event_data)
-                                        break
-                                    # Handle no data
-                                    elif status == "no_data_available":
-                                        error_message = f"No 8-K filings found for {symbol_upper} in {year_str}"
-                                        break
-                                    # Handle explicit error
-                                    elif status == "error":
-                                        error_message = event_data.get("error", "Unknown error")
-                                        break
-
-                                except json.JSONDecodeError:
-                                    # Not JSON, just a progress log message
-                                    pass
-
-                    except asyncio.TimeoutError:
-                        return JSONResponse({
-                            "status": "error",
-                            "message": "Request timed out after 120 seconds"
-                        }, status_code=504)
-
-                # Handle error
-                if error_message:
-                    return JSONResponse({
-                        "status": "error",
-                        "message": error_message
-                    })
-
-                # Handle success
-                if final_result:
-                    reports = final_result.get("reports", [])
-                    if reports:
-                        # Concatenate all report contents
-                        content_parts = []
-                        for report in reports:
-                            title = report.get("title", "Untitled")
-                            body = report.get("content", "")
-                            content_parts.append(f"=== {title} ===\n\n{body}\n")
-
-                        full_content = "\n\n".join(content_parts)
-                    else:
-                        full_content = str(final_result)
-
-                    return JSONResponse({
-                        "status": "ok",
-                        "content": full_content,
-                        "symbol": symbol_upper,
-                        "year": year_str,
-                        "report_count": len(reports)
-                    })
-
-                return JSONResponse({
-                    "status": "error",
-                    "message": "No response received from MCP"
-                })
-
-            except Exception as e:
-                return JSONResponse(
-                    {"status": "error", "message": f"MCP invocation failed: {str(e)}"},
-                    status_code=500
-                )
+        @self.router.post("/validate_symbol")
+        async def validate_symbol(symbol: str = Form(...)):
+            return await self._validate_symbol(symbol)

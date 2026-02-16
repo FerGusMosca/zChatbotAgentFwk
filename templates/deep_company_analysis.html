@@ -39,6 +39,7 @@
               <option value="10K">10-K</option>
               <option value="10Q">10-Q</option>
               <option value="8K">8-K</option>
+              <option value="4F">4-F</option>
               <option value="FREE_TEXT">Free Text</option>
             </select>
           </td>
@@ -73,6 +74,15 @@
             <textarea name="k8_text" id="k8TextArea" class="dca-textarea" placeholder="8-K content will appear here after download..." rows="12" readonly></textarea>
           </td>
         </tr>
+        <tr id="f4Row" class="dca-row dca-hidden">
+          <td colspan="4">
+            <div class="dca-file-upload-container">
+              <button type="button" id="downloadF4Btn" class="dca-upload-btn">📥 Download F4</button>
+              <span id="f4Status" class="dca-file-name">Ready to download Form 4</span>
+            </div>
+            <textarea id="f4TextArea" class="dca-textarea" placeholder="Form 4 content will appear here after download..." rows="12" readonly></textarea>
+          </td>
+        </tr>
       </table>
     </form>
 
@@ -100,6 +110,7 @@
           <option value="">-- Select a predefined prompt --</option>
           <option value="standard_earnings">Standard Earnings Transcript Analysis</option>
           <option value="k8_events_analysis">K8 Events Analysis</option>
+          <option value="f4_insider_analysis">F4 Insider Transaction Analysis</option>
         </select>
         <textarea id="freeAnalysisPrompt" class="dca-textarea" placeholder="Enter your custom prompt OR select a predefined prompt above" rows="6"></textarea>
       </div>

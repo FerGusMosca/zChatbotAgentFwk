@@ -37,6 +37,11 @@ const els = {
   downloadK8Btn: document.getElementById('downloadK8Btn'),
   k8Status: document.getElementById('k8Status'),
   k8TextArea: document.getElementById('k8TextArea'),
+  f4Row: document.getElementById('f4Row'),
+  downloadF4Btn: document.getElementById('downloadF4Btn'),
+  f4Status: document.getElementById('f4Status'),
+  f4TextArea: document.getElementById('f4TextArea'),
+
 };
 
 // State
@@ -52,6 +57,7 @@ function init() {
   setupResultsModalListeners();
   setAnalysisButtonsEnabled(false);
   els.downloadK8Btn.addEventListener('click', handleDownloadK8);
+  els.downloadF4Btn.addEventListener('click', handleDownloadF4);
 }
 
 // NUEVO: Centralizar habilitación de botones
@@ -205,7 +211,8 @@ async function handlePromptSelection() {
   try {
     const promptFiles = {
       'standard_earnings': '/static/prompts/standard_earnings_transcripts.txt',
-      'k8_events_analysis': '/static/prompts/k8_events_analysis.txt'
+      'k8_events_analysis': '/static/prompts/k8_events_analysis.txt',
+      'f4_insider_analysis': '/static/prompts/f4_insider_analysis.txt'
     };
     const promptFile = promptFiles[selectedPrompt];
     if (!promptFile) {
@@ -258,9 +265,16 @@ function handleDocTypeChange() {
     els.sentimentBtn.classList.add('dca-hidden');
     els.topicsBtn.classList.add('dca-hidden');
   }
+  else if (docType === '4F') {  // NEW
+    els.f4Row.classList.remove('dca-hidden');
+    els.freeAnalysisBtn.classList.remove('dca-hidden');
+    els.freeAnalysisPromptSection.classList.remove('dca-hidden');
+    els.sentimentBtn.classList.add('dca-hidden');
+    els.topicsBtn.classList.add('dca-hidden');
+  }
 }
 
-// CAMBIADO: Validación mejorada
+
 async function validateSymbol() {
   const symbol = els.symbolInput.value.trim().toUpperCase();
 
@@ -445,7 +459,11 @@ async function handleAnalysis(analysisType) {
     if (docType === '8K') {
         // If 8-K mode, pull from the specific K8 download area
         textToAnalyze = els.k8TextArea.value.trim();
-    } else {
+    }
+    else if (docType === '4F') {
+    textToAnalyze = els.f4TextArea.value.trim();
+    }
+    else {
         // For FREE_TEXT or any future manual inputs, pull from the main text area
         textToAnalyze = els.freeTextArea.value.trim();
     }
@@ -793,7 +811,22 @@ if (document.readyState === 'loading') {
 }
 
 
-async function handleDownloadK8() {
+// ─────────────────────────────────────────────────────────────
+// Generic SEC Report Download Handler (refactored)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Generic handler for downloading SEC reports
+ * @param {Object} config - Configuration object
+ * @param {string} config.endpoint - API endpoint (e.g., '/download_k8')
+ * @param {string} config.reportType - Display name (e.g., '8-K', 'Form 4')
+ * @param {HTMLButtonElement} config.btn - Download button element
+ * @param {HTMLElement} config.status - Status display element
+ * @param {HTMLTextAreaElement} config.textArea - Textarea for content
+ */
+async function handleSecReportDownload(config) {
+  const { endpoint, reportType, btn, status, textArea } = config;
+
   const symbol = els.symbolInput.value.trim().toUpperCase();
   const year = els.yearInput.value.trim();
 
@@ -808,17 +841,18 @@ async function handleDownloadK8() {
   }
 
   // Show loading state
-  els.downloadK8Btn.disabled = true;
-  els.downloadK8Btn.innerHTML = '⏳ Downloading...';
-  els.k8Status.textContent = 'Connecting to MCP service...';
-  els.k8TextArea.value = '';
+  const originalBtnText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Downloading...';
+  status.textContent = 'Connecting to MCP service...';
+  textArea.value = '';
 
   try {
     const formData = new FormData();
     formData.append('symbol', symbol);
     formData.append('year', year);
 
-    const response = await fetch(`${BASE_URL}/download_k8`, {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
       method: 'POST',
       body: formData
     });
@@ -826,19 +860,46 @@ async function handleDownloadK8() {
     const data = await response.json();
 
     if (data.status === 'ok' || data.status === 'completed') {
-      els.k8TextArea.value = data.content || data.text || JSON.stringify(data.result, null, 2);
-      els.k8Status.textContent = `✅ Downloaded 8-K for ${symbol} (${year})`;
-      showResult(`8-K downloaded successfully for ${symbol}`, 'success');
+      textArea.value = data.content || data.text || JSON.stringify(data.result, null, 2);
+      status.textContent = `✅ Downloaded ${reportType} for ${symbol} (${year})`;
+      showResult(`${reportType} downloaded successfully for ${symbol}`, 'success');
     } else {
-      els.k8Status.textContent = `❌ ${data.message || 'Download failed'}`;
+      status.textContent = `❌ ${data.message || 'Download failed'}`;
       showResult(data.message || 'Download failed', 'error');
     }
   } catch (err) {
-    console.error('Download 8-K failed:', err);
-    els.k8Status.textContent = `❌ Error: ${err.message}`;
+    console.error(`Download ${reportType} failed:`, err);
+    status.textContent = `❌ Error: ${err.message}`;
     showResult(`Error: ${err.message}`, 'error');
   } finally {
-    els.downloadK8Btn.disabled = false;
-    els.downloadK8Btn.innerHTML = '📥 Download 8-K';
+    btn.disabled = false;
+    btn.innerHTML = originalBtnText;
   }
+}
+
+
+
+
+// ─────────────────────────────────────────────────────────────
+// Specific handlers using the generic function
+// ─────────────────────────────────────────────────────────────
+
+async function handleDownloadK8() {
+  await handleSecReportDownload({
+    endpoint: '/download_k8',
+    reportType: '8-K',
+    btn: els.downloadK8Btn,
+    status: els.k8Status,
+    textArea: els.k8TextArea
+  });
+}
+
+async function handleDownloadF4() {
+  await handleSecReportDownload({
+    endpoint: '/download_f4',
+    reportType: 'Form 4',
+    btn: els.downloadF4Btn,
+    status: els.f4Status,
+    textArea: els.f4TextArea
+  });
 }
