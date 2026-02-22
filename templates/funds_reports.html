@@ -2,37 +2,66 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Funds Reports (#10-Rag)</title>
+  <title>Funds Reports — Bias</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/main.css">
   <link rel="stylesheet" href="/static/css/funds_reports.css">
 </head>
-<body>
+<body class="fr-body">
 
-<nav class="navbar">
-  <ul>
+<!-- ── NAV ── -->
+<nav class="fr-nav">
+  <a href="/" class="fr-nav-logo">
+    <span class="fr-nav-logo-b">B</span>
+    <span class="fr-nav-logo-name">BIAS</span>
+  </a>
+  <ul class="fr-nav-links">
     <li><a href="/">Home</a></li>
-
+    <li><a class="active">Funds Reports</a></li>
   </ul>
 </nav>
 
-<div class="content">
-  <div class="panel">
-    <h3>Funds Reports - Search Tool</h3>
-    <form id="rankingForm" action="/funds_reports/analyze" method="POST" novalidate>
-      <select name="processed_folder" class="folder-select">
+<!-- ── PAGE ── -->
+<div class="fr-page">
+
+  <div class="fr-page-header">
+    <div class="fr-eyebrow">Intelligence · #10-Rag</div>
+    <h1 class="fr-title">✈️ Funds Reports</h1>
+  </div>
+
+  <div class="fr-panel">
+
+    <!-- FORM -->
+    <form id="rankingForm" action="/funds_reports/analyze" method="POST" novalidate class="fr-form">
+
+      <select name="processed_folder" class="fr-select">
         <option value="">Default</option>
         {% for folder in processed_folders %}
           <option value="{{ folder }}">{{ folder }}</option>
         {% endfor %}
       </select>
-      <textarea name="query" placeholder="Ejemplo: ¿Qué narrativas dominan esta semana en ZeroHedge?" required></textarea>
-      <button type="submit">
-        <span class="fr-spinner"></span>
-        <span>Search</span>
-      </button>
+
+      <textarea name="query"
+                placeholder="Ejemplo: ¿Qué narrativas dominan esta semana en ZeroHedge?"
+                required
+                class="fr-textarea"></textarea>
+
+      <div class="fr-form-footer">
+        <button type="submit" class="fr-btn">
+          <span class="fr-spinner"></span>
+          <span class="fr-btn-text">🔍 Search</span>
+        </button>
+      </div>
+
     </form>
+
     <div class="error-msg" id="errorMsg"></div>
-    <div id="result"></div>
+
+    <!-- RESULTS -->
+    <div id="result" class="fr-result"></div>
+
   </div>
 </div>
 

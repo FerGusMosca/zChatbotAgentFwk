@@ -1,129 +1,196 @@
-/* funds_reports.css – Final version: zero waste, spinner centered, perfect layout (30-nov-2025) */
+/* funds_reports.css — Bias dark theme, vertical layout
+   Same structure as original but with elevated look & feel.
+   .fr-spinner kept for JS compatibility.
+*/
 
-.panel {
-    width: 95%;
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 12px 18px;
-    min-height: 90vh;
-    background: #161B22;
-    border: 1px solid #30363D;
-    border-radius: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    box-sizing: border-box;
+.fr-body {
+  margin: 0; padding: 0;
+  background: #080C10;
+  font-family: 'IBM Plex Sans', sans-serif;
+  color: #C9D1D9;
+  min-height: 100vh;
 }
 
-h3 {
-    margin: 0 0 6px;
-    text-align: center;
-    color: #79C0FF;
-    font-size: 1.8rem;
-    font-weight: 600;
+/* ── Nav ── */
+.fr-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px; height: 52px;
+  background: #0D1117; border-bottom: 1px solid #161B22;
+  position: sticky; top: 0; z-index: 10;
+}
+.fr-nav-logo { display: flex; align-items: center; gap: 9px; text-decoration: none; }
+.fr-nav-logo-b {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, #0F2847, #1F6FEB);
+  border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 700; color: white;
+}
+.fr-nav-logo-name {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px; font-weight: 500; color: #E6EDF3; letter-spacing: 0.12em;
+}
+.fr-nav-links { display: flex; list-style: none; margin: 0; padding: 0; gap: 4px; }
+.fr-nav-links a {
+  display: block; padding: 6px 14px; border-radius: 7px;
+  color: #6E7681; text-decoration: none; font-size: 13px;
+  transition: all 0.18s; cursor: pointer;
+}
+.fr-nav-links a:hover { background: #161B22; color: #C9D1D9; }
+.fr-nav-links a.active { color: #58A6FF; background: #0D2040; }
+
+/* ── Page ── */
+.fr-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 28px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-textarea {
-    width: 100%;
-    min-height: 90px;
-    padding: 12px 16px;
-    border-radius: 12px;
-    background: #0D1117;
-    color: #C9D1D9;
-    border: 1px solid #30363D;
-    font-size: 16px;
-    line-height: 1.5;
-    resize: vertical;
-    box-sizing: border-box;
+.fr-page-header { display: flex; flex-direction: column; gap: 4px; }
+
+.fr-eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; color: #1F6FEB;
+  text-transform: uppercase; letter-spacing: 0.18em;
 }
 
-textarea:focus {
-    outline: none;
-    border-color: #58A6FF;
-    box-shadow: 0 0 0 3px rgba(88,166,255,.2);
+.fr-title { font-size: 22px; font-weight: 600; color: #E6EDF3; margin: 0; }
+
+/* ── Panel ── */
+.fr-panel {
+  background: #0D1117;
+  border: 1px solid #161B22;
+  border-radius: 14px;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 80vh;
 }
 
-form {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    width: 100%;
-    gap: 10px;
+/* ── Form ── */
+.fr-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-button {
-    min-width: 160px;
-    height: 48px;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
+.fr-select {
+  width: 100%;
+  padding: 10px 14px;
+  background: #161B22; border: 1px solid #21262D; border-radius: 8px;
+  color: #E6EDF3; font-size: 13px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  cursor: pointer; transition: border-color 0.18s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23484F58' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
 }
+.fr-select:focus { outline: none; border-color: #1F6FEB; box-shadow: 0 0 0 3px rgba(31,111,235,0.15); }
 
-#result {
-    flex: 1;
-    margin: 0;
-    max-height: 60vh;   /* adjustable */
-    overflow-y: auto;
-
-    /* Background + subtle border */
-    background: #0D1117;
-    border: 1px solid #30363D;
-    border-radius: 12px;
-
-    /* Inner spacing (increase if needed) */
-    padding: 2px 18px;
-
-    /* Vertical scroll when content exceeds container */
-    overflow-y: auto;
-
-    /* Text formatting */
-    text-align: left;
-    line-height: 1.7;
-    font-size: 16px;
-    color: #E6EDF3;
-
-    /* Preserve formatting and long lines */
-    white-space: pre-wrap;
-    word-wrap: break-word;
+.fr-textarea {
+  width: 100%; min-height: 90px;
+  padding: 12px 14px;
+  background: #161B22; border: 1px solid #21262D; border-radius: 8px;
+  color: #E6EDF3; font-size: 14px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  line-height: 1.6; resize: vertical;
+  box-sizing: border-box;
+  transition: border-color 0.18s, box-shadow 0.18s;
 }
-
-
-#result h4 {
-    color: #79C0FF;
-    font-size: 1.4rem;
-    margin: 0 0 18px;
-    font-weight: 600;
+.fr-textarea:focus {
+  outline: none; border-color: #1F6FEB;
+  box-shadow: 0 0 0 3px rgba(31,111,235,0.15);
 }
+.fr-textarea::placeholder { color: #484F58; }
 
-/* ============================================
-   Funds Reports — Local independent spinner
-   (Does NOT collide with main.css)
-   ============================================ */
+.fr-form-footer { display: flex; justify-content: flex-end; }
+
+/* ── Button ── */
+.fr-btn {
+  position: relative;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 11px 28px; min-width: 140px;
+  background: linear-gradient(135deg, #1A5FCA, #1F6FEB);
+  color: white; border: none; border-radius: 9px;
+  font-size: 14px; font-weight: 500; cursor: pointer;
+  font-family: 'IBM Plex Sans', sans-serif;
+  transition: all 0.2s;
+  box-shadow: 0 4px 14px rgba(31,111,235,0.3);
+}
+.fr-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(31,111,235,0.4); }
+.fr-btn:active { transform: translateY(0); }
+
+/* Spinner — same class name, JS compatible */
 .fr-spinner {
-    width: 18px;
-    height: 18px;
-    border: 3px solid #ffffff40;
-    border-top: 3px solid #fff;
-    border-radius: 50%;
-    opacity: 0;
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    transition: opacity .25s;
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white; border-radius: 50%;
+  opacity: 0; flex-shrink: 0;
+  transition: opacity 0.25s;
+}
+.fr-btn.loading .fr-spinner { opacity: 1; animation: fr-spin 0.8s linear infinite; }
+.fr-btn.loading .fr-btn-text { opacity: 0; }
+@keyframes fr-spin { to { transform: rotate(360deg); } }
+
+/* ── Error ── */
+.error-msg {
+  color: #F85149; font-size: 12.5px;
+  background: #1A0A0A; border: 1px solid #3A1214;
+  border-radius: 8px; padding: 10px 14px;
+  display: none;
+}
+.error-msg.show { display: block; animation: fadeSlide 0.3s ease; }
+
+/* ── Result area ── */
+.fr-result {
+  flex: 1;
+  background: #080C10;
+  border: 1px solid #161B22;
+  border-radius: 10px;
+  padding: 20px 24px;
+  min-height: 300px;
+  max-height: 60vh;
+  overflow-y: auto;
+  line-height: 1.75;
+  font-size: 14.5px;
+  color: #C9D1D9;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+
+  /* custom scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: #21262D transparent;
+}
+.fr-result::-webkit-scrollbar { width: 5px; }
+.fr-result::-webkit-scrollbar-thumb { background: #21262D; border-radius: 3px; }
+.fr-result::-webkit-scrollbar-thumb:hover { background: #30363D; }
+
+/* When result has content — fade in */
+.fr-result:not(:empty) { animation: fadeSlide 0.4s ease; }
+
+.fr-result h4 {
+  color: #58A6FF; font-size: 16px;
+  margin: 0 0 14px; font-weight: 600;
+  border-bottom: 1px solid #161B22; padding-bottom: 10px;
+}
+.fr-result strong { color: #E6EDF3; }
+.fr-result code {
+  background: #161B22; padding: 2px 6px; border-radius: 4px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+  color: #79C0FF; border: 1px solid #21262D;
 }
 
-/* Spinner animates ONLY when button has .loading */
-button.loading .fr-spinner {
-    opacity: 1;
-    animation: fr-spin .8s linear infinite;
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes fr-spin {
-    to { transform: translate(-50%, -50%) rotate(360deg); }
+@media (max-width: 700px) {
+  .fr-page { padding: 16px; }
+  .fr-panel { padding: 16px; }
 }
-
-button.loading .fr-spinner { opacity:1 !important; }
-button.loading span:not(.fr-spinner) { opacity:0 !important; }

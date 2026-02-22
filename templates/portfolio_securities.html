@@ -1,35 +1,47 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Portfolio Securities</title>
-
-    <link rel="stylesheet" href="/static/css/main.css">
-    <link rel="stylesheet" href="/static/css/portfolio_securities.css">
+  <meta charset="UTF-8">
+  <title>Portfolio Securities — Bias</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/portfolio_securities.css">
 </head>
-<body>
+<body class="ps-body">
 
-<nav class="navbar">
-  <ul>
+<!-- ── NAV ── -->
+<nav class="ps-nav">
+  <a href="/" class="ps-nav-logo">
+    <span class="ps-nav-logo-b">B</span>
+    <span class="ps-nav-logo-name">BIAS</span>
+  </a>
+  <ul class="ps-nav-links">
     <li><a href="/">Home</a></li>
     <li><a href="/portfolio_securities" class="active">Portfolio Securities</a></li>
   </ul>
 </nav>
 
-<div class="content">
-  <div class="panel">
+<!-- ── PAGE ── -->
+<div class="ps-page">
 
-    <h3>Portfolio Securities</h3>
+  <div class="ps-page-header">
+    <div class="ps-eyebrow">Portfolio Management</div>
+    <h1 class="ps-title">💼 Portfolio Securities</h1>
+  </div>
 
-    <!-- ================== FORM ================== -->
+  <div class="ps-panel">
+
+    <!-- ── LOAD FORM ── -->
     <form action="/portfolio_securities/load" method="POST" id="pfForm" class="pf-form">
 
-      <label for="portfolioSelect" class="pf-label">Select Portfolio:</label>
+      <label for="portfolioSelect" class="pf-label">Portfolio</label>
 
       <select id="portfolioSelect" name="portfolio_id" required class="pf-select">
         {% for p in portfolios %}
           <option value="{{ p.id }}" {% if selected_portfolio == p.id %}selected{% endif %}>
-              {{ p.portfolio_code }} - {{ p.name }}
+            {{ p.portfolio_code }} — {{ p.name }}
           </option>
         {% endfor %}
       </select>
@@ -37,47 +49,37 @@
       <input type="hidden" name="page" id="pageInput" value="{{ page_data.page if page_data else 1 }}">
       <input type="hidden" name="page_size" value="20">
 
-      <button type="submit" class="green-btn" onclick="showLoader(this)">Load</button>
+      <button type="submit" class="ps-btn ps-btn-primary" onclick="showLoader(this)">
+        <span class="spinner"></span><span>Load</span>
+      </button>
+
     </form>
 
-
-    <!-- ================== ACTIONS ================== -->
+    <!-- ── ACTION BAR ── -->
     {% if selected_portfolio %}
-    <div class="actions-row">
+    <div class="ps-action-bar">
 
-        <a class="csv-icon-btn"
+      <div class="ps-filters">
+        <input type="text" id="tickerFilter" placeholder="Filter by Ticker…" class="ps-input">
+        <input type="text" id="symbolFilter" placeholder="Filter by Symbol…" class="ps-input">
+        <button type="button" class="ps-btn ps-btn-icon" title="Apply Filters" onclick="applyFilters()">🔍</button>
+        <button type="button" class="ps-btn ps-btn-icon ps-btn-danger" title="Clear Filters" onclick="clearFilters()">✖</button>
+      </div>
+
+      <div class="ps-actions-right">
+        <a class="ps-btn ps-btn-ghost"
            href="/portfolio_securities/export_csv?portfolio_id={{ selected_portfolio }}"
-           title="Download CSV">
-           ⬇
-        </a>
+           title="Download CSV">⬇ Export CSV</a>
+        <button type="button" class="ps-btn ps-btn-primary" onclick="openAddModal()">+ Add Securities</button>
+      </div>
 
-        <button type="button" class="green-btn" onclick="openAddModal()">+ Add Securities</button>
     </div>
-    <div class="filters-row">
-        <input type="text" id="tickerFilter" placeholder="Filter by Ticker..." class="filter-input">
-        <input type="text" id="symbolFilter" placeholder="Filter by Symbol..." class="filter-input">
-
-        <button type="button"
-                class="icon-btn apply"
-                title="Apply Filters"
-                onclick="applyFilters()">
-            🔍
-        </button>
-
-        <button type="button"
-                class="icon-btn clear"
-                title="Clear Filters"
-                onclick="clearFilters()">
-            ✖
-        </button>
-    </div>
-
     {% endif %}
 
-
-    <!-- ================== TABLE ================== -->
+    <!-- ── TABLE ── -->
     {% if page_data %}
-      <table class="styled-table" id="pfTable">
+    <div class="ps-table-wrap">
+      <table class="ps-table" id="pfTable">
         <thead>
           <tr>
             <th>ID</th>
@@ -88,96 +90,92 @@
             <th>Added</th>
             <th>Active</th>
             <th>Weight</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {% for s in page_data.items %}
           <tr data-id="{{ s.security_id }}">
-            <td>{{ s.security_id }}</td>
-            <td>{{ s.ticker }}</td>
-            <td class="editable" data-field="symbol">{{ s.symbol }}</td>
+            <td class="ps-mono ps-dim">{{ s.security_id }}</td>
+            <td class="ps-mono ps-ticker">{{ s.ticker }}</td>
+            <td class="editable ps-mono" data-field="symbol">{{ s.symbol }}</td>
             <td class="editable" data-field="name">{{ s.name }}</td>
-            <td>{{ s.cik }}</td>
-            <td>{{ s.added_at }}</td>
-            <td >{{ s.is_active }}</td>
-            <td>{{ s.weight }}</td>
+            <td class="ps-mono ps-dim">{{ s.cik }}</td>
+            <td class="ps-dim">{{ s.added_at }}</td>
             <td>
-                <button class="save-btn" onclick="saveRow(this)" disabled>💾</button>
+              <span class="ps-badge {% if s.is_active %}ps-badge-ok{% else %}ps-badge-off{% endif %}">
+                {{ '✓' if s.is_active else '✗' }}
+              </span>
+            </td>
+            <td class="ps-mono">{{ s.weight }}</td>
+            <td>
+              <button class="save-btn" onclick="saveRow(this)" disabled>💾</button>
             </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
+    </div>
 
-      <!-- ================== PAGINATION ================== -->
-      <div class="pagination">
-        <button type="button"
-                onclick="goPage({{ page_data.page - 1 }})"
-                {% if page_data.page <= 1 %}disabled{% endif %}>
-          ◀ Prev
-        </button>
+    <!-- ── PAGINATION ── -->
+    <div class="ps-pagination">
+      <button type="button"
+              onclick="goPage({{ page_data.page - 1 }})"
+              {% if page_data.page <= 1 %}disabled{% endif %}
+              class="ps-btn ps-btn-ghost">◀ Prev</button>
 
-        <span>
-            Page {{ page_data.page }} /
-            {{
-                (page_data.total_count // page_data.page_size)
-                + (1 if page_data.total_count % page_data.page_size > 0 else 0)
-            }}
-        </span>
+      <span class="ps-page-info">
+        Page <strong>{{ page_data.page }}</strong> /
+        <strong>{{
+          (page_data.total_count // page_data.page_size)
+          + (1 if page_data.total_count % page_data.page_size > 0 else 0)
+        }}</strong>
+        <span class="ps-dim"> — {{ page_data.total_count }} records</span>
+      </span>
 
-        <button type="button"
-                onclick="goPage({{ page_data.page + 1 }})"
-                {% if page_data.page * page_data.page_size >= page_data.total_count %}disabled{% endif %}>
-          Next ▶
-        </button>
-      </div>
+      <button type="button"
+              onclick="goPage({{ page_data.page + 1 }})"
+              {% if page_data.page * page_data.page_size >= page_data.total_count %}disabled{% endif %}
+              class="ps-btn ps-btn-ghost">Next ▶</button>
+    </div>
     {% endif %}
 
   </div>
 </div>
 
-<script src="/static/js/portfolio_securities.js"></script>
-
-<!-- ========== ADD SECURITIES MODAL ========== -->
+<!-- ── ADD SECURITIES MODAL ── -->
 <div id="addModal" class="modal-overlay" style="display:none;">
   <div class="modal-box">
 
-      <div class="modal-header">
-          <h3>Add Securities</h3>
-          <button class="modal-close" onclick="closeAddModal()">✖</button>
+    <div class="modal-header">
+      <h3>Add Securities</h3>
+      <button class="modal-close" onclick="closeAddModal()">✖</button>
+    </div>
+
+    <div class="modal-content">
+
+      <div class="modal-tabs">
+        <button class="tab-btn active" onclick="showTab('singleTab', event)">Search & Add</button>
+        <button class="tab-btn" onclick="showTab('csvTab', event)">CSV Import</button>
       </div>
 
-      <div class="modal-content">
-
-          <!-- Tabs -->
-          <div class="modal-tabs">
-              <button class="tab-btn active" onclick="showTab('singleTab', event)">Search & Add</button>
-              <button class="tab-btn" onclick="showTab('csvTab', event)">CSV Import</button>
-
-          </div>
-
-          <!-- TAB 1: Single Search -->
-          <div id="singleTab" class="tab-content active">
-              <label>Search Security:</label>
-              <input type="text" id="searchInput" placeholder="Ticker or Name..." oninput="searchSecurities()">
-
-              <div id="searchResults" class="search-results"></div>
-          </div>
-
-          <!-- TAB 2: CSV Import -->
-          <div id="csvTab" class="tab-content">
-              <label>Paste CSV:</label>
-              <textarea id="csvInput" placeholder="TICKER,WEIGHT"></textarea>
-
-              <button class="import-btn" onclick="importCSV(this)">Import CSV</button>
-
-              <div id="csvResult" class="csv-result"></div>
-          </div>
-
+      <div id="singleTab" class="tab-content active">
+        <label>Search Security:</label>
+        <input type="text" id="searchInput" placeholder="Ticker or Name..." oninput="searchSecurities()" class="ps-input" style="width:100%;box-sizing:border-box;">
+        <div id="searchResults" class="search-results"></div>
       </div>
 
+      <div id="csvTab" class="tab-content">
+        <label>Paste CSV:</label>
+        <textarea id="csvInput" placeholder="TICKER,WEIGHT" class="ps-textarea"></textarea>
+        <button class="import-btn ps-btn ps-btn-primary" onclick="importCSV(this)" style="margin-top:10px;">Import CSV</button>
+        <div id="csvResult" class="csv-result"></div>
+      </div>
+
+    </div>
   </div>
 </div>
 
+<script src="/static/js/portfolio_securities.js"></script>
 </body>
 </html>
