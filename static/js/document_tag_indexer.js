@@ -470,3 +470,25 @@ document.getElementById('submitRunQueryBtn').addEventListener('click', async () 
     btn.classList.remove('loading');
   }
 });
+
+
+// Override showResult to also trigger grid refresh on success
+const _origShowResult = showResult;
+window.showResult = function(message, status) {
+  _origShowResult(message, status);
+
+  if (status === 'success') {
+    // Small delay so user can read the success message
+    setTimeout(() => {
+      // Switch to Old Runs tab
+      document.getElementById('modeOld').checked = true;
+
+      // Force reload of grid (reset allRuns so it fetches fresh)
+      oldRuns.allRuns = [];
+      oldRuns.currentPage = 1;
+
+      // Toggle view
+      toggleModeEnhanced();
+    }, 1200);
+  }
+};
