@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 import uvicorn
 from starlette.middleware.sessions import SessionMiddleware
 from common.config.settings import get_settings
+from controllers.bias_dashboard_controller import BiasDashboardController
 from controllers.calendar_controller import CalendarController
 from controllers.deep_company_analysis_controller import DeepCompanyAnalysisController
 from controllers.document_tag_indexer_controller import DocumentTagIndexerController
@@ -31,17 +32,12 @@ app.add_middleware(SessionMiddleware, secret_key=settings.session_key)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-# ===========================
-#       MAIN DASHBOARD
-# ===========================
-@app.get("/", response_class=HTMLResponse)
-async def main_page(request: Request):
-    return templates.TemplateResponse("main_dashboard.html", {"request": request})
-
 
 # ===========================
 #       CONTROLLERS
 # ===========================
+bias_dashboard = BiasDashboardController()
+app.include_router(bias_dashboard.router)
 
 # Portfolio Securities
 portfolio_securities = PortfolioSecuritiesController()

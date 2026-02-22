@@ -128,6 +128,15 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("NEO4J_PASS", "NEO4J_PASS"))
 
 
+    #TradingView
+    tw_user: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("TRADING_VIEW_USER", "TRADING_VIEW_USER"))
+    tw_pwd: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("TRADING_VIEW_PWD", "TRADING_VIEW_PWD"))
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

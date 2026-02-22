@@ -3,31 +3,186 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bias — AI Investment Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/main.css">
-  <title>Main Dashboard</title>
+  <link rel="stylesheet" href="/static/css/bias_dashboard.css">
+  <!-- TradingView widget library (must load before our JS) -->
+  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
 </head>
-<body>
-  <div class="main-container">
-    <div class="sidebar">
-      <h2>Commands</h2>
-       <ul class="menu">
-        <li><a href="/portfolio_securities"> 💼 Portfolio Securities</a></li>
-        <li><a href="/document_tag_indexer">🏷️📄 Document Tag Indexer</a></li>
-        <li><a href="/process_news"> 🗞️⚡ Process News</a></li>
-        <li><a href="/management_sentiment">💬 Management Sentiment (#4-Fb)</a></li>
-        <li><a href="/management_competition">⚔️ Management Competition (#4-Fb)</a></li>
-        <li><a href="/management_sentiment_rankings_fallback">📉 Sentiment Ranking (#7-Fb)</a></li>
-        <li><a href="/management_news_indexed">📰 News Summary (#5-Rag))</a></li>
-        <li><a href="/management_sentiment_rankings">📊 Sentiment Rankings (#6-Rag)</a></li>
-        <li><a href="/funds_reports">✈️ Funds Reports (#10-Rag)</a></li>
-        <li><a href="/deep_company_analysis">🔬 Deep Company Analysis</a></li>
-        <li><a href="/fund_security_ownership">🐑📊 Fund Security Ownership</a></li>
+<body class="bias-body">
 
-      </ul>
+<div class="bias-root">
+
+  <!-- ══ SIDEBAR ══════════════════════════════════════════════════════════════ -->
+  <aside class="bias-sidebar">
+
+    <div class="bias-brand">
+      <div class="bias-brand-mark">
+        <span class="bias-brand-b">B</span>
+        <div class="bias-brand-signal">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+      <div class="bias-brand-text">
+        <div class="bias-brand-name">BIAS</div>
+        <div class="bias-brand-tagline">AI Investment Intelligence</div>
+      </div>
     </div>
-    <div class="content">
-      <p>Welcome to zzLotteryTicket UI Dashboard</p>
+
+    <div class="bias-nav-group">
+      <div class="bias-nav-label">Portfolio</div>
+      <a href="/portfolio_securities"    class="bias-nav-item"><span class="bias-nav-dot"></span>💼 Portfolio Securities</a>
+      <a href="/fund_security_ownership" class="bias-nav-item"><span class="bias-nav-dot"></span>🐑 Fund Security Ownership</a>
     </div>
-  </div>
+
+    <div class="bias-nav-group">
+      <div class="bias-nav-label">Analysis</div>
+      <a href="/deep_company_analysis"   class="bias-nav-item"><span class="bias-nav-dot"></span>🔬 Deep Company Analysis</a>
+      <a href="/management_sentiment"    class="bias-nav-item"><span class="bias-nav-dot"></span>💬 Management Sentiment <span class="bias-nav-tag">#4-Fb</span></a>
+      <a href="/management_competition"  class="bias-nav-item"><span class="bias-nav-dot"></span>⚔️ Competition Analysis <span class="bias-nav-tag">#4-Fb</span></a>
+    </div>
+
+    <div class="bias-nav-group">
+      <div class="bias-nav-label">Rankings</div>
+      <a href="/management_sentiment_rankings"          class="bias-nav-item"><span class="bias-nav-dot"></span>📊 Sentiment Rankings <span class="bias-nav-tag">#6-Rag</span></a>
+      <a href="/management_sentiment_rankings_fallback" class="bias-nav-item"><span class="bias-nav-dot"></span>📉 Sentiment Ranking FB <span class="bias-nav-tag">#7-Fb</span></a>
+    </div>
+
+    <div class="bias-nav-group">
+      <div class="bias-nav-label">Intelligence</div>
+      <a href="/process_news"            class="bias-nav-item"><span class="bias-nav-dot"></span>🗞️ Process News</a>
+      <a href="/management_news_indexed" class="bias-nav-item"><span class="bias-nav-dot"></span>📰 News Summary <span class="bias-nav-tag">#5-Rag</span></a>
+      <a href="/document_tag_indexer"    class="bias-nav-item"><span class="bias-nav-dot"></span>🏷️ Document Tag Indexer</a>
+      <a href="/funds_reports"           class="bias-nav-item"><span class="bias-nav-dot"></span>✈️ Funds Reports <span class="bias-nav-tag">#10-Rag</span></a>
+    </div>
+
+    <div class="bias-sidebar-footer">
+      <div class="bias-status-dot"></div>
+      <span>Systems operational</span>
+    </div>
+
+  </aside>
+
+  <!-- ══ MAIN ═════════════════════════════════════════════════════════════════ -->
+  <main class="bias-main">
+
+    <!-- Top bar — TradingView ticker tape injected by JS -->
+    <header class="bias-topbar">
+      <div class="bias-topbar-label">Dashboard</div>
+      <div class="bias-tv-ticker" id="tickerTapeContainer"></div>
+    </header>
+
+    <!-- Hero -->
+    <section class="bias-hero">
+
+      <div class="bias-hero-left">
+        <p class="bias-hero-eyebrow">AI-Powered · Quantitative · Edge</p>
+        <h1 class="bias-hero-title">
+          Trade the Signal,<br><em>not the noise</em>
+        </h1>
+        <p class="bias-hero-body">
+          Bias is an AI-native investment research platform. From sentiment analysis
+          on earnings calls to fund ownership tracking — every signal, in one place.
+        </p>
+      </div>
+
+      <div class="bias-hero-right">
+        <div class="bias-chart-card">
+          <!-- Symbol switcher tabs — built by JS from /api/tv/chart_symbols -->
+          <div class="bias-chart-switcher" id="chartSwitcher"></div>
+          <!-- TradingView chart rendered here by JS -->
+          <div class="bias-tv-chart-wrap" id="tvChartContainer"></div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Intelligence module grid -->
+    <section class="bias-modules">
+      <div class="bias-modules-header">
+        <h2>Intelligence Modules</h2>
+        <span class="bias-modules-count">11 active</span>
+      </div>
+
+      <div class="bias-modules-grid">
+
+        <a href="/deep_company_analysis" class="bias-module bias-module-featured">
+          <div class="bias-module-glow"></div>
+          <div class="bias-module-icon">🔬</div>
+          <div class="bias-module-body">
+            <h3>Deep Company Analysis</h3>
+            <p>10-K · 10-Q · 8-K · Form 4 analysis with AI-powered sentiment and topic extraction.</p>
+          </div>
+          <div class="bias-module-arrow">→</div>
+        </a>
+
+        <a href="/management_sentiment" class="bias-module">
+          <div class="bias-module-icon">💬</div>
+          <div class="bias-module-body"><h3>Management Sentiment</h3><p>Earnings call tone analysis. Fallback model #4.</p></div>
+          <span class="bias-module-tag">#4-Fb</span>
+        </a>
+
+        <a href="/management_sentiment_rankings" class="bias-module">
+          <div class="bias-module-icon">📊</div>
+          <div class="bias-module-body"><h3>Sentiment Rankings</h3><p>Cross-portfolio sentiment scoring and ranking. RAG model #6.</p></div>
+          <span class="bias-module-tag">#6-Rag</span>
+        </a>
+
+        <a href="/management_competition" class="bias-module">
+          <div class="bias-module-icon">⚔️</div>
+          <div class="bias-module-body"><h3>Competition Analysis</h3><p>Competitive landscape from management transcripts.</p></div>
+          <span class="bias-module-tag">#4-Fb</span>
+        </a>
+
+        <a href="/process_news" class="bias-module">
+          <div class="bias-module-icon">🗞️</div>
+          <div class="bias-module-body"><h3>Process News</h3><p>Real-time news ingestion and signal processing.</p></div>
+        </a>
+
+        <a href="/management_news_indexed" class="bias-module">
+          <div class="bias-module-icon">📰</div>
+          <div class="bias-module-body"><h3>News Summary</h3><p>AI-curated news summaries indexed by security. RAG #5.</p></div>
+          <span class="bias-module-tag">#5-Rag</span>
+        </a>
+
+        <a href="/funds_reports" class="bias-module">
+          <div class="bias-module-icon">✈️</div>
+          <div class="bias-module-body"><h3>Funds Reports</h3><p>Automated fund reporting and performance summaries.</p></div>
+          <span class="bias-module-tag">#10-Rag</span>
+        </a>
+
+        <a href="/portfolio_securities" class="bias-module">
+          <div class="bias-module-icon">💼</div>
+          <div class="bias-module-body"><h3>Portfolio Securities</h3><p>Full portfolio view, positions and security management.</p></div>
+        </a>
+
+        <a href="/document_tag_indexer" class="bias-module">
+          <div class="bias-module-icon">🏷️</div>
+          <div class="bias-module-body"><h3>Document Tag Indexer</h3><p>Tag and index financial documents for semantic retrieval.</p></div>
+        </a>
+
+        <a href="/management_sentiment_rankings_fallback" class="bias-module">
+          <div class="bias-module-icon">📉</div>
+          <div class="bias-module-body"><h3>Sentiment Ranking FB</h3><p>Fallback sentiment ranking pipeline. Model #7.</p></div>
+          <span class="bias-module-tag">#7-Fb</span>
+        </a>
+
+        <a href="/fund_security_ownership" class="bias-module">
+          <div class="bias-module-icon">🐑</div>
+          <div class="bias-module-body"><h3>Fund Security Ownership</h3><p>Track ownership concentration across fund positions.</p></div>
+        </a>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Our JS — loads after TradingView tv.js -->
+<script type="text/javascript" src="/static/js/bias_dashboard.js"></script>
+
 </body>
 </html>
