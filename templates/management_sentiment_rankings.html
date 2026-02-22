@@ -2,31 +2,52 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Sentiment Rankings</title>
+  <title>Sentiment Rankings — Bias</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/main.css">
   <link rel="stylesheet" href="/static/css/sentiment_rankings.css">
 </head>
-<body>
+<body class="sr-body">
 
-<nav class="navbar">
-  <ul>
-    <li><a href="/">🏠 Home</a></li>
-    <li><a href="/management_sentiment_rankings" class="active">📊 Sentiment Rankings</a></li>
+<nav class="sr-nav">
+  <a href="/" class="sr-nav-logo">
+    <span class="sr-nav-logo-b">B</span>
+    <span class="sr-nav-logo-name">BIAS</span>
+  </a>
+  <ul class="sr-nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/management_sentiment_rankings" class="active">Sentiment Rankings</a></li>
   </ul>
 </nav>
 
-<div class="content">
-  <div class="panel">
-    <h3>📊 Sentiment Rankings (RAG Indexed)</h3>
-    <form id="rankingForm" action="/management_sentiment_rankings/analyze" method="POST" novalidate>
-      <textarea name="query" placeholder="Ejemplo: ¿Qué sectores muestran mayor optimismo en 2025?" required></textarea>
-        <button type="submit">
-        <span class="spinner"></span>
-        <span>Search</span>
-      </button>
+<div class="sr-page">
+
+  <div class="sr-page-header">
+    <div class="sr-eyebrow">Analysis · #6-Rag</div>
+    <h1 class="sr-title">📊 Sentiment Rankings</h1>
+  </div>
+
+  <div class="sr-panel">
+
+    <form id="rankingForm" action="/management_sentiment_rankings/analyze" method="POST" novalidate class="sr-form">
+      <textarea name="query"
+                placeholder="Ejemplo: ¿Qué sectores muestran mayor optimismo en 2025?"
+                required
+                class="sr-textarea"></textarea>
+      <div class="sr-form-footer">
+        <button type="submit" class="sr-btn">
+          <span class="spinner"></span>
+          <span>🔍 Search</span>
+        </button>
+      </div>
     </form>
+
     <div class="error-msg" id="errorMsg"></div>
-    <div id="result"></div>
+
+    <div id="result" class="sr-result"></div>
+
   </div>
 </div>
 
