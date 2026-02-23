@@ -1,169 +1,185 @@
-/* PANEL */
-.panel {
-    width: 820px;
-    margin: 0 auto;
-    padding: 30px;
+/* process_news.css — Bias dark theme
+   JS hooks preserved: #newsForm, #searchInput, #searchResults,
+   #selectedSecurity, #runBtn, #outputBox, #downloadPromptBtn,
+   #downloadBtn, #ingestNewsBtn, .spinner, .btn-text, .loading,
+   .disabled-btn, .enabled-btn, green-btn (legacy anchor class)
+*/
+
+/* Reset any main.css form grid */
+#newsForm {
+  display: flex !important;
+  grid-template-columns: none !important;
+  grid-template-areas: none !important;
 }
 
-/* ===== LAYOUT SIMPLE EN FILA ===== */
-.simple-row {
-    display: flex;
-    flex-direction: row;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 40px;
-    margin-top: 30px;
+/* ── Base ── */
+.pn-body {
+  margin: 0; padding: 0;
+  background: #080C10;
+  font-family: 'IBM Plex Sans', sans-serif;
+  color: #C9D1D9; min-height: 100vh;
 }
 
-/* BLOQUES */
-.block {
-    display: flex;
-    flex-direction: column;
-    position: relative;    /* Needed for floating dropdown */
+/* ── Nav ── */
+.pn-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px; height: 52px;
+  background: #0D1117; border-bottom: 1px solid #161B22;
+  position: sticky; top: 0; z-index: 10;
+}
+.pn-nav-logo { display: flex; align-items: center; gap: 9px; text-decoration: none; }
+.pn-nav-logo-b {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, #0F2847, #1F6FEB);
+  border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 700; color: white;
+}
+.pn-nav-logo-name {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px; font-weight: 500; color: #E6EDF3; letter-spacing: 0.12em;
+}
+.pn-nav-links { display: flex; list-style: none; margin: 0; padding: 0; gap: 4px; }
+.pn-nav-links a {
+  display: block; padding: 6px 14px; border-radius: 7px;
+  color: #6E7681; text-decoration: none; font-size: 13px; transition: all 0.18s;
+}
+.pn-nav-links a:hover { background: #161B22; color: #C9D1D9; }
+.pn-nav-links a.active { color: #58A6FF; background: #0D2040; }
+
+/* ── Page ── */
+.pn-page { max-width: 1100px; margin: 0 auto; padding: 32px 28px 60px; }
+.pn-page-header { margin-bottom: 24px; }
+.pn-eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; color: #1F6FEB;
+  text-transform: uppercase; letter-spacing: 0.18em; margin-bottom: 6px;
+}
+.pn-title { font-size: 22px; font-weight: 600; color: #E6EDF3; margin: 0; }
+
+/* ── Panel ── */
+.pn-panel {
+  background: #0D1117; border: 1px solid #161B22;
+  border-radius: 14px; padding: 24px 28px;
+  display: flex; flex-direction: column; gap: 20px;
 }
 
-.block label {
-    margin-bottom: 6px;
-    color: #c9d1d9;
-    font-weight: 600;
+/* ── Search row ── */
+.pn-search-row {
+  display: flex; align-items: flex-end; gap: 16px;
 }
 
-/* INPUTS */
-.block input[type="text"],
-.block input[type="date"] {
-    width: 220px;
-    padding: 8px 10px;
-    background: #161B22;
-    border: 1px solid #30363D;
-    border-radius: 6px;
-    color: #E6EDF3;
-    font-size: 15px;
+.pn-search-field { display: flex; flex-direction: column; gap: 5px; flex: 1; max-width: 340px; }
+
+.pn-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; color: #6E7681;
+  text-transform: uppercase; letter-spacing: 0.1em;
 }
 
-/* ===== DROPDOWN FLOTANTE ===== */
+.pn-search-wrap { position: relative; }
+
+.pn-input {
+  width: 100%; padding: 10px 14px;
+  background: #161B22; border: 1px solid #21262D; border-radius: 8px;
+  color: #E6EDF3; font-size: 13px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  box-sizing: border-box; transition: border-color 0.18s;
+}
+.pn-input:focus { outline: none; border-color: #1F6FEB; box-shadow: 0 0 0 3px rgba(31,111,235,0.15); }
+.pn-input::placeholder { color: #484F58; }
+
+/* Search dropdown */
 .search-results {
-    position: absolute;
-    top: 42px;
-    left: 0;
-    width: 100%;
-    border: 1px solid #30363D;
-    max-height: 220px;
-    overflow-y: auto;
-    background: #0D1117;
-    border-radius: 6px;
-    padding: 3px 0;
-    z-index: 5000;
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: #161B22; border: 1px solid #21262D; border-radius: 8px;
+  max-height: 220px; overflow-y: auto;
+  z-index: 5000; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.search-results:empty { display: none; }
+.search-results div, .result-item {
+  padding: 9px 14px; border-bottom: 1px solid #0D1117;
+  cursor: pointer; font-size: 13px; color: #C9D1D9; transition: background 0.15s;
+}
+.search-results div:last-child { border-bottom: none; }
+.search-results div:hover, .result-item:hover { background: #1F2937; color: #E6EDF3; }
+
+/* ── Buttons ── */
+.pn-btn {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 20px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  font-family: 'IBM Plex Sans', sans-serif;
+  border: none; transition: all 0.18s; text-decoration: none; white-space: nowrap;
 }
 
-.search-results div {
-    padding: 8px;
-    border-bottom: 1px solid #21262D;
-    cursor: pointer;
+.pn-btn-primary {
+  background: linear-gradient(135deg, #1A5FCA, #1F6FEB);
+  color: white; box-shadow: 0 4px 14px rgba(31,111,235,0.3);
 }
+.pn-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(31,111,235,0.4); }
 
-.search-results div:hover {
-    background: #1C2128;
+.pn-btn-ghost {
+  background: #161B22; color: #8B949E; border: 1px solid #21262D;
 }
+.pn-btn-ghost:hover { background: #21262D; color: #C9D1D9; border-color: #30363D; }
 
-/* ===== BUTTON BLOCK ===== */
-.btn-block {
-    display: flex;
-    align-items: flex-end;
+/* Spinner — same class used by JS */
+.pn-btn .spinner, .green-btn .spinner {
+  position: absolute;
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white; border-radius: 50%;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s;
 }
+.pn-btn.loading .spinner,
+.green-btn.loading .spinner { opacity: 1; animation: pn-spin 0.8s linear infinite; }
+.pn-btn.loading .btn-text,
+.green-btn.loading .btn-text { opacity: 0; }
+.pn-btn.loading, .green-btn.loading { pointer-events: none; }
+@keyframes pn-spin { to { transform: rotate(360deg); } }
 
-/* ===== GREEN BUTTON + PERFECTLY CENTERED SPINNER ===== */
+/* Disabled / enabled — used by JS */
+.disabled-btn { pointer-events: none !important; opacity: 0.35 !important; }
+.enabled-btn  { pointer-events: auto !important; opacity: 1 !important; }
+
+/* Legacy green-btn alias — JS references it on anchor tags */
 .green-btn {
-    position: relative;
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 32px;
-    min-height: 48px;
-    background: #238636;
-    color: white;
-    font-weight: 600;
-    font-size: 15px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background 0.3s;
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 20px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  background: #161B22; color: #8B949E; border: 1px solid #21262D;
+  font-family: 'IBM Plex Sans', sans-serif;
+  transition: all 0.18s; text-decoration: none; white-space: nowrap;
+}
+.green-btn:hover { background: #21262D; color: #C9D1D9; }
+
+/* ── Output box ── */
+.pn-output {
+  background: #080C10; border: 1px solid #161B22; border-radius: 10px;
+  padding: 16px 20px; min-height: 200px; max-height: 55vh;
+  overflow-y: auto; font-family: 'IBM Plex Mono', monospace;
+  font-size: 12.5px; line-height: 1.65; color: #3FB950;
+  white-space: pre-wrap; word-break: break-all; text-align: left;
+  scrollbar-width: thin; scrollbar-color: #21262D transparent;
+}
+.pn-output::-webkit-scrollbar { width: 5px; }
+.pn-output::-webkit-scrollbar-thumb { background: #21262D; border-radius: 3px; }
+
+/* Legacy selector JS does outputBox.textContent on */
+#outputBox { /* inherits .pn-output */ }
+
+/* ── Action buttons row ── */
+.pn-actions {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  padding-top: 4px;
+  border-top: 1px solid #161B22;
 }
 
-.green-btn:hover {
-    background: #2ea043;
+@media (max-width: 700px) {
+  .pn-search-row { flex-direction: column; align-items: stretch; }
+  .pn-search-field { max-width: 100%; }
+  .pn-page { padding: 16px; }
+  .pn-panel { padding: 16px; }
 }
-
-.green-btn .spinner {
-    position: absolute;
-    width: 20px;
-    height: 20px;
-    border: 3px solid #ffffff40;
-    border-top: 3px solid white;
-    border-radius: 50%;
-    opacity: 0;
-    pointer-events: none;
-}
-
-.green-btn.loading .btn-text {
-    opacity: 0;
-}
-
-.green-btn.loading .spinner {
-    opacity: 1;
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-/* ===== OUTPUT BOX ===== */
-.output-box {
-    margin-top: 35px;
-    padding: 15px;
-    border: 1px solid #30363D;
-    background: #0D1117;
-    border-radius: 6px;
-    white-space: pre-wrap;
-    font-family: Consolas, monospace;
-    color: #58A6FF;
-    min-height: 40px;
-}
-
-.search-results:empty {
-    display: none;
-}
-
-/* Same universal spinner fix - works everywhere */
-.green-btn.loading .btn-text {
-    position: absolute;
-    left: -9999px;
-    opacity: 0;
-}
-
-.output-box {
-    text-align: left;    /* Align text to the left */,
-        margin-top: 35px;
-    padding: 15px;
-    border: 1px solid #30363D;
-    background: #0D1117;
-    border-radius: 6px;
-    white-space: pre-wrap;
-    font-family: Consolas, monospace;
-    color: #58A6FF;
-    min-height: 200px;   /* bigger */
-    max-height: 400px;   /* capped */
-    overflow-y: auto;    /* scroll */
-}
-
-.disabled-btn {
-    pointer-events: none;
-    opacity: 0.4;
-}
-.enabled-btn {
-    pointer-events: auto;
-    opacity: 1;
-}
-
-

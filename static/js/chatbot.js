@@ -65,3 +65,16 @@ document.addEventListener("DOMContentLoaded", () => {
     inputField.focus();
   });
 });
+
+function toggleMaximize() {
+  const popup = document.getElementById("chat-popup");
+  const btn   = document.getElementById("maximizeBtn");
+  const isMax = popup.classList.toggle("maximized");
+  btn.textContent  = isMax ? "⤡" : "⤢";
+  btn.title        = isMax ? "Minimize" : "Maximize";
+  // scroll to bottom after resize
+  setTimeout(() => {
+    const h = document.getElementById("chat-history");
+    if (h) h.scrollTop = h.scrollHeight;
+  }, 260);
+}

@@ -1,72 +1,91 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Process News</title>
-    <link rel="stylesheet" href="/static/css/main.css">
-    <link rel="stylesheet" href="/static/css/process_news.css">
-    <link rel="stylesheet" href="/static/css/chatbot.css">
-    <script src="/static/js/chatbot.js"></script>
+  <meta charset="UTF-8">
+  <title>Process News — Bias</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/process_news.css">
+  <link rel="stylesheet" href="/static/css/chatbot.css">
+  <script src="/static/js/chatbot.js"></script>
 </head>
-<body>
-<nav class="navbar">
-  <ul>
+<body class="pn-body">
+
+<nav class="pn-nav">
+  <a href="/" class="pn-nav-logo">
+    <span class="pn-nav-logo-b">B</span>
+    <span class="pn-nav-logo-name">BIAS</span>
+  </a>
+  <ul class="pn-nav-links">
     <li><a href="/">Home</a></li>
     <li><a href="/process_news" class="active">Process News</a></li>
   </ul>
 </nav>
 
-<div class="content">
-  <div class="panel">
-    <h3>📰 Process News</h3>
+<div class="pn-page">
 
-    <form id="newsForm" onsubmit="runProcessNews(event)" class="simple-row">
-        <div class="block">
-            <label>Select Security:</label>
-            <input type="text" id="searchInput" placeholder="Ticker or Name..." oninput="searchSymbol()">
-            <div id="searchResults" class="search-results"></div>
+  <div class="pn-page-header">
+    <div class="pn-eyebrow">Intelligence · Pipeline</div>
+    <h1 class="pn-title">📰 Process News</h1>
+  </div>
+
+  <div class="pn-panel">
+
+    <!-- Search + Download row -->
+    <form id="newsForm" onsubmit="runProcessNews(event)" class="pn-search-row">
+
+      <div class="pn-search-field">
+        <label class="pn-label">Security</label>
+        <div class="pn-search-wrap">
+          <input type="text" id="searchInput" placeholder="Ticker or Name…"
+                 oninput="searchSymbol()" class="pn-input" autocomplete="off">
+          <div id="searchResults" class="search-results"></div>
         </div>
+      </div>
 
-        <div class="block btn-block">
-            <button type="submit" class="green-btn" id="runBtn">
-                <span class="btn-text">Download News</span>
-                <div class="spinner"></div>  <!-- Este ahora sí usa el spinner PRO del main.css -->
-            </button>
-        </div>
+      <input type="hidden" id="selectedSecurity" name="symbol">
 
-        <input type="hidden" id="selectedSecurity" name="symbol">
+      <button type="submit" class="pn-btn pn-btn-primary" id="runBtn">
+        <div class="spinner"></div>
+        <span class="btn-text">⬇ Download News</span>
+      </button>
+
     </form>
 
+    <!-- Output box -->
+    <div id="outputBox" class="pn-output"></div>
 
+    <!-- Action buttons -->
+    <div class="pn-actions">
 
-    <div id="outputBox" class="output-box"></div>
-          <div style="margin-top:20px; display:flex; justify-content:center; gap:20px;">
+      <a id="downloadPromptBtn"
+         href="/process_news/download_prompt"
+         class="pn-btn pn-btn-ghost disabled-btn"
+         style="text-decoration:none;">
+        📄 Prompt
+      </a>
 
-    <a id="downloadPromptBtn"
-       href="/process_news/download_prompt"
-       class="green-btn"
-       style="text-decoration:none;">
-        Prompt
-    </a>
+      <a id="downloadBtn"
+         href="/process_news/download_last"
+         class="pn-btn pn-btn-ghost disabled-btn"
+         style="text-decoration:none;">
+        ⬇ Download Report
+      </a>
 
-    <a id="downloadBtn"
-       href="/process_news/download_last"
-       class="green-btn disabled-btn"
-       style="text-decoration:none;">
-        Download Last Report
-    </a>
-
-    <a id="ingestNewsBtn"
-       href="#"
-       class="green-btn disabled-btn"
-       onclick="ingestNews(event)"
-       style="text-decoration:none; position:relative;">
-        <span class="btn-text">Ingest News</span>
+      <a id="ingestNewsBtn"
+         href="#"
+         class="pn-btn pn-btn-ghost disabled-btn"
+         onclick="ingestNews(event)"
+         style="text-decoration:none; position:relative;">
         <div class="spinner"></div>
-    </a>
+        <span class="btn-text">🔄 Ingest News</span>
+      </a>
 
-</div>
     </div>
+
+  </div>
 </div>
 
 <script src="/static/js/process_news.js"></script>

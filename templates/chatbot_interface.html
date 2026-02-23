@@ -4,7 +4,10 @@
   <div class="chat-popup" id="chat-popup">
     <div class="chat-header">
       <strong>Assistant</strong>
-      <button  class="close-btn" onclick="toggleChat()">✕</button>
+      <div class="chat-header-actions">
+        <button class="chat-maximize-btn" onclick="toggleMaximize()" title="Maximize" id="maximizeBtn">⤢</button>
+        <button class="close-btn" onclick="toggleChat()">✕</button>
+      </div>
     </div>
 
     <div id="chat-history" class="chat-history"></div>

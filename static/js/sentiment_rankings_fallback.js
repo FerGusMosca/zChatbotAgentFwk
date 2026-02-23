@@ -57,3 +57,22 @@ const qSel  = document.getElementById("quarterSelector");
 k10Sel.addEventListener("change", () => {
     qSel.style.display = (k10Sel.value === "Q10") ? "block" : "none";
 });
+
+
+function showLoadingSkeleton() {
+  const resultDiv = document.getElementById('result');
+  resultDiv.innerHTML = `
+    <div class="srfb-loading">
+      <div class="srfb-loading-header">
+        <div class="srfb-loading-spinner"></div>
+        <span class="srfb-loading-label">Analyzing data…</span>
+      </div>
+      <div class="srfb-skeleton">
+        <div class="srfb-skeleton-bar"></div>
+        <div class="srfb-skeleton-bar"></div>
+        <div class="srfb-skeleton-bar"></div>
+        <div class="srfb-skeleton-bar"></div>
+        <div class="srfb-skeleton-bar"></div>
+      </div>
+    </div>`;
+}
