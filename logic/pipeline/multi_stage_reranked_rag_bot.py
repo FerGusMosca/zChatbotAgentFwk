@@ -123,7 +123,7 @@ class MultiStageRerankedRagBot(RerankedRagBot):
             temperature=temperature
         )
 
-        #self.reranker = CrossEncoderReranker(top_k=top_k, logger_ref=self.logger)
+        self.reranker = CrossEncoderReranker(top_k=top_k, logger_ref=self.logger)
         self.deduper = DedupEliminator(self.logger,self.dedup_settings_path)
 
         self.ssi = SalientSpanIndexer(self.ssi_settings,self.logger)
