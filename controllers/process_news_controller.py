@@ -225,6 +225,8 @@ class ProcessNewsController:
                 chunk_name=settings.news_chunks_rel_path,
                 embedding_model=settings.news_embedding_model,
                 clustering_model=settings.news_embedding_model,
+                persist_qdrant=False,
+                qdrant_collection="",
                 log_posfix=symbol,
                 uri=settings.ingest_mcp_server
             )
