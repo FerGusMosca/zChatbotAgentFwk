@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Deep Company Analysis</title>
+  <title>Deep Company Analysis — Bias</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/main.css">
   <link rel="stylesheet" href="/static/css/deep_company_analysis.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -16,76 +19,130 @@
 </head>
 <body>
 
+<!-- ── Nav ── -->
 <nav class="navbar">
+  <a href="/" style="display:flex;align-items:center;gap:9px;text-decoration:none;">
+    <div style="width:28px;height:28px;background:linear-gradient(135deg,#0F2847,#1F6FEB);border-radius:7px;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;color:white;">B</div>
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;color:#E6EDF3;letter-spacing:0.12em;">BIAS</span>
+  </a>
   <ul>
-    <li><a href="/">🏠 Home</a></li>
-    <li><a href="/document_tag_indexer">🏷️ Document Tag Indexer</a></li>
-    <li><a href="/deep_company_analysis">🔬 Deep Company Analysis</a></li>
+    <li><a href="/">Home</a></li>
+    <li><a href="/document_tag_indexer">Document Tag Indexer</a></li>
+    <li><a href="/deep_company_analysis" class="active">Deep Company Analysis</a></li>
   </ul>
 </nav>
 
 <div class="content">
+
+  <!-- ── Page header ── -->
+  <div class="dca-page-header">
+    <div class="dca-eyebrow">Intelligence · Research</div>
+    <h1 class="dca-title" style="font-size:22px;font-weight:600;color:#E6EDF3;margin:0;">🔬 Deep Company Analysis</h1>
+  </div>
+
+  <!-- ── Main panel ── -->
   <div class="panel dca-panel">
 
-    <h1 class="dca-title">🔬 Deep Company Analysis</h1>
-
     <form id="analysisForm">
-      <table class="dca-controls-table">
-        <tr>
-          <td><input type="text" name="symbol" id="symbolInput" placeholder="Symbol (e.g., AAPL)" required></td>
-          <td>
-            <select name="doc_type" id="docTypeSelect" required>
-              <option value="" disabled selected>Document Type</option>
-              <option value="10K">10-K</option>
-              <option value="10Q">10-Q</option>
-              <option value="8K">8-K</option>
-              <option value="4F">4-F</option>
-              <option value="FREE_TEXT">Free Text</option>
-            </select>
-          </td>
-          <td><input type="text" name="year" id="yearInput" placeholder="Year" required></td>
-          <td>
-            <select name="quarter" id="quarterSelect" class="dca-hidden">
-              <option value="" disabled selected>Quarter</option>
-              <option value="Q1">Q1</option>
-              <option value="Q2">Q2</option>
-              <option value="Q3">Q3</option>
-              <option value="Q4">Q4</option>
-            </select>
-          </td>
-        </tr>
-        <tr id="freeTextRow" class="dca-hidden">
-          <td colspan="4">
-            <div class="dca-file-upload-container">
-              <input type="file" id="fileUploadInput" accept=".txt,.pdf,.doc,.docx" class="dca-file-input" style="display: none;">
-              <button type="button" id="uploadFileBtn" class="dca-upload-btn">📄 Upload Document</button>
-              <span id="uploadedFileName" class="dca-file-name"></span>
-              <button type="button" id="clearFileBtn" class="dca-clear-btn dca-hidden">✕ Clear</button>
-            </div>
-            <textarea name="free_text" id="freeTextArea" class="dca-textarea" placeholder="Paste your text here OR upload a document above" rows="12"></textarea>
-          </td>
-        </tr>
-        <tr id="k8Row" class="dca-hidden">
-          <td colspan="4">
-            <div class="dca-file-upload-container">
-              <button type="button" id="downloadK8Btn" class="dca-upload-btn">📥 Download 8-K</button>
-              <span id="k8Status" class="dca-file-name"></span>
-            </div>
-            <textarea name="k8_text" id="k8TextArea" class="dca-textarea" placeholder="8-K content will appear here after download..." rows="12" readonly></textarea>
-          </td>
-        </tr>
-        <tr id="f4Row" class="dca-row dca-hidden">
-          <td colspan="4">
-            <div class="dca-file-upload-container">
-              <button type="button" id="downloadF4Btn" class="dca-upload-btn">📥 Download F4</button>
-              <span id="f4Status" class="dca-file-name">Ready to download Form 4</span>
-            </div>
-            <textarea id="f4TextArea" class="dca-textarea" placeholder="Form 4 content will appear here after download..." rows="12" readonly></textarea>
-          </td>
-        </tr>
-      </table>
+
+      <!-- ── Row 1: Symbol / DocType / Year / Quarter ── -->
+      <p class="dca-section-label">Document Parameters</p>
+      <div class="dca-controls-grid">
+
+        <div class="dca-field">
+          <label class="dca-label">Symbol</label>
+          <input type="text" name="symbol" id="symbolInput" class="dca-input"
+                 placeholder="e.g. AAPL" required autocomplete="off">
+        </div>
+
+        <div class="dca-field">
+          <label class="dca-label">Document Type</label>
+          <select name="doc_type" id="docTypeSelect" class="dca-select" required>
+            <option value="" disabled selected>Select type</option>
+            <option value="10K">10-K</option>
+            <option value="10Q">10-Q</option>
+            <option value="8K">8-K</option>
+            <option value="4F">Form 4</option>
+            <option value="FREE_TEXT">Free Text</option>
+          </select>
+        </div>
+
+        <div class="dca-field">
+          <label class="dca-label">Year</label>
+          <input type="text" name="year" id="yearInput" class="dca-input"
+                 placeholder="e.g. 2024" required>
+        </div>
+
+        <div class="dca-field">
+          <label class="dca-label">Quarter</label>
+          <select name="quarter" id="quarterSelect" class="dca-select dca-hidden">
+            <option value="" disabled selected>Quarter</option>
+            <option value="Q1">Q1</option>
+            <option value="Q2">Q2</option>
+            <option value="Q3">Q3</option>
+            <option value="Q4">Q4</option>
+          </select>
+          <div id="quarterPlaceholder" class="dca-input" style="color:#484F58;pointer-events:none;background:#161B22;">—</div>
+        </div>
+
+      </div>
+
+      <!-- ── Free Text row ── -->
+      <div id="freeTextRow" class="dca-hidden" style="margin-bottom:14px;">
+        <hr class="dca-divider">
+        <p class="dca-section-label">Document Content</p>
+        <div class="dca-file-upload-container">
+          <input type="file" id="fileUploadInput" accept=".txt,.pdf,.doc,.docx" style="display:none;">
+          <button type="button" id="uploadFileBtn" class="dca-upload-btn">📄 Upload Document</button>
+          <span id="uploadedFileName" class="dca-file-name"></span>
+          <button type="button" id="clearFileBtn" class="dca-clear-btn dca-hidden">✕ Clear</button>
+        </div>
+        <textarea name="free_text" id="freeTextArea" class="dca-textarea"
+                  placeholder="Paste text here or upload a document above" rows="10"></textarea>
+      </div>
+
+      <!-- ── 8-K row ── -->
+      <div id="k8Row" class="dca-hidden" style="margin-bottom:14px;">
+        <hr class="dca-divider">
+        <p class="dca-section-label">8-K Filing Content</p>
+        <div class="dca-file-upload-container">
+          <button type="button" id="downloadK8Btn" class="dca-upload-btn">📥 Download 8-K</button>
+          <span id="k8Status" class="dca-file-name"></span>
+        </div>
+        <textarea name="k8_text" id="k8TextArea" class="dca-textarea"
+                  placeholder="8-K content will appear here after download…" rows="10" readonly></textarea>
+      </div>
+
+      <!-- ── Form 4 row ── -->
+      <div id="f4Row" class="dca-row dca-hidden" style="margin-bottom:14px;">
+        <hr class="dca-divider">
+        <p class="dca-section-label">Form 4 — Insider Transactions</p>
+        <div class="dca-file-upload-container">
+          <button type="button" id="downloadF4Btn" class="dca-upload-btn">📥 Download Form 4</button>
+          <span id="f4Status" class="dca-file-name">Ready to download</span>
+        </div>
+        <textarea id="f4TextArea" class="dca-textarea"
+                  placeholder="Form 4 content will appear here after download…" rows="10" readonly></textarea>
+      </div>
+
     </form>
 
+    <!-- ── Free Analysis Prompt ── -->
+    <div id="freeAnalysisPromptSection" class="dca-hidden">
+      <div class="dca-prompt-section">
+        <label>Analysis Prompt</label>
+        <select id="promptSelector" class="dca-prompt-selector">
+          <option value="">— Select a predefined prompt —</option>
+          <option value="standard_earnings">Standard Earnings Transcript Analysis</option>
+          <option value="k8_events_analysis">8-K Events Analysis</option>
+          <option value="f4_insider_analysis">Form 4 Insider Transaction Analysis</option>
+        </select>
+        <textarea id="freeAnalysisPrompt" class="dca-textarea"
+                  placeholder="Enter a custom prompt or select one above" rows="5"></textarea>
+      </div>
+    </div>
+
+    <!-- ── Action buttons ── -->
     <div class="dca-button-container">
       <button type="button" id="sentimentBtn" class="dca-action-btn">
         <span class="btn-text">📊 Analyze Sentiment</span>
@@ -101,64 +158,77 @@
       </button>
     </div>
 
-    <div id="freeAnalysisPromptSection" class="dca-hidden">
-      <div class="dca-prompt-section">
-        <label for="promptSelector" style="display: block; margin-bottom: 8px; color: #58A6FF; font-weight: 500;">
-          Custom Analysis Prompt:
-        </label>
-        <select id="promptSelector" class="dca-prompt-selector">
-          <option value="">-- Select a predefined prompt --</option>
-          <option value="standard_earnings">Standard Earnings Transcript Analysis</option>
-          <option value="k8_events_analysis">K8 Events Analysis</option>
-          <option value="f4_insider_analysis">F4 Insider Transaction Analysis</option>
-        </select>
-        <textarea id="freeAnalysisPrompt" class="dca-textarea" placeholder="Enter your custom prompt OR select a predefined prompt above" rows="6"></textarea>
-      </div>
+    <!-- ── Status bar ── -->
+    <div class="dca-status-bar">
+      <div class="dca-status-dot" id="statusDot"></div>
+      <span class="dca-status-text" id="statusText">Enter a symbol to begin</span>
     </div>
 
+    <!-- ── Legacy result message (hidden, kept for JS compat) ── -->
     <div id="resultMessage" class="dca-result"></div>
 
-    <!-- Topic Input Modal -->
-    <div id="topicModal" class="dca-modal dca-hidden">
-      <div class="dca-modal-content dca-modal-small">
-        <div class="dca-modal-header">
-          <h3>🏷️ Configure Topics for Analysis</h3>
-          <button id="closeTopicModal" class="dca-modal-close">×</button>
-        </div>
-        <div class="dca-modal-body">
-          <p style="color:#8B949E; margin-bottom:16px;">
-            Enter a tag name and topics you want to extract from the document.
-          </p>
-          <input type="text" id="tagNameInput" class="dca-controls-table" style="width:100%; padding:12px; margin-bottom:12px; background:#21262D; border:1px solid #30363D; border-radius:8px; color:#E6EDF3;" placeholder="Tag name (e.g., ai_innovation)">
-          <textarea id="topicsInput" class="dca-textarea" placeholder="Enter topics, one per line:&#10;AI Implementation&#10;Cost Management&#10;Pricing Power&#10;Market Competition&#10;Regulatory Risk" rows="10"></textarea>
+  </div><!-- /dca-panel -->
 
-          <div id="topicProgressContainer" class="dca-hidden" style="background:#0D1117; padding:12px; border-radius:6px; margin-top:12px; max-height:200px; overflow-y:auto;">
-            <div id="topicProgressMessages"></div>
-          </div>
+</div><!-- /content -->
 
-          <button id="submitTopics" class="dca-action-btn" style="margin-top:16px; width:100%;">
-            <span class="btn-text">Run Topic Analysis</span>
-            <div class="spinner"></div>
-          </button>
-        </div>
+
+<!-- ══════════════════════════════════════════════
+     TOPIC INPUT MODAL
+══════════════════════════════════════════════ -->
+<div id="topicModal" class="dca-modal dca-hidden">
+  <div class="dca-modal-content dca-modal-small">
+    <div class="dca-modal-header">
+      <h3>🏷️ Configure Topic Analysis</h3>
+      <button id="closeTopicModal" class="dca-modal-close">×</button>
+    </div>
+    <div class="dca-modal-body">
+      <p style="color:#6E7681;font-size:13px;margin:0 0 14px 0;line-height:1.5;">
+        Define a tag name and the topics you want to extract from the document.
+      </p>
+
+      <div class="dca-field" style="margin-bottom:10px;">
+        <label class="dca-label">Tag Name</label>
+        <input type="text" id="tagNameInput" class="dca-input"
+               placeholder="e.g. ai_innovation">
+      </div>
+
+      <div class="dca-field">
+        <label class="dca-label">Topics — one per line</label>
+        <textarea id="topicsInput" class="dca-textarea"
+                  placeholder="AI Implementation&#10;Cost Management&#10;Pricing Power&#10;Market Competition&#10;Regulatory Risk"
+                  rows="9"></textarea>
+      </div>
+
+      <div id="topicProgressContainer" class="dca-progress-box dca-hidden" style="margin-top:10px;">
+        <div id="topicProgressMessages"></div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+        <button id="submitTopics" class="dca-action-btn" style="min-width:180px;">
+          <span class="btn-text">Run Topic Analysis</span>
+          <div class="spinner"></div>
+        </button>
       </div>
     </div>
-
-    <!-- Results Modal -->
-    <div id="resultsModal" class="dca-modal dca-hidden">
-      <div class="dca-modal-content dca-modal-large">
-        <div class="dca-modal-header">
-          <h3 id="resultsModalTitle">📊 Analysis Results</h3>
-          <button id="closeResultsModal" class="dca-modal-close">×</button>
-        </div>
-        <div class="dca-modal-body">
-          <div id="resultsModalContent"></div>
-        </div>
-      </div>
-    </div>
-
   </div>
 </div>
+
+
+<!-- ══════════════════════════════════════════════
+     RESULTS MODAL
+══════════════════════════════════════════════ -->
+<div id="resultsModal" class="dca-modal dca-hidden">
+  <div class="dca-modal-content dca-modal-large">
+    <div class="dca-modal-header">
+      <h3 id="resultsModalTitle">Analysis Results</h3>
+      <button id="closeResultsModal" class="dca-modal-close">×</button>
+    </div>
+    <div class="dca-modal-body">
+      <div id="resultsModalContent"></div>
+    </div>
+  </div>
+</div>
+
 
 <script src="/static/js/deep_company_analysis.js"></script>
 </body>

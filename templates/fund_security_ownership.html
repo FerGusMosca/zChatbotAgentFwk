@@ -3,67 +3,94 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Fund Security Ownership</title>
+  <title>Fund Security Ownership — Bias</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/main.css">
   <link rel="stylesheet" href="/static/css/fund_security_ownership.css">
 </head>
 <body>
 
+<!-- ── Nav ── -->
 <nav class="navbar">
+  <a href="/" style="display:flex;align-items:center;gap:9px;text-decoration:none;flex-shrink:0;">
+    <div style="width:28px;height:28px;background:linear-gradient(135deg,#0F2847,#1F6FEB);border-radius:7px;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;color:white;">B</div>
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;color:#E6EDF3;letter-spacing:0.12em;">BIAS</span>
+  </a>
   <ul>
-    <li><a href="/">🏠 Home</a></li>
-    <li><a href="/document_tag_indexer">🏷️ Document Tag Indexer</a></li>
-    <li><a href="/deep_company_analysis">🔬 Deep Company Analysis</a></li>
-    <li><a href="/fund_security_ownership" class="active">📊 Fund Security Ownership</a></li>
+    <li><a href="/">Home</a></li>
+    <li><a href="/document_tag_indexer">Document Tag Indexer</a></li>
+    <li><a href="/deep_company_analysis">Deep Company Analysis</a></li>
+    <li><a href="/fund_security_ownership" class="active">Fund Ownership</a></li>
   </ul>
 </nav>
 
 <div class="content">
-  <div class="panel fso-panel">
+<div class="panel fso-panel">
 
-    <h1 class="fso-title">📊 Fund Security Ownership</h1>
-    <p class="fso-subtitle">Institutional Sentiment Analysis • 13F Holdings • Crowding & Capitulation</p>
-
-    <!-- Tab Navigation -->
-    <div class="fso-tabs">
-      <button class="fso-tab active" data-tab="crowded">🔥 Crowded Trades</button>
-      <button class="fso-tab" data-tab="capitulation">📉 Capitulation</button>
-      <button class="fso-tab" data-tab="portfolio">💼 Portfolio Viewer</button>
-      <button class="fso-tab" data-tab="ownership">🏛️ Asset Ownership</button>
+  <!-- ── Header bar ── -->
+  <div class="fso-header">
+    <div class="fso-header-left">
+      <div class="fso-eyebrow">Intelligence · 13F · Neo4j</div>
+      <h1 class="fso-title">Fund Security Ownership</h1>
+      <p class="fso-subtitle">Institutional sentiment · Crowding & Capitulation · 13F Holdings</p>
     </div>
-
-    <!-- Common Period Selector -->
-    <div class="fso-period-selector">
-      <div class="fso-period-row">
-        <label>Period:</label>
+    <div class="fso-header-right">
+      <!-- Period selector lives here -->
+      <div class="fso-period-inline">
+        <span class="fso-period-label">Period</span>
         <select id="yearSelect">
           <option value="" disabled selected>Year</option>
         </select>
+        <span style="color:#3D444D;">Q</span>
         <select id="quarterSelect">
-          <option value="" disabled selected>Quarter</option>
-          <option value="1">Q1</option>
-          <option value="2">Q2</option>
-          <option value="3">Q3</option>
-          <option value="4">Q4</option>
+          <option value="" disabled selected>—</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
         </select>
-        <span id="periodStatus" class="fso-period-status"></span>
       </div>
+      <span id="periodStatus" class="fso-period-status"></span>
     </div>
+  </div>
 
-    <!-- Tab Content: Crowded Trades -->
+  <!-- ── Tab rail ── -->
+  <div class="fso-tab-rail">
+    <div class="fso-tabs">
+      <button class="fso-tab active" data-tab="crowded">
+        <span class="fso-tab-icon">🔥</span> Crowded Trades
+      </button>
+      <button class="fso-tab" data-tab="capitulation">
+        <span class="fso-tab-icon">📉</span> Capitulation
+      </button>
+      <button class="fso-tab" data-tab="portfolio">
+        <span class="fso-tab-icon">💼</span> Portfolio Viewer
+      </button>
+      <button class="fso-tab" data-tab="ownership">
+        <span class="fso-tab-icon">🏛️</span> Asset Ownership
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Body ── -->
+  <div class="fso-body">
+
+    <!-- TAB: Crowded Trades -->
     <div id="tab-crowded" class="fso-tab-content active">
       <div class="fso-controls">
         <div class="fso-control-group">
-          <label>Offset (Start from rank):</label>
-          <input type="number" id="crowdedOffset" value="0" min="0" step="100">
+          <label>Offset</label>
+          <input type="number" id="crowdedOffset" value="0" min="0" step="100" style="width:90px;">
         </div>
         <div class="fso-control-group">
-          <label>Min Crowd Score:</label>
-          <input type="number" id="crowdedMinScore" placeholder="Optional" step="0.01">
+          <label>Min Crowd Score</label>
+          <input type="number" id="crowdedMinScore" placeholder="Optional" step="0.01" style="width:130px;">
         </div>
         <div class="fso-control-group">
-          <label>Results:</label>
-          <select id="crowdedLimit">
+          <label>Results</label>
+          <select id="crowdedLimit" style="width:90px;">
             <option value="50">50</option>
             <option value="100" selected>100</option>
             <option value="250">250</option>
@@ -71,26 +98,26 @@
           </select>
         </div>
         <button id="crowdedSearchBtn" class="fso-action-btn">
-          <span class="btn-text">🔍 Search Crowded</span>
+          <span class="btn-text">Search</span>
           <div class="spinner"></div>
         </button>
       </div>
     </div>
 
-    <!-- Tab Content: Capitulation -->
+    <!-- TAB: Capitulation -->
     <div id="tab-capitulation" class="fso-tab-content">
       <div class="fso-controls">
         <div class="fso-control-group">
-          <label>Min Owners (filter noise):</label>
-          <input type="number" id="capMinOwners" value="5" min="1">
+          <label>Min Owners</label>
+          <input type="number" id="capMinOwners" value="5" min="1" style="width:90px;">
         </div>
         <div class="fso-control-group">
-          <label>Offset:</label>
-          <input type="number" id="capOffset" value="0" min="0" step="100">
+          <label>Offset</label>
+          <input type="number" id="capOffset" value="0" min="0" step="100" style="width:90px;">
         </div>
         <div class="fso-control-group">
-          <label>Results:</label>
-          <select id="capLimit">
+          <label>Results</label>
+          <select id="capLimit" style="width:90px;">
             <option value="50">50</option>
             <option value="100" selected>100</option>
             <option value="250">250</option>
@@ -98,23 +125,23 @@
           </select>
         </div>
         <button id="capSearchBtn" class="fso-action-btn">
-          <span class="btn-text">🔍 Search Capitulation</span>
+          <span class="btn-text">Search</span>
           <div class="spinner"></div>
         </button>
       </div>
     </div>
 
-    <!-- Tab Content: Portfolio Viewer -->
+    <!-- TAB: Portfolio Viewer -->
     <div id="tab-portfolio" class="fso-tab-content">
       <div class="fso-controls">
-        <div class="fso-control-group fso-control-wide">
-          <label>Fund/Manager Name:</label>
-          <input type="text" id="portfolioManager" placeholder="e.g., Berkshire, Bridgewater, Renaissance...">
+        <div class="fso-control-group fso-control-wide" style="position:relative;">
+          <label>Fund / Manager Name</label>
+          <input type="text" id="portfolioManager" placeholder="Berkshire, Bridgewater, Renaissance…">
           <div id="managerSuggestions" class="fso-suggestions"></div>
         </div>
         <div class="fso-control-group">
-          <label>Results:</label>
-          <select id="portfolioLimit">
+          <label>Results</label>
+          <select id="portfolioLimit" style="width:90px;">
             <option value="50">50</option>
             <option value="100" selected>100</option>
             <option value="250">250</option>
@@ -122,24 +149,24 @@
           </select>
         </div>
         <button id="portfolioSearchBtn" class="fso-action-btn">
-          <span class="btn-text">🔍 View Portfolio</span>
+          <span class="btn-text">View Portfolio</span>
           <div class="spinner"></div>
         </button>
       </div>
       <div id="selectedManager" class="fso-selected-entity"></div>
     </div>
 
-    <!-- Tab Content: Asset Ownership -->
+    <!-- TAB: Asset Ownership -->
     <div id="tab-ownership" class="fso-tab-content">
       <div class="fso-controls">
-        <div class="fso-control-group fso-control-wide">
-          <label>Asset (CUSIP, Ticker or Name):</label>
-          <input type="text" id="ownershipAsset" placeholder="e.g., AAPL, MSFT, 037833100...">
+        <div class="fso-control-group fso-control-wide" style="position:relative;">
+          <label>Asset — CUSIP, Ticker or Name</label>
+          <input type="text" id="ownershipAsset" placeholder="AAPL, MSFT, 037833100…">
           <div id="assetSuggestions" class="fso-suggestions"></div>
         </div>
         <div class="fso-control-group">
-          <label>Results:</label>
-          <select id="ownershipLimit">
+          <label>Results</label>
+          <select id="ownershipLimit" style="width:90px;">
             <option value="50">50</option>
             <option value="100" selected>100</option>
             <option value="250">250</option>
@@ -147,7 +174,7 @@
           </select>
         </div>
         <button id="ownershipSearchBtn" class="fso-action-btn">
-          <span class="btn-text">🔍 View Owners</span>
+          <span class="btn-text">View Owners</span>
           <div class="spinner"></div>
         </button>
       </div>
@@ -155,10 +182,10 @@
       <div id="assetStats" class="fso-stats-box"></div>
     </div>
 
-    <!-- Results Message -->
+    <!-- ── Status / result message ── -->
     <div id="resultMessage" class="fso-result"></div>
 
-    <!-- Results Table Container -->
+    <!-- ── Results table ── -->
     <div id="resultsContainer" class="fso-results-container">
       <div class="fso-table-header">
         <h3 id="resultsTitle">Results</h3>
@@ -171,19 +198,20 @@
         </table>
       </div>
       <div class="fso-pagination">
-        <button id="prevPageBtn" class="fso-page-btn" disabled>← Previous</button>
+        <button id="prevPageBtn" class="fso-page-btn" disabled>← Prev</button>
         <span id="pageInfo"></span>
         <button id="nextPageBtn" class="fso-page-btn" disabled>Next →</button>
       </div>
     </div>
 
-    <!-- Export Button -->
+    <!-- ── Export ── -->
     <div id="exportContainer" class="fso-export-container fso-hidden">
-      <button id="exportCsvBtn" class="fso-export-btn">📥 Export to CSV</button>
+      <button id="exportCsvBtn" class="fso-export-btn">↓ Export CSV</button>
     </div>
 
-  </div>
-</div>
+  </div><!-- /fso-body -->
+</div><!-- /fso-panel -->
+</div><!-- /content -->
 
 <script src="/static/js/fund_security_ownership.js"></script>
 </body>
