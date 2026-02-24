@@ -55,8 +55,8 @@ async function runProcessNews(ev) {
         return;
     }
 
-    // disable download button at start
-    const dl = document.getElementById("downloadBtn");  // correct ID
+    // disable action buttons at start
+    const dl = document.getElementById("downloadBtn");
     const dp = document.getElementById("downloadPromptBtn");
     const ra = document.getElementById("ingestNewsBtn");
 
@@ -70,9 +70,8 @@ async function runProcessNews(ev) {
 
     while (true) {
         const { value, done } = await reader.read();
-        if (done)
-        {
-            // ===== ENABLE DOWNLOAD ONLY WHEN "event": "saved" APPEARS =====
+        if (done) {
+            // Enable action buttons
             dl.classList.remove("disabled-btn");
             dl.classList.add("enabled-btn");
             dp.classList.remove("disabled-btn");
@@ -80,13 +79,15 @@ async function runProcessNews(ev) {
             ra.classList.remove("disabled-btn");
             ra.classList.add("enabled-btn");
 
+            // ✅ Activate chat as soon as download finishes
+            document.getElementById("chat-toggle-btn").classList.remove("disabled-btn");
+
             break;
         }
 
         const chunk = decoder.decode(value, { stream: false });
         outputBox.textContent += chunk;
         outputBox.scrollTop = outputBox.scrollHeight;
-
     }
 
     runBtn.classList.remove("loading"); // hide spinner
@@ -129,11 +130,9 @@ async function ingestNews(ev) {
 
     while (true) {
         const { value, done } = await reader.read();
-        if (done)
-
-        {
+        if (done) {
             ingestBtn.classList.remove("loading"); // hide spinner
-            document.getElementById("chat-toggle-btn").classList.remove("disabled-btn");
+            // chat was already enabled after download — no change needed here
             break;
         }
 
@@ -141,7 +140,4 @@ async function ingestNews(ev) {
         outputBox.textContent += chunk;
         outputBox.scrollTop = outputBox.scrollHeight;
     }
-
-
 }
-

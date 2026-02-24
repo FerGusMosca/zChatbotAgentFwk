@@ -1,20 +1,22 @@
 <div id="chatbot-container">
-  <button id="chat-toggle-btn" class="chat-toggle disabled-btn" onclick="toggleChat()">💬</button>
 
-  <div class="chat-popup" id="chat-popup">
+  <button id="chat-toggle-btn" class="disabled-btn" onclick="toggleChat()">💬</button>
+
+  <div id="chat-popup">
     <div class="chat-header">
       <strong>Assistant</strong>
       <div class="chat-header-actions">
-        <button class="chat-maximize-btn" onclick="toggleMaximize()" title="Maximize" id="maximizeBtn">⤢</button>
+        <button id="maximizeBtn" onclick="toggleMaximize()" title="Maximize">⤢</button>
         <button class="close-btn" onclick="toggleChat()">✕</button>
       </div>
     </div>
 
-    <div id="chat-history" class="chat-history"></div>
+    <div id="chat-history"></div>
 
-    <form id="chat-form" class="chat-form">
+    <form id="chat-form">
       <textarea id="user-input" placeholder="Type your question..." rows="2"></textarea>
       <button type="submit" id="send-btn">Send</button>
     </form>
   </div>
+
 </div>

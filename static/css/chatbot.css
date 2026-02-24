@@ -1,202 +1,223 @@
-/* chatbot.css — Bias dark theme
-   JS hooks preserved: #chatbot-container, #chat-toggle-btn, .chat-toggle,
-   #chat-popup, .chat-header, .close-btn, #chat-history, .chat-entry,
-   .chat-form, #user-input, #send-btn, .disabled-btn
-   NEW: maximize button + maximized state
-*/
+/* chatbot.css — fully scoped, zero conflicts, no all:unset */
 
-/* ── Scoped reset ── */
-#chatbot-container textarea,
-#chatbot-container button,
-#chatbot-container input {
-  box-sizing: border-box;
-  font-family: 'IBM Plex Sans', sans-serif;
-}
 #chatbot-container * { box-sizing: border-box; }
-#chatbot-container { font-family: 'IBM Plex Sans', sans-serif; }
 
 /* ── Toggle bubble ── */
-#chatbot-container .chat-toggle {
-  position: fixed;
-  bottom: 24px; right: 24px;
-  z-index: 1000;
-  width: 46px; height: 46px;
-  border-radius: 50%; border: none;
-  background: linear-gradient(135deg, #1A5FCA, #1F6FEB);
-  color: white; font-size: 20px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 16px rgba(31,111,235,0.45);
-  transition: all 0.2s;
+#chat-toggle-btn {
+  position: fixed !important;
+  bottom: 24px !important;
+  right: 24px !important;
+  z-index: 9000 !important;
+  width: 46px !important;
+  height: 46px !important;
+  border-radius: 50% !important;
+  background: linear-gradient(135deg, #1A5FCA, #1F6FEB) !important;
+  color: white !important;
+  font-size: 20px !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 4px 16px rgba(31,111,235,0.45) !important;
+  transition: transform 0.2s, box-shadow 0.2s !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  font-family: inherit !important;
+  line-height: 1 !important;
 }
-#chatbot-container .chat-toggle:hover {
-  transform: scale(1.08);
-  box-shadow: 0 6px 22px rgba(31,111,235,0.55);
+#chat-toggle-btn:hover {
+  transform: scale(1.08) !important;
+  box-shadow: 0 6px 22px rgba(31,111,235,0.55) !important;
 }
-
-/* disabled state — JS adds .disabled-btn */
 #chat-toggle-btn.disabled-btn {
-  opacity: 0.35 !important;
+  opacity: 0.25 !important;
   pointer-events: none !important;
   background: #21262D !important;
   box-shadow: none !important;
 }
 
-/* ── Chat popup — default size ── */
-#chatbot-container .chat-popup {
-  position: fixed;
-  bottom: 84px; right: 24px;
-  width: 360px;
-  height: 520px;
-  background: #0D1117;
-  border: 1px solid #21262D;
-  border-radius: 14px;
+/* ── Popup ── */
+#chat-popup {
+  position: fixed !important;
+  bottom: 84px !important;
+  right: 24px !important;
+  width: 360px !important;
+  height: 520px !important;
+  background: #0D1117 !important;
+  border: 1px solid #21262D !important;
+  border-radius: 14px !important;
   display: none;
-  flex-direction: column;
-  z-index: 1001;
-  box-shadow: 0 12px 48px rgba(0,0,0,0.65);
-  transition: width 0.25s ease, height 0.25s ease,
-              bottom 0.25s ease, right 0.25s ease,
-              border-radius 0.25s ease;
-  overflow: hidden;
+  flex-direction: column !important;
+  z-index: 9001 !important;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.7) !important;
+  overflow: hidden !important;
+  transition: width .25s ease, height .25s ease, bottom .25s ease,
+              left .25s ease, border-radius .25s ease !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
 }
 
-/* ── MAXIMIZED state ── */
-#chatbot-container .chat-popup.maximized {
-  bottom: 20px;
-  right: 20px;
-  width: calc(100vw - 40px);
-  height: calc(100vh - 40px);
-  border-radius: 16px;
-  max-width: 1100px;
-  /* centered horizontally */
-  left: 50%;
-  transform: translateX(-50%);
-  right: auto;
+/* Maximized — JS toggles this class */
+#chat-popup.maximized {
+  bottom: 20px !important;
+  right: auto !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: min(calc(100vw - 40px), 1100px) !important;
+  height: calc(100vh - 40px) !important;
+  border-radius: 16px !important;
 }
 
 /* ── Header ── */
-#chatbot-container .chat-header {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 14px 18px;
-  background: #161B22;
-  border-bottom: 1px solid #21262D;
-  flex-shrink: 0;
+#chat-popup .chat-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 13px 18px !important;
+  background: #161B22 !important;
+  border-bottom: 1px solid #21262D !important;
+  flex-shrink: 0 !important;
+}
+#chat-popup .chat-header strong {
+  font-size: 13px !important;
+  color: #E6EDF3 !important;
+  font-weight: 500 !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+#chat-popup .chat-header-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
 }
 
-#chatbot-container .chat-header strong {
-  font-size: 14px; color: #E6EDF3; font-weight: 500;
-  font-family: 'IBM Plex Sans', sans-serif;
+/* Header buttons — scoped tightly, no all:unset */
+#maximizeBtn,
+#chat-popup .close-btn {
+  background: transparent !important;
+  border: none !important;
+  color: #6E7681 !important;
+  font-size: 16px !important;
+  cursor: pointer !important;
+  padding: 4px 7px !important;
+  border-radius: 5px !important;
+  line-height: 1 !important;
+  transition: background 0.15s, color 0.15s !important;
+  font-family: inherit !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+#maximizeBtn:hover,
+#chat-popup .close-btn:hover {
+  background: #21262D !important;
+  color: #E6EDF3 !important;
 }
 
-.chat-header-actions {
-  display: flex; align-items: center; gap: 6px;
+/* ── History ── */
+#chat-history {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  padding: 14px 16px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #21262D transparent !important;
+}
+#chat-history::-webkit-scrollbar { width: 4px; }
+#chat-history::-webkit-scrollbar-thumb { background: #21262D; border-radius: 2px; }
+
+#chat-history .chat-entry {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+}
+#chat-history .chat-entry .user {
+  font-size: 10px !important; font-weight: 600 !important; color: #1F6FEB !important;
+  font-family: 'IBM Plex Mono', monospace !important;
+  text-transform: uppercase !important; letter-spacing: 0.08em !important;
+}
+#chat-history .chat-entry .bot {
+  font-size: 10px !important; font-weight: 600 !important; color: #3FB950 !important;
+  font-family: 'IBM Plex Mono', monospace !important;
+  text-transform: uppercase !important; letter-spacing: 0.08em !important;
+}
+#chat-history .chat-entry .text {
+  font-size: 13px !important; line-height: 1.65 !important; color: #C9D1D9 !important;
+  white-space: pre-wrap !important; padding: 10px 13px !important;
+  background: #161B22 !important; border-radius: 8px !important;
+  border: 1px solid #21262D !important;
+}
+#chat-history .chat-entry .text.loading {
+  color: #484F58 !important;
+  animation: cb-pulse 1.5s ease-in-out infinite !important;
+}
+@keyframes cb-pulse { 0%,100%{opacity:1} 50%{opacity:0.38} }
+
+/* ── Form ── */
+#chat-form {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  padding: 12px 14px !important;
+  border-top: 1px solid #21262D !important;
+  background: #0D1117 !important;
+  flex-shrink: 0 !important;
+  margin: 0 !important;
 }
 
-/* Maximize button */
-.chat-maximize-btn {
-  background: none; border: none;
-  color: #6E7681; font-size: 15px; cursor: pointer;
-  padding: 3px 7px; border-radius: 5px;
-  transition: all 0.15s; line-height: 1;
+#user-input {
+  display: block !important;
+  width: 100% !important;
+  min-height: 58px !important;
+  max-height: 110px !important;
+  padding: 10px 12px !important;
+  line-height: 1.5 !important;
+  font-size: 13px !important;
+  border-radius: 8px !important;
+  border: 1px solid #21262D !important;
+  background: #161B22 !important;
+  color: #E6EDF3 !important;
+  resize: vertical !important;
+  transition: border-color 0.18s !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+  box-sizing: border-box !important;
 }
-.chat-maximize-btn:hover { background: #21262D; color: #C9D1D9; }
+#user-input:focus {
+  border-color: #1F6FEB !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(31,111,235,0.15) !important;
+}
+#user-input::placeholder { color: #484F58 !important; }
 
-#chatbot-container .close-btn {
-  background: none; border: none;
-  color: #6E7681; font-size: 18px; cursor: pointer;
-  padding: 3px 7px; border-radius: 5px;
-  transition: all 0.15s; line-height: 1;
+#send-btn {
+  display: block !important;
+  width: 100% !important;
+  padding: 9px 16px !important;
+  text-align: center !important;
+  background: linear-gradient(135deg, #1A5FCA, #1F6FEB) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+  transition: transform 0.18s, box-shadow 0.18s !important;
+  box-shadow: 0 3px 10px rgba(31,111,235,0.25) !important;
+  margin: 0 !important;
 }
-#chatbot-container .close-btn:hover { background: #21262D; color: #E6EDF3; }
-
-/* ── Chat history ── */
-#chatbot-container .chat-history {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 18px;
-  display: flex; flex-direction: column; gap: 16px;
-  scrollbar-width: thin; scrollbar-color: #21262D transparent;
+#send-btn:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 5px 16px rgba(31,111,235,0.35) !important;
 }
-#chatbot-container .chat-history::-webkit-scrollbar { width: 4px; }
-#chatbot-container .chat-history::-webkit-scrollbar-thumb {
-  background: #21262D; border-radius: 2px;
-}
-
-/* Chat entries */
-#chatbot-container .chat-entry {
-  display: flex; flex-direction: column; gap: 6px;
-}
-
-#chatbot-container .chat-entry .user {
-  font-size: 11px; font-weight: 600; color: #1F6FEB;
-  font-family: 'IBM Plex Mono', sans-serif;
-  text-transform: uppercase; letter-spacing: 0.06em;
-}
-
-#chatbot-container .chat-entry .bot {
-  font-size: 11px; font-weight: 600; color: #3FB950;
-  font-family: 'IBM Plex Mono', sans-serif;
-  text-transform: uppercase; letter-spacing: 0.06em;
-}
-
-#chatbot-container .chat-entry .text {
-  font-size: 13.5px; line-height: 1.65;
-  color: #C9D1D9; white-space: pre-wrap;
-  padding: 10px 13px;
-  background: #161B22; border-radius: 8px;
-  border: 1px solid #21262D;
+#send-btn:disabled {
+  background: #21262D !important;
+  color: #484F58 !important;
+  box-shadow: none !important;
+  cursor: wait !important;
+  transform: none !important;
 }
 
-#chatbot-container .chat-entry .text.loading {
-  color: #484F58;
-  animation: cb-pulse 1.5s ease-in-out infinite;
-}
-@keyframes cb-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-
-/* ── Chat form ── */
-#chatbot-container .chat-form {
-  display: flex; flex-direction: column; gap: 8px;
-  padding: 12px 14px;
-  border-top: 1px solid #21262D;
-  background: #0D1117;
-  flex-shrink: 0;
-}
-
-#chatbot-container .chat-form textarea {
-  display: block; width: 100%;
-  min-height: 60px; max-height: 120px;
-  padding: 10px 12px; line-height: 1.5;
-  font-size: 13px; border-radius: 8px;
-  border: 1px solid #21262D;
-  background: #161B22; color: #E6EDF3;
-  resize: vertical; transition: border-color 0.18s;
-  font-family: 'IBM Plex Sans', sans-serif;
-}
-#chatbot-container .chat-form textarea:focus {
-  outline: none; border-color: #1F6FEB;
-  box-shadow: 0 0 0 2px rgba(31,111,235,0.15);
-}
-#chatbot-container .chat-form textarea::placeholder { color: #484F58; }
-
-#chatbot-container .chat-form button {
-  padding: 9px 16px;
-  background: linear-gradient(135deg, #1A5FCA, #1F6FEB);
-  color: white; border: none; border-radius: 8px;
-  cursor: pointer; font-size: 13px; font-weight: 500;
-  font-family: 'IBM Plex Sans', sans-serif;
-  transition: all 0.18s;
-  box-shadow: 0 3px 10px rgba(31,111,235,0.25);
-}
-#chatbot-container .chat-form button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 5px 16px rgba(31,111,235,0.35);
-}
-#chatbot-container .chat-form button:disabled {
-  background: #21262D; color: #484F58;
-  box-shadow: none; cursor: wait; transform: none;
-}
-
-/* Maximized: taller textarea */
-.chat-popup.maximized .chat-form textarea {
-  min-height: 80px;
-}
+#chat-popup.maximized #user-input { min-height: 80px !important; }

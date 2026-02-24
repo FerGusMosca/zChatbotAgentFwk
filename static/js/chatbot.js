@@ -52,10 +52,13 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify({ question })
       });
       const data = await res.json();
-      entryDiv.querySelector(".loading").textContent = data.answer;
+      const el = entryDiv.querySelector(".loading");
+      el.textContent = data.answer;
+      el.classList.remove("loading");
     } catch {
-      entryDiv.querySelector(".loading").textContent =
-        "❌ Error sending the question.";
+      const el = entryDiv.querySelector(".loading");
+      el.textContent = "❌ Error sending the question.";
+      el.classList.remove("loading");
     }
 
     inputField.value = "";
