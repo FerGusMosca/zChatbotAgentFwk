@@ -13,6 +13,7 @@ from collections import defaultdict
 from logic.pipeline.retrieval.util.retrieval.stages.common.chunk_relevance_filter import ChunkRelevanceFilter
 from logic.pipeline.retrieval.util.retrieval.util.dominance_detector import DominanceDetector
 from logic.pipeline.retrieval.util.retrieval.util.retrieval_logger import RetrievalLogger
+from logic.util.loader.model_registry import ModelRegistry
 from service_client.cross_encoder_client.cross_encoder_client import CrossEncoderClient
 
 
@@ -29,7 +30,8 @@ class MultiStageFaissSearcher:
         self.file_logger=RetrievalLogger(dump_on_logs,dump_log_file)
 
         # Load model once at init
-        self.model = SentenceTransformer(self.rerankers_cfg["chunk_exploration_model"])
+        #self.model = SentenceTransformer(self.rerankers_cfg["chunk_exploration_model"])
+        self.model = ModelRegistry.get(self.rerankers_cfg["chunk_exploration_model"])
         self.normalize_embeddings = self.rerankers_cfg.get("normalize_L2", True)
 
 

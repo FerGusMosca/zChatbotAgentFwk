@@ -9,16 +9,27 @@ from logic.pipeline.retrieval.util.retrieval.util.retrieval_logger import Retrie
 
 
 class ChunkRelevanceFilter:
+    _models: dict = {}
 
     def __init__(self, model_name: str = "BAAI/bge-reranker-large",
                  use_run_pod_GPU_for_cross_encoder=False,run_pod_url=None,run_pod_api=None):
         # Load tokenizer and model
+        '''
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(device)
         self.device=device
+        '''
+        if model_name not in ChunkRelevanceFilter._models:
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            model = AutoModelForSequenceClassification.from_pretrained(model_name)
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            model.to(device)
+            ChunkRelevanceFilter._models[model_name] = (tokenizer, model, device)
+
+        self.tokenizer, self.model, self.device = ChunkRelevanceFilter._models[model_name]
 
     def run_scores(self, query: str, texts: List[str]) -> List[float]:
         if not texts:
