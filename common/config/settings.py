@@ -136,6 +136,27 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("TRADING_VIEW_PWD", "TRADING_VIEW_PWD"))
 
+    # SMTP — for Stock Monitor email notifications
+    smtp_host: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SMTP_HOST", "SMTP_HOST"))
+
+    smtp_port: int | None = Field(
+        default=587,
+        validation_alias=AliasChoices("SMTP_PORT", "SMTP_PORT"))
+
+    smtp_user: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SMTP_USER", "SMTP_USER"))
+
+    smtp_password: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SMTP_PASSWORD", "SMTP_PASSWORD"))
+
+    smtp_from: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SMTP_FROM", "SMTP_FROM"))
+
 
 @lru_cache
 def get_settings() -> Settings:

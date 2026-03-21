@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock Monitor — Bias</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/stock_monitor.css">
+  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+</head>
+<body class="sm-body">
+<div class="sm-root">
+
+  <!-- ══ SIDEBAR ══════════════════════════════════════════════ -->
+  <aside class="sm-sidebar">
+    <div class="sm-brand">
+      <a href="/" class="sm-brand-link">
+        <div class="sm-brand-mark">
+          <span class="sm-brand-b">B</span>
+          <div class="sm-brand-signal"><span></span><span></span><span></span></div>
+        </div>
+        <div class="sm-brand-text">
+          <div class="sm-brand-name">BIAS</div>
+          <div class="sm-brand-tagline">AI Investment Intelligence</div>
+        </div>
+      </a>
+    </div>
+
+    <a href="/" class="sm-back-btn"><span class="sm-back-arrow">←</span><span>Dashboard</span></a>
+
+    <div class="sm-sidebar-section">
+      <div class="sm-sidebar-label">Portfolios</div>
+      <div id="portfolioList" class="sm-portfolio-list"></div>
+      <button class="sm-add-portfolio-btn" id="addPortfolioBtn"><span>+</span> New Portfolio</button>
+    </div>
+
+    <div class="sm-sidebar-footer">
+      <div class="sm-status-dot"></div>
+      <span>Stock Monitor v2</span>
+    </div>
+  </aside>
+
+  <!-- ══ MAIN ═════════════════════════════════════════════════ -->
+  <main class="sm-main" id="smMain">
+
+    <!-- Empty state -->
+    <div class="sm-empty-state" id="emptyState">
+      <div class="sm-empty-icon">📈</div>
+      <h2>Stock Monitor</h2>
+      <p>Create a portfolio and add assets to start monitoring prices and research data.</p>
+      <button class="sm-btn sm-btn-primary" id="emptyAddPortfolioBtn">+ Create Portfolio</button>
+    </div>
+
+    <!-- Portfolio view -->
+    <div class="sm-portfolio-view sm-hidden" id="portfolioView">
+
+      <header class="sm-portfolio-header">
+        <div class="sm-portfolio-header-left">
+          <div class="sm-portfolio-eyebrow">Stock Monitor · Portfolio</div>
+          <h1 class="sm-portfolio-title" id="portfolioTitle">Portfolio</h1>
+        </div>
+        <div class="sm-portfolio-header-actions">
+          <button class="sm-btn sm-btn-ghost" id="editPortfolioBtn">✏️ Edit</button>
+          <button class="sm-btn sm-btn-danger" id="deletePortfolioBtn">🗑️ Delete</button>
+          <button class="sm-btn sm-btn-primary" id="addAssetBtn">+ Add Asset</button>
+        </div>
+      </header>
+
+      <!-- 3 tabs: Monitor | Research | Subscribers -->
+      <div class="sm-tab-bar">
+        <button class="sm-tab sm-tab-active" id="tabMonitor">📊 Monitor</button>
+        <button class="sm-tab" id="tabResearch">🔬 Research</button>
+        <button class="sm-tab" id="tabEmails">📬 Subscribers</button>
+      </div>
+
+      <!-- MONITOR TAB -->
+      <div class="sm-tab-content" id="tabContentMonitor">
+        <div class="sm-assets-grid" id="assetsGrid"></div>
+        <div class="sm-chart-panel sm-hidden" id="chartPanel">
+          <div class="sm-chart-panel-header">
+            <div class="sm-chart-panel-title">
+              <span id="chartSymbol" class="sm-chart-symbol">—</span>
+              <span id="chartName" class="sm-chart-name"></span>
+            </div>
+            <button class="sm-chart-close" id="closeChartBtn">×</button>
+          </div>
+          <div id="tvChartContainer" class="sm-tv-chart"></div>
+          <!-- commentsSection injected here by JS -->
+        </div>
+      </div>
+
+      <!-- RESEARCH TAB -->
+      <div class="sm-tab-content sm-hidden" id="tabContentResearch">
+        <div class="sm-research-bar">
+          <div class="sm-research-tabs" id="researchTabs"></div>
+          <button class="sm-btn sm-btn-ghost sm-btn-sm" id="addResearchTabBtn">+ Topic</button>
+        </div>
+        <div class="sm-research-area" id="researchArea">
+          <div class="sm-empty-state sm-research-empty" id="researchEmpty">
+            <div class="sm-empty-icon">🗂️</div>
+            <p>Add a research topic to start tracking analysis.</p>
+          </div>
+          <div class="sm-research-table-wrap sm-hidden" id="researchTableWrap">
+            <div class="sm-research-table-header" id="researchTableHeader"></div>
+            <div id="researchTableBody" class="sm-research-table-body"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- EMAILS / SUBSCRIBERS TAB -->
+      <div class="sm-tab-content sm-hidden" id="tabContentEmails">
+        <!-- rendered entirely by JS -->
+      </div>
+
+    </div>
+  </main>
+</div>
+
+
+<!-- ══ MODAL: Portfolio ══════════════════════════════════════ -->
+<div class="sm-modal sm-hidden" id="portfolioModal">
+  <div class="sm-modal-content sm-modal-sm">
+    <div class="sm-modal-header">
+      <h3 id="portfolioModalTitle">New Portfolio</h3>
+      <button class="sm-modal-close" id="closePortfolioModal">×</button>
+    </div>
+    <div class="sm-modal-body">
+      <div class="sm-field">
+        <label class="sm-label">Portfolio Name</label>
+        <input type="text" class="sm-input" id="portfolioNameInput" placeholder="e.g. Jan Feb 2026 - AI SaaS" maxlength="60">
+      </div>
+      <div class="sm-field" style="margin-top:12px;">
+        <label class="sm-label">Description (optional)</label>
+        <input type="text" class="sm-input" id="portfolioDescInput" placeholder="Short description…">
+      </div>
+      <div class="sm-modal-footer">
+        <button class="sm-btn sm-btn-ghost" id="cancelPortfolioModal">Cancel</button>
+        <button class="sm-btn sm-btn-primary" id="savePortfolioBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ MODAL: Add Assets ═════════════════════════════════════ -->
+<div class="sm-modal sm-hidden" id="assetModal">
+  <div class="sm-modal-content sm-modal-sm">
+    <div class="sm-modal-header">
+      <h3>Add Assets</h3>
+      <button class="sm-modal-close" id="closeAssetModal">×</button>
+    </div>
+    <div class="sm-modal-body">
+      <div class="sm-field">
+        <label class="sm-label">Symbols (comma or newline separated)</label>
+        <textarea class="sm-textarea" id="assetSymbolsInput" placeholder="AAPL&#10;NVDA&#10;TSLA" rows="5"></textarea>
+      </div>
+      <div class="sm-field" style="margin-top:10px;">
+        <label class="sm-label">Or upload CSV</label>
+        <div class="sm-file-row">
+          <label class="sm-btn sm-btn-ghost" style="cursor:pointer;">
+            📁 Choose CSV
+            <input type="file" accept=".csv" id="assetCsvInput" style="display:none;">
+          </label>
+          <span class="sm-file-name" id="assetCsvName"></span>
+        </div>
+        <div style="color:#484F58;font-size:11px;margin-top:5px;font-family:'IBM Plex Mono',monospace;">
+          First column = symbol, one per row
+        </div>
+      </div>
+      <div class="sm-modal-footer">
+        <button class="sm-btn sm-btn-ghost" id="cancelAssetModal">Cancel</button>
+        <button class="sm-btn sm-btn-primary" id="saveAssetsBtn">Add Assets</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ MODAL: Research Cell Editor ══════════════════════════ -->
+<div class="sm-modal sm-hidden" id="researchCellModal">
+  <div class="sm-modal-content sm-modal-sm">
+    <div class="sm-modal-header">
+      <h3 id="researchCellTitle">Edit Field</h3>
+      <button class="sm-modal-close" id="closeResearchCellModal">×</button>
+    </div>
+    <div class="sm-modal-body">
+      <div class="sm-field">
+        <label class="sm-label" id="researchCellLabel">Value</label>
+        <!-- Text area for text fields -->
+        <textarea class="sm-textarea" id="researchCellInput" rows="6"></textarea>
+        <!-- Number input for numeric fields (shown/hidden by JS) -->
+        <input type="number" class="sm-input sm-hidden" id="researchCellNumber"
+               step="any" placeholder="e.g. 24.5">
+        <div id="researchCellHint" style="color:#484F58;font-size:11px;margin-top:5px;
+             font-family:'IBM Plex Mono',monospace;"></div>
+      </div>
+      <div class="sm-modal-footer">
+        <button class="sm-btn sm-btn-ghost" id="cancelResearchCell">Cancel</button>
+        <button class="sm-btn sm-btn-primary" id="saveResearchCell">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ MODAL: Add Research Topic ════════════════════════════ -->
+<div class="sm-modal sm-hidden" id="researchTopicModal">
+  <div class="sm-modal-content sm-modal-sm">
+    <div class="sm-modal-header">
+      <h3>New Research Topic</h3>
+      <button class="sm-modal-close" id="closeResearchTopicModal">×</button>
+    </div>
+    <div class="sm-modal-body">
+      <div class="sm-field">
+        <label class="sm-label">Topic Name</label>
+        <input type="text" class="sm-input" id="researchTopicInput"
+               placeholder="e.g. AI SaaS, Healthcare, Energy…" maxlength="40">
+      </div>
+      <div class="sm-modal-footer">
+        <button class="sm-btn sm-btn-ghost" id="cancelResearchTopic">Cancel</button>
+        <button class="sm-btn sm-btn-primary" id="saveResearchTopic">Add Topic</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script src="/static/js/stock_monitor.js"></script>
+</body>
+</html>

@@ -21,6 +21,7 @@ from controllers.process_news_controller import ProcessNewsController
 from controllers.chat_controller import router as chat_router
 from starlette.middleware.sessions import SessionMiddleware
 
+from controllers.stock_monitor_controller import StockMonitorController
 
 settings = get_settings()
 app = FastAPI()
@@ -83,6 +84,9 @@ app.include_router(deep_company_analysis.router)
 
 fund_security_ownership= FundSecurityOwnershipController()
 app.include_router(fund_security_ownership.router)
+
+stock_monitor_ctrl = StockMonitorController()
+app.include_router(stock_monitor_ctrl.router)
 
 # Chat
 app.include_router(chat_router)
