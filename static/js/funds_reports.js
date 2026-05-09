@@ -35,7 +35,7 @@ form.addEventListener('submit', async (e) => {
 
         if (data.message === 'ok') {
             resultDiv.innerHTML = data.bot_response.replace(/\n/g, '<br>');
-            showCopyBtn();
+            showCopyBtn(data.bot_response);
         } else {
             throw new Error(data.bot_response || 'Unknown error from bot');
         }
@@ -48,13 +48,13 @@ form.addEventListener('submit', async (e) => {
     }
 });
 
-function showCopyBtn() {
+function showCopyBtn(rawAnswer) {
     const existing = document.getElementById('copyBtn');
     if (existing) existing.remove();
 
-    const path     = form.processed_folder.value || 'Default';
+    const folder   = form.processed_folder.value || 'Default';
     const question = form.query.value.trim();
-    const answer   = resultDiv.innerText;
+    const answer   = rawAnswer;
 
     const btn = document.createElement('button');
     btn.id = 'copyBtn';
@@ -63,10 +63,16 @@ function showCopyBtn() {
     btn.innerHTML = '<span class="fr-btn-text">📋 Copy to clipboard</span>';
 
     btn.addEventListener('click', async () => {
-        const text = `PATH: ${path}\n\nQUESTION: ${question}\n\nANSWER:\n${answer}`;
-        await navigator.clipboard.writeText(text);
-        btn.querySelector('.fr-btn-text').textContent = '✅ Copied!';
-        setTimeout(() => btn.querySelector('.fr-btn-text').textContent = '📋 Copy to clipboard', 2000);
+        const payload = { folder, question, answer };
+        const json = JSON.stringify(payload, null, 2);
+        const lbl = btn.querySelector('.fr-btn-text');
+        try {
+            await navigator.clipboard.writeText(json);
+            lbl.textContent = '✅ Copied as JSON!';
+        } catch (err) {
+            lbl.textContent = '⚠️ Copy failed';
+        }
+        setTimeout(() => lbl.textContent = '📋 Copy to clipboard', 2000);
     });
 
     resultDiv.insertAdjacentElement('afterend', btn);
