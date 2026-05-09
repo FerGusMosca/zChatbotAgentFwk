@@ -579,3 +579,59 @@
   min-height: 110px !important;
   padding: 14px 16px !important;
 }
+
+/* ── RICH-TEXT NOTE INPUT ─────────────────────────────────────────────
+   Mimics .sm-textarea but is a contenteditable div so paste preserves
+   formatting (bold, lists, links, line breaks). Sanitized in JS.    */
+.sm-rich-input {
+  display: block;
+  white-space: pre-wrap;
+  cursor: text;
+  resize: none; /* override .sm-textarea */
+  overflow-y: auto;
+}
+.sm-rich-input:empty:before {
+  content: attr(data-placeholder);
+  color: #484F58;
+  pointer-events: none;
+}
+.sm-rich-input:focus { outline: none; }
+.sm-rich-input p,
+.sm-rich-input ul,
+.sm-rich-input ol,
+.sm-rich-input blockquote { margin: 4px 0; }
+.sm-rich-input ul,
+.sm-rich-input ol { padding-left: 22px; }
+.sm-rich-input h1, .sm-rich-input h2, .sm-rich-input h3,
+.sm-rich-input h4, .sm-rich-input h5, .sm-rich-input h6 {
+  font-size: 14px; font-weight: 600; margin: 6px 0 3px; color: #E6EDF3;
+}
+.sm-rich-input a { color: #58A6FF; }
+.sm-rich-input code {
+  background: #0D1117; padding: 1px 5px; border-radius: 4px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+}
+.sm-rich-input blockquote {
+  border-left: 3px solid #30363D; padding-left: 10px; color: #8B949E;
+}
+
+/* ── RENDERED NOTE CONTENT ────────────────────────────────────────── */
+.sm-note-content { white-space: pre-wrap; }
+.sm-note-content p,
+.sm-note-content ul,
+.sm-note-content ol,
+.sm-note-content blockquote { margin: 4px 0; }
+.sm-note-content ul,
+.sm-note-content ol { padding-left: 22px; }
+.sm-note-content h1, .sm-note-content h2, .sm-note-content h3,
+.sm-note-content h4, .sm-note-content h5, .sm-note-content h6 {
+  font-size: 13px; font-weight: 600; margin: 5px 0 2px; color: #E6EDF3;
+}
+.sm-note-content a { color: #58A6FF; }
+.sm-note-content code {
+  background: #0D1117; padding: 1px 5px; border-radius: 4px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+}
+.sm-note-content blockquote {
+  border-left: 3px solid #30363D; padding-left: 10px; color: #8B949E;
+}

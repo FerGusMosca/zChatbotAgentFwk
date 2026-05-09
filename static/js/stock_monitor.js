@@ -363,6 +363,105 @@ async function loadNotesAndComments(asset) {
   } catch(e) { showError(e.message); }
 }
 
+/* ── RICH-TEXT NOTE HELPERS ───────────────────────────────────────────
+   The note input is a contenteditable div, so pasted content keeps its
+   formatting (bold, italics, lists, links, line breaks). Anything that
+   gets pasted or saved goes through sanitizeNoteHtml: strips <script>,
+   inline event handlers, javascript: URLs and any tag not in the
+   whitelist below — keeps the formatting tags.                        */
+const NOTE_ALLOWED_TAGS = new Set([
+  'P','BR','STRONG','B','EM','I','U','S','STRIKE',
+  'UL','OL','LI','A','H1','H2','H3','H4','H5','H6',
+  'BLOCKQUOTE','CODE','PRE','SPAN','DIV'
+]);
+const NOTE_ALLOWED_ATTRS = { 'A': new Set(['href','title','target','rel']) };
+const NOTE_REMOVE_TAGS = new Set([
+  'SCRIPT','STYLE','IFRAME','OBJECT','EMBED','LINK','META','HEAD','BASE',
+  'FORM','INPUT','BUTTON','SELECT','OPTION','TEXTAREA'
+]);
+
+function sanitizeNoteHtml(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = String(html == null ? '' : html);
+  const walker = document.createTreeWalker(tmp, NodeFilter.SHOW_ELEMENT);
+  const toRemove = [], toUnwrap = [];
+  let node;
+  while ((node = walker.nextNode())) {
+    const tag = node.tagName;
+    if (NOTE_REMOVE_TAGS.has(tag)) {
+      toRemove.push(node);
+    } else if (!NOTE_ALLOWED_TAGS.has(tag)) {
+      toUnwrap.push(node);
+    } else {
+      const allowed = NOTE_ALLOWED_ATTRS[tag] || new Set();
+      [...node.attributes].forEach(a => {
+        const n = a.name.toLowerCase();
+        if (n.startsWith('on') || !allowed.has(n)) node.removeAttribute(a.name);
+      });
+      if (tag === 'A' && node.hasAttribute('href')) {
+        const href = (node.getAttribute('href') || '').trim();
+        if (/^(javascript|data|vbscript):/i.test(href)) {
+          node.removeAttribute('href');
+        } else {
+          node.setAttribute('target', '_blank');
+          node.setAttribute('rel', 'noopener noreferrer');
+        }
+      }
+    }
+  }
+  toRemove.forEach(n => n.parentNode && n.parentNode.removeChild(n));
+  toUnwrap.forEach(n => {
+    if (!n.parentNode) return;
+    while (n.firstChild) n.parentNode.insertBefore(n.firstChild, n);
+    n.parentNode.removeChild(n);
+  });
+  return tmp.innerHTML;
+}
+
+function looksLikeNoteHtml(s) {
+  return /<(p|br|strong|b|em|i|u|s|strike|ul|ol|li|a|h[1-6]|blockquote|code|pre|span|div)\b/i
+    .test(String(s || ''));
+}
+
+// Render a saved note: HTML if it looks formatted, otherwise plain text
+// with line breaks (this also fixes legacy notes whose \n collapsed in
+// the previous renderer).
+function noteContentHtml(s) {
+  if (s == null) return '';
+  if (looksLikeNoteHtml(s)) return sanitizeNoteHtml(s);
+  return esc(s).replace(/\r\n|\r|\n/g, '<br>');
+}
+
+function handleRichPaste(e) {
+  e.preventDefault();
+  const cd = e.clipboardData || window.clipboardData;
+  if (!cd) return;
+  const html = cd.getData('text/html');
+  const text = cd.getData('text/plain');
+  let toInsert = '';
+  if (html && html.trim()) {
+    toInsert = sanitizeNoteHtml(html);
+  } else if (text) {
+    toInsert = esc(text).replace(/\r\n|\r|\n/g, '<br>');
+  }
+  if (!toInsert) return;
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
+  const range = sel.getRangeAt(0);
+  range.deleteContents();
+  const tmp = document.createElement('div');
+  tmp.innerHTML = toInsert;
+  const frag = document.createDocumentFragment();
+  let lastNode = null;
+  while (tmp.firstChild) lastNode = frag.appendChild(tmp.firstChild);
+  range.insertNode(frag);
+  if (lastNode) {
+    const r = document.createRange();
+    r.setStartAfter(lastNode); r.collapse(true);
+    sel.removeAllRanges(); sel.addRange(r);
+  }
+}
+
 function renderNotesSection(asset, notes) {
   document.getElementById('notesSection')?.remove();
   const section = document.createElement('div');
@@ -392,9 +491,10 @@ function renderNotesSection(asset, notes) {
             ${PRIORITY[p].emoji} ${PRIORITY[p].label}
           </button>`).join('')}
       </div>
-      <textarea class="sm-textarea" id="newNoteInput"
-                placeholder="Write a note about ${esc(asset.symbol)}… (Ctrl+Enter to save)"
-                rows="3" style="min-height:70px;margin-bottom:10px;"></textarea>
+      <div class="sm-textarea sm-rich-input" id="newNoteInput"
+           contenteditable="true" role="textbox" aria-multiline="true" spellcheck="true"
+           data-placeholder="Write a note about ${esc(asset.symbol)}… (Ctrl+Enter to save)"
+           style="min-height:70px;max-height:280px;overflow-y:auto;margin-bottom:10px;"></div>
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;color:#6E7681;">
           <input type="checkbox" id="notifyCheck" style="accent-color:#1F6FEB;">
@@ -418,8 +518,13 @@ function renderNotesSection(asset, notes) {
   });
 
   document.getElementById('addNoteBtn').addEventListener('click', () => submitNote(asset, () => selectedPriority));
-  document.getElementById('newNoteInput').addEventListener('keydown', e => {
-    if (e.key === 'Enter' && e.ctrlKey) document.getElementById('addNoteBtn').click();
+  const noteInputEl = document.getElementById('newNoteInput');
+  noteInputEl.addEventListener('paste', handleRichPaste);
+  noteInputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.ctrlKey) {
+      e.preventDefault();
+      document.getElementById('addNoteBtn').click();
+    }
   });
   notes.forEach(n => {
     document.getElementById(`del-note-${n.id}`)?.addEventListener('click', async () => {
@@ -430,13 +535,20 @@ function renderNotesSection(asset, notes) {
 }
 
 async function submitNote(asset, getPriority) {
-  const text = document.getElementById('newNoteInput')?.value?.trim();
-  if (!text) return;
+  const inputEl = document.getElementById('newNoteInput');
+  if (!inputEl) return;
+  // Reject if there is no actual text content (a contenteditable can hold
+  // <br> or empty <p> placeholders that look "non-empty" to innerHTML).
+  const plain = (inputEl.innerText || inputEl.textContent || '').trim();
+  if (!plain) return;
+  const note = sanitizeNoteHtml(inputEl.innerHTML).trim();
+  if (!note) return;
   const priority = getPriority();
   const notify = document.getElementById('notifyCheck')?.checked || false;
   try {
     await api('POST', `/portfolios/${activePortId}/assets/${asset.symbol}/notes`,
-      fd({ note: text, priority, notify: String(notify) }));
+      fd({ note, priority, notify: String(notify) }));
+    inputEl.innerHTML = '';
     await loadNotesAndComments(asset);
   } catch(e) { showError(e.message); }
 }
@@ -455,7 +567,7 @@ function noteHtml(n) {
                        text-transform:uppercase;letter-spacing:0.08em;">${p.label}</span>
           ${n.notify ? `<span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#484F58;">· notified</span>` : ''}
         </div>
-        <div style="font-size:13px;color:#C9D1D9;line-height:1.55;word-break:break-word;">${esc(n.note)}</div>
+        <div class="sm-note-content" style="font-size:13px;color:#C9D1D9;line-height:1.55;word-break:break-word;">${noteContentHtml(n.note)}</div>
         <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#484F58;margin-top:5px;">${date}</div>
       </div>
       <button id="del-note-${n.id}"
@@ -872,4 +984,4 @@ function wireStaticEvents() {
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-else init();
+else init();
