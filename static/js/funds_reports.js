@@ -63,31 +63,39 @@ function showCopyBtn(rawAnswer) {
     container.innerHTML =
         '<button type="button" id="copyBtn" class="fr-btn" ' +
             'style="width:100%;background:linear-gradient(135deg,#1a3a1a,#2ea043);">' +
-            '<span class="fr-btn-text">📋 Select JSON & copy (Ctrl+C)</span>' +
+            '<span class="fr-btn-text">📋 Copy JSON</span>' +
         '</button>' +
-        '<textarea id="copyJsonArea" readonly rows="12" ' +
-            'style="width:100%;margin-top:10px;padding:12px;background:#010409;' +
-            'border:1px solid #21262D;border-radius:8px;color:#C9D1D9;' +
-            "font-family:'IBM Plex Mono',monospace;font-size:12px;" +
-            'line-height:1.5;resize:vertical;box-sizing:border-box;"></textarea>';
+        '<details id="copyDetails" style="margin-top:10px;">' +
+            '<summary style="cursor:pointer;user-select:none;color:#8B949E;' +
+                "font-family:'IBM Plex Mono',monospace;font-size:11px;padding:4px 0;\">" +
+                '👁 Show / hide JSON' +
+            '</summary>' +
+            '<textarea id="copyJsonArea" readonly rows="12" ' +
+                'style="width:100%;margin-top:8px;padding:12px;background:#010409;' +
+                'border:1px solid #21262D;border-radius:8px;color:#C9D1D9;' +
+                "font-family:'IBM Plex Mono',monospace;font-size:12px;" +
+                'line-height:1.5;resize:vertical;box-sizing:border-box;"></textarea>' +
+        '</details>';
 
     resultDiv.insertAdjacentElement('afterend', container);
 
-    const ta = document.getElementById('copyJsonArea');
+    const ta      = document.getElementById('copyJsonArea');
+    const details = document.getElementById('copyDetails');
     ta.value = json;
 
     document.getElementById('copyBtn').addEventListener('click', async () => {
-        ta.focus();
-        ta.select();
         const lbl = document.querySelector('#copyBtn .fr-btn-text');
         try {
             await navigator.clipboard.writeText(json);
-            lbl.textContent = '✅ Copied to clipboard';
+            lbl.textContent = '✅ Copied!';
+            // Stays hidden — clipboard worked, no need to show the textarea
         } catch (err) {
-            lbl.textContent = '👆 Selected — press Ctrl+C';
+            // Fallback: open the panel, select the text, ask for Ctrl+C
+            details.open = true;
+            ta.focus();
+            ta.select();
+            lbl.textContent = '👆 Press Ctrl+C';
         }
-        setTimeout(() => {
-            lbl.textContent = '📋 Select JSON & copy (Ctrl+C)';
-        }, 2500);
+        setTimeout(() => { lbl.textContent = '📋 Copy JSON'; }, 2500);
     });
 }
