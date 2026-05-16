@@ -157,6 +157,15 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("SMTP_FROM", "SMTP_FROM"))
 
+    # OpenAI — for LLM-powered features (e.g. research Excel import)
+    openai_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OPENAI_API_KEY", "OPENAI_API_KEY"))
+
+    openai_model: str | None = Field(
+        default="gpt-4o",
+        validation_alias=AliasChoices("OPENAI_MODEL", "OPENAI_MODEL"))
+
 
 @lru_cache
 def get_settings() -> Settings:

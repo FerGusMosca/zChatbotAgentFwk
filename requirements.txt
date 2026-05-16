@@ -114,3 +114,4 @@ pyodbc
 itsdangerous>=2.1
 neo4j
 httpx
+openpyxl

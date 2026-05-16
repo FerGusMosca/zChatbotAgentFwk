@@ -10,6 +10,7 @@ from common.config.settings import settings
 from common.util.mailer.stock_monitor_mailer import StockMonitorMailer
 from common.util.std_in_out.root_locator import RootLocator
 from data_access_layer.stock_monitor_manager import StockMonitorManager
+from services.research_excel_importer import list_sheets, extract_sheet
 
 
 RESEARCH_FIELD_LABELS = {
@@ -205,6 +206,91 @@ class StockMonitorController:
             try: self.mgr.delete_research_topic(topic_id); return JSONResponse({"status":"ok"})
             except Exception as e: return JSONResponse({"status":"error","message":str(e)}, status_code=500)
 
+        # ── Research — Excel Import (LLM-powered) ─────────────
+        @self.router.post("/portfolios/{portfolio_id}/research_topics/list_sheets")
+        async def list_excel_sheets(portfolio_id: int, file: UploadFile = File(...)):
+            """Returns the list of sheet names in the uploaded workbook so the
+            UI can offer a checkbox picker. Does NOT call the LLM."""
+            try:
+                content = await file.read()
+                sheets = list_sheets(content)
+                return JSONResponse({"status":"ok","sheets":sheets})
+            except Exception as e:
+                return JSONResponse({"status":"error","message":str(e)}, status_code=500)
+
+        @self.router.post("/portfolios/{portfolio_id}/research_topics/import_excel")
+        async def import_excel(
+            portfolio_id: int,
+            file: UploadFile = File(...),
+            sheets: str = Form(...),               # comma-separated sheet names
+            mode: str = Form('overwrite'),         # 'overwrite' | 'merge'
+            symbols_filter: str = Form(''),        # comma-separated tickers (mode=merge only)
+        ):
+            """Reads the workbook, sends each selected sheet to the LLM,
+            and upserts the canonical rows. Each sheet → one topic
+            (created if it doesn't exist, by sheet name)."""
+            try:
+                content = await file.read()
+                sheet_list = [s.strip() for s in sheets.split(',') if s.strip()]
+                if not sheet_list:
+                    return JSONResponse({"status":"error","message":"No sheets selected"}, status_code=400)
+
+                allow_filter = None
+                if mode == 'merge' and symbols_filter.strip():
+                    allow_filter = {s.strip().upper() for s in symbols_filter.split(',') if s.strip()}
+
+                # Existing topics by name → for "create or reuse" logic
+                existing = {t.name: t for t in self.mgr.get_research_topics(portfolio_id)}
+
+                summary = []
+                for sheet_name in sheet_list:
+                    try:
+                        extracted = extract_sheet(content, sheet_name)
+                        if allow_filter is not None:
+                            extracted = [r for r in extracted if r['symbol'] in allow_filter]
+
+                        # Topic: reuse if exists, else create
+                        topic = existing.get(sheet_name) or \
+                                self.mgr.create_research_topic(portfolio_id, sheet_name)
+                        existing[sheet_name] = topic
+
+                        # In overwrite mode, wipe the topic's existing rows first
+                        if mode == 'overwrite':
+                            for r in self.mgr.get_research_rows(topic.id):
+                                try: self.mgr.delete_research_row(topic.id, r.symbol)
+                                except Exception: pass
+
+                        # Upsert each extracted row
+                        upserted = 0
+                        for r in extracted:
+                            sym = r.pop('symbol')
+                            try:
+                                self.mgr.upsert_research_row(topic.id, sym, **r)
+                                upserted += 1
+                            except Exception as e:
+                                print(f"[import_excel] upsert failed for {sym}: {e}")
+
+                        summary.append({
+                            "sheet": sheet_name,
+                            "topic_id": topic.id,
+                            "rows_extracted": len(extracted),
+                            "rows_upserted": upserted,
+                            "status": "ok",
+                        })
+                    except Exception as e:
+                        import traceback; traceback.print_exc()
+                        summary.append({
+                            "sheet": sheet_name,
+                            "status": "error",
+                            "error": str(e),
+                        })
+
+                return JSONResponse({"status":"ok","summary":summary})
+            except Exception as e:
+                import traceback; traceback.print_exc()
+                return JSONResponse({"status":"error","message":str(e)}, status_code=500)
+
+
         # ── Research Rows ─────────────────────────────────────
         @self.router.get("/research_topics/{topic_id}/rows")
         async def get_research_rows(topic_id: int):
@@ -219,6 +305,7 @@ class StockMonitorController:
             ta_situation: str = Form(None), mgmt_sentiment: str = Form(None),
             earnings: str = Form(None), conclusion: str = Form(None),
             latest_comments: str = Form(None),
+            rating: str = Form(None),
             # which field was edited (for the notification)
             edited_field: str = Form(None),
             notify_subscribers: str = Form('false'),
@@ -234,6 +321,7 @@ class StockMonitorController:
                     debt_ratio=to_dec(debt_ratio), ta_situation=ta_situation,
                     mgmt_sentiment=mgmt_sentiment, earnings=earnings,
                     conclusion=conclusion, latest_comments=latest_comments,
+                    rating=to_dec(rating),
                 )
                 # Notify subscribers when a cell is updated
                 do_notify = notify_subscribers.lower() in ('true','1','yes')
@@ -371,4 +459,6 @@ class StockMonitorController:
                 "debt_ratio":float(r.debt_ratio) if r.debt_ratio is not None else None,
                 "ta_situation":r.ta_situation,"mgmt_sentiment":r.mgmt_sentiment,
                 "earnings":r.earnings,"conclusion":r.conclusion,
-                "latest_comments":r.latest_comments,"updated_at":str(r.updated_at)}
+                "latest_comments":r.latest_comments,
+                "rating": float(r.rating) if r.rating is not None else None,
+                "updated_at":str(r.updated_at)}

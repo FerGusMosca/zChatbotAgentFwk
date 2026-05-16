@@ -4,6 +4,7 @@
 const BASE = '/stock_monitor';
 
 const RESEARCH_FIELDS = [
+  { key: 'rating',          label: 'Rating',             type: 'rating' },
   { key: 'news',            label: 'News',               type: 'text' },
   { key: 'gpa_ratio',       label: 'GPA Ratio (%)',      type: 'percent' },
   { key: 'pe_ratio',        label: 'P/E Ratio',          type: 'number' },
@@ -672,8 +673,11 @@ async function loadResearchRows() {
 }
 
 function renderResearchTable() {
-  const colWidths = [110, ...RESEARCH_FIELDS.map(f =>
-    ['gpa_ratio','pe_ratio','debt_ratio'].includes(f.key) ? 100 : 190)];
+  const colWidths = [110, ...RESEARCH_FIELDS.map(f => {
+    if (f.key === 'rating') return 90;
+    if (['gpa_ratio','pe_ratio','debt_ratio'].includes(f.key)) return 100;
+    return 190;
+  })];
   const gridCols = colWidths.map(w => `${w}px`).join(' ');
   const minW = colWidths.reduce((a,b)=>a+b,0) + 'px';
 
@@ -726,13 +730,28 @@ function renderResearchTable() {
       const val = row[field.key];
       const isNum = ['percent','number'].includes(field.type);
       const hasVal = val !== null && val !== undefined && val !== '';
-      let displayVal = hasVal ? String(val) : '—';
-      if (field.type === 'percent' && hasVal) displayVal = Number(val).toFixed(2) + '%';
 
-      cell.innerHTML = `
-        <div style="${hasVal?'color:#C9D1D9;':'color:#484F58;'}${isNum&&hasVal?'color:#58A6FF;font-family:\'IBM Plex Mono\',monospace;':''}
-          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${esc(displayVal)}</div>
-        <span style="position:absolute;right:8px;opacity:0;color:#484F58;font-size:11px;pointer-events:none;transition:opacity 0.15s;" class="edit-hint">✏</span>`;
+      // Special render for the rating column: color pill
+      if (field.type === 'rating') {
+        if (hasVal) {
+          const r = Number(val);
+          const cls = ratingClass(r);
+          cell.innerHTML = `
+            <div class="sm-rating-pill ${cls}">${r.toFixed(1)}</div>
+            <span style="position:absolute;right:8px;opacity:0;color:#484F58;font-size:11px;pointer-events:none;transition:opacity 0.15s;" class="edit-hint">✏</span>`;
+        } else {
+          cell.innerHTML = `
+            <div style="color:#484F58;">—</div>
+            <span style="position:absolute;right:8px;opacity:0;color:#484F58;font-size:11px;pointer-events:none;transition:opacity 0.15s;" class="edit-hint">✏</span>`;
+        }
+      } else {
+        let displayVal = hasVal ? String(val) : '—';
+        if (field.type === 'percent' && hasVal) displayVal = Number(val).toFixed(2) + '%';
+        cell.innerHTML = `
+          <div style="${hasVal?'color:#C9D1D9;':'color:#484F58;'}${isNum&&hasVal?'color:#58A6FF;font-family:\'IBM Plex Mono\',monospace;':''}
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${esc(displayVal)}</div>
+          <span style="position:absolute;right:8px;opacity:0;color:#484F58;font-size:11px;pointer-events:none;transition:opacity 0.15s;" class="edit-hint">✏</span>`;
+      }
 
       cell.addEventListener('click', () => openCellEditor(row, field));
       cell.addEventListener('mouseenter', () => cell.querySelector('.edit-hint').style.opacity='1');
@@ -744,6 +763,15 @@ function renderResearchTable() {
     rowEl.addEventListener('mouseleave', () => symCell.querySelector('.sm-remove-asset-research').style.opacity='0');
     body.appendChild(rowEl);
   });
+}
+
+// Maps rating 0–5 to a CSS class (gradient red → green)
+function ratingClass(r) {
+  if (r >= 4.5) return 'r-5';
+  if (r >= 4.0) return 'r-4';
+  if (r >= 3.0) return 'r-3';
+  if (r >= 2.0) return 'r-2';
+  return 'r-1';
 }
 
 async function addSymbolToResearch() {
@@ -767,10 +795,20 @@ function openCellEditor(row, field) {
   document.getElementById('researchCellLabel').textContent = field.label;
   const inputArea = document.getElementById('researchCellInput');
   const inputNum  = document.getElementById('researchCellNumber');
-  if (field.type === 'percent' || field.type === 'number') {
+  const isNumeric = (field.type === 'percent' || field.type === 'number' || field.type === 'rating');
+  if (isNumeric) {
     inputArea.classList.add('sm-hidden'); inputNum.classList.remove('sm-hidden');
     const v = row[field.key]; inputNum.value = v != null ? String(v) : '';
-    inputNum.placeholder = field.type === 'percent' ? 'e.g. 35.5 (% added automatically)' : 'e.g. 24.5';
+    if (field.type === 'percent') {
+      inputNum.placeholder = 'e.g. 35.5 (% added automatically)';
+      inputNum.removeAttribute('min'); inputNum.removeAttribute('max');
+    } else if (field.type === 'rating') {
+      inputNum.placeholder = '0.0 – 5.0';
+      inputNum.min = '0'; inputNum.max = '5'; inputNum.step = '0.1';
+    } else {
+      inputNum.placeholder = 'e.g. 24.5';
+      inputNum.removeAttribute('min'); inputNum.removeAttribute('max');
+    }
     setTimeout(() => inputNum.focus(), 80);
   } else {
     inputNum.classList.add('sm-hidden'); inputArea.classList.remove('sm-hidden');
@@ -785,12 +823,16 @@ async function saveCellEdit() {
   const { row, field } = cellCtx;
   const inputArea = document.getElementById('researchCellInput');
   const inputNum  = document.getElementById('researchCellNumber');
+  const isNumeric = (field.type === 'percent' || field.type === 'number' || field.type === 'rating');
   let value = '';
-  if (field.type === 'percent' || field.type === 'number') {
+  if (isNumeric) {
     const raw = inputNum.value.trim();
     if (raw !== '') {
       const num = parseFloat(raw.replace('%',''));
       if (isNaN(num)) { inputNum.style.borderColor='#F85149'; return; }
+      if (field.type === 'rating' && (num < 0 || num > 5)) {
+        inputNum.style.borderColor='#F85149'; return;
+      }
       inputNum.style.borderColor=''; value = String(num);
     }
   } else { value = inputArea.value.trim(); }
@@ -818,6 +860,99 @@ async function deleteResearchTopic(topic) {
     if (activeTopic && activeTopic.id === topic.id) activeTopic = null;
     await loadAndRenderResearch();
   } catch(e) { showError(e.message); }
+}
+
+// ══════════════════════════════════════════════════
+//  IMPORT FROM EXCEL — uploads .xlsx, lists sheets,
+//  asks an LLM to extract canonical research rows.
+// ══════════════════════════════════════════════════
+let importExcelFile = null;
+
+function openImportExcelModal() {
+  if (!activePortId) { showError('Select a portfolio first'); return; }
+  importExcelFile = null;
+  document.getElementById('importExcelInput').value = '';
+  document.getElementById('importExcelName').textContent = '';
+  document.getElementById('importExcelSheetsList').innerHTML = '';
+  document.getElementById('importExcelSheetsField').classList.add('sm-hidden');
+  document.getElementById('importExcelSymbols').value = '';
+  document.getElementById('importExcelSymbolsField').classList.add('sm-hidden');
+  document.querySelector('input[name="importExcelMode"][value="overwrite"]').checked = true;
+  document.getElementById('importExcelStatus').textContent = '';
+  document.getElementById('runImportExcel').disabled = true;
+  document.getElementById('importExcelModal').classList.remove('sm-hidden');
+}
+
+async function onImportExcelFileChosen(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  importExcelFile = f;
+  document.getElementById('importExcelName').textContent = f.name;
+  document.getElementById('importExcelStatus').textContent = 'Reading sheets…';
+  document.getElementById('runImportExcel').disabled = true;
+  try {
+    const form = new FormData(); form.append('file', f);
+    const res = await api('POST', `/portfolios/${activePortId}/research_topics/list_sheets`, form);
+    const list = document.getElementById('importExcelSheetsList');
+    list.innerHTML = res.sheets.map((s, i) => `
+      <label style="display:flex;align-items:center;gap:8px;padding:4px 6px;cursor:pointer;color:#C9D1D9;font-size:12px;">
+        <input type="checkbox" class="import-sheet-cb" value="${esc(s)}" ${i===0?'checked':''}
+               style="width:auto;flex:0 0 auto;margin:0;">
+        <span>${esc(s)}</span>
+      </label>`).join('');
+    document.getElementById('importExcelSheetsField').classList.remove('sm-hidden');
+    document.getElementById('importExcelStatus').textContent =
+      `${res.sheets.length} sheet(s) found. Tick the ones to import.`;
+    document.getElementById('runImportExcel').disabled = false;
+  } catch(err) {
+    document.getElementById('importExcelStatus').innerHTML =
+      `<span style="color:#F85149;">⚠ ${esc(err.message)}</span>`;
+  }
+}
+
+async function runImportExcel() {
+  if (!importExcelFile || !activePortId) return;
+  const sheets = [...document.querySelectorAll('.import-sheet-cb:checked')].map(cb => cb.value);
+  if (sheets.length === 0) {
+    document.getElementById('importExcelStatus').innerHTML =
+      `<span style="color:#D29922;">Pick at least one sheet.</span>`; return;
+  }
+  const mode = document.querySelector('input[name="importExcelMode"]:checked').value;
+  const symbols = document.getElementById('importExcelSymbols').value.trim();
+
+  const btn = document.getElementById('runImportExcel');
+  btn.disabled = true; btn.textContent = 'Importing…';
+  document.getElementById('importExcelStatus').textContent =
+    `Calling LLM for ${sheets.length} sheet(s)… this can take 30–90s.`;
+
+  const form = new FormData();
+  form.append('file', importExcelFile);
+  form.append('sheets', sheets.join(','));
+  form.append('mode', mode);
+  if (symbols) form.append('symbols_filter', symbols);
+
+  try {
+    const res = await api('POST', `/portfolios/${activePortId}/research_topics/import_excel`, form);
+    const lines = res.summary.map(s => {
+      if (s.status === 'error') {
+        return `<div style="color:#F85149;margin:2px 0;">⚠ <b>${esc(s.sheet)}</b> — ${esc(s.error || 'failed')}</div>`;
+      }
+      return `<div style="color:#2ea043;margin:2px 0;">✓ <b>${esc(s.sheet)}</b> → ${s.rows_upserted}/${s.rows_extracted} rows</div>`;
+    }).join('');
+    document.getElementById('importExcelStatus').innerHTML = lines;
+    const hasErrors = res.summary.some(s => s.status === 'error');
+    await loadAndRenderResearch();
+    // Only auto-close if everything went through cleanly; otherwise leave the
+    // modal open so the user can read the per-sheet errors.
+    if (!hasErrors) {
+      setTimeout(() => closeModal('importExcelModal'), 2200);
+    }
+  } catch(err) {
+    document.getElementById('importExcelStatus').innerHTML =
+      `<span style="color:#F85149;">⚠ ${esc(err.message)}</span>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Run Import';
+  }
 }
 
 // ══════════════════════════════════════════════════
@@ -976,6 +1111,20 @@ function wireStaticEvents() {
   document.getElementById('cancelResearchCell').addEventListener('click', () => closeModal('researchCellModal'));
   document.getElementById('saveResearchCell').addEventListener('click', saveCellEdit);
   document.getElementById('researchCellModal').addEventListener('click', e => { if (e.target.id==='researchCellModal') closeModal('researchCellModal'); });
+
+  // ── Import Excel modal ─────────────────────────────────
+  document.getElementById('importExcelBtn').addEventListener('click', openImportExcelModal);
+  document.getElementById('closeImportExcelModal').addEventListener('click', () => closeModal('importExcelModal'));
+  document.getElementById('cancelImportExcel').addEventListener('click', () => closeModal('importExcelModal'));
+  document.getElementById('importExcelModal').addEventListener('click', e => { if (e.target.id==='importExcelModal') closeModal('importExcelModal'); });
+  document.getElementById('importExcelInput').addEventListener('change', onImportExcelFileChosen);
+  document.getElementById('runImportExcel').addEventListener('click', runImportExcel);
+  document.querySelectorAll('input[name="importExcelMode"]').forEach(r => {
+    r.addEventListener('change', () => {
+      const isMerge = document.querySelector('input[name="importExcelMode"]:checked').value === 'merge';
+      document.getElementById('importExcelSymbolsField').classList.toggle('sm-hidden', !isMerge);
+    });
+  });
   document.getElementById('researchCellNumber').addEventListener('keydown', e => { if (e.key==='Enter') saveCellEdit(); });
 
   document.addEventListener('keydown', e => {

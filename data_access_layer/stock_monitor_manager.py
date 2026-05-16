@@ -1,4 +1,4 @@
-# stock_monitor_manager.py — v3
+# stock_monitor_manager.py — v4
 import pyodbc
 from dataclasses import dataclass
 from datetime import datetime
@@ -40,6 +40,7 @@ class ResearchRow:
     earnings: Optional[str]        = None
     conclusion: Optional[str]      = None
     latest_comments: Optional[str] = None
+    rating: Optional[Decimal]      = None     # 0.0 – 5.0 (color-coded in UI)
     updated_at: Optional[datetime] = None
 
 @dataclass
@@ -174,7 +175,8 @@ class StockMonitorManager:
 
     def upsert_research_row(self, topic_id, symbol, **fields):
         allowed = ['news','gpa_ratio','pe_ratio','debt_ratio','ta_situation',
-                   'mgmt_sentiment','earnings','conclusion','latest_comments']
+                   'mgmt_sentiment','earnings','conclusion','latest_comments',
+                   'rating']
         params = {k: fields.get(k) for k in allowed}
         conn = self._connect(); cur = conn.cursor()
         cur.execute(
@@ -182,11 +184,13 @@ class StockMonitorManager:
                 @topic_id=?, @symbol=?,
                 @news=?, @gpa_ratio=?, @pe_ratio=?, @debt_ratio=?,
                 @ta_situation=?, @mgmt_sentiment=?, @earnings=?,
-                @conclusion=?, @latest_comments=?""",
+                @conclusion=?, @latest_comments=?,
+                @rating=?""",
             topic_id, symbol.upper().strip(),
             params['news'], params['gpa_ratio'], params['pe_ratio'], params['debt_ratio'],
             params['ta_situation'], params['mgmt_sentiment'], params['earnings'],
-            params['conclusion'], params['latest_comments']
+            params['conclusion'], params['latest_comments'],
+            params['rating']
         )
         row = cur.fetchone(); conn.commit(); cur.close(); conn.close()
         return self._map_row(row)
@@ -198,12 +202,16 @@ class StockMonitorManager:
         conn.commit(); cur.close(); conn.close()
 
     def _map_row(self, r):
+        # `rating` is a new column; fall back gracefully if the SP/result set
+        # hasn't been redeployed yet.
+        rating = getattr(r, 'rating', None)
         return ResearchRow(
             id=r.id, topic_id=r.topic_id, symbol=r.symbol,
             news=r.news, gpa_ratio=r.gpa_ratio, pe_ratio=r.pe_ratio,
             debt_ratio=r.debt_ratio, ta_situation=r.ta_situation,
             mgmt_sentiment=r.mgmt_sentiment, earnings=r.earnings,
             conclusion=r.conclusion, latest_comments=r.latest_comments,
+            rating=rating,
             updated_at=r.updated_at)
 
     # ── Email Subscribers ────────────────────────────────────
