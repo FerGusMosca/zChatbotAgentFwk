@@ -1,4 +1,4 @@
-// stock_monitor.js — v4
+// stock_monitor.js — v5.4
 // Prices via Yahoo Finance proxy (no TradingView embed on cards)
 
 const BASE = '/stock_monitor';
@@ -17,9 +17,19 @@ const RESEARCH_FIELDS = [
 ];
 
 const PRIORITY = {
-  green:  { emoji: '🟢', color: '#3FB950', bg: 'rgba(63,185,80,0.12)',  border: 'rgba(63,185,80,0.3)',  label: 'Info' },
-  yellow: { emoji: '🟡', color: '#D29922', bg: 'rgba(210,153,34,0.12)', border: 'rgba(210,153,34,0.3)', label: 'Medium' },
-  red:    { emoji: '🔴', color: '#F85149', bg: 'rgba(248,81,73,0.12)',  border: 'rgba(248,81,73,0.3)',  label: 'High' },
+  green:  { emoji: '🟢', color: '#3FB950', bg: 'rgba(63,185,80,0.12)',  border: 'rgba(63,185,80,0.3)',
+            glow: 'rgba(63,185,80,0.22)',  label: 'Positivo' },
+  yellow: { emoji: '🟡', color: '#D29922', bg: 'rgba(210,153,34,0.12)', border: 'rgba(210,153,34,0.3)',
+            glow: 'rgba(210,153,34,0.22)', label: 'Alerta' },
+  red:    { emoji: '🔴', color: '#F85149', bg: 'rgba(248,81,73,0.12)',  border: 'rgba(248,81,73,0.3)',
+            glow: 'rgba(248,81,73,0.22)',  label: 'Negativo' },
+};
+
+const ALERT_BADGE = {
+  above_target: { cls: 'sm-badge-target',  text: '🎯 TAKE PROFIT ALCANZADO' },
+  below_stop:   { cls: 'sm-badge-stop',    text: '🛑 STOP LOSS ALCANZADO' },
+  in_range:     { cls: 'sm-badge-range',   text: 'En rango' },
+  no_price:     { cls: 'sm-badge-noprice', text: 'Sin precio' },
 };
 
 // ── State ──
@@ -32,6 +42,9 @@ let topics       = [];
 let researchRows = [];
 let tvWidget     = null;
 let activeAsset  = null;
+let alerts       = [];
+let alertsCollapsed = false;
+let alertFilter     = '';
 
 // ══════════════════════════════════════════════════
 //  API
@@ -41,7 +54,12 @@ async function api(method, path, body = null) {
   if (body instanceof FormData) opts.body = body;
   else if (body) { opts.headers = {'Content-Type':'application/json'}; opts.body = JSON.stringify(body); }
   const res = await fetch(BASE + path, opts);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    // El backend manda {status:'error', message:'…'} — mejor eso que un "HTTP 500" pelado
+    let detail = '';
+    try { const body = await res.json(); detail = body?.message || body?.detail || ''; } catch {}
+    throw new Error(detail ? `${detail}` : `HTTP ${res.status}`);
+  }
   return res.json();
 }
 function fd(obj) {
@@ -194,13 +212,14 @@ function showEmptyState(show) {
 // ══════════════════════════════════════════════════
 async function switchTab(tab) {
   activeTab = tab;
-  ['monitor','research','emails'].forEach(t => {
+  ['monitor','research','alerts','emails'].forEach(t => {
     const T = t.charAt(0).toUpperCase() + t.slice(1);
     document.getElementById('tab'+T)?.classList.toggle('sm-tab-active', t === tab);
     document.getElementById('tabContent'+T)?.classList.toggle('sm-hidden', t !== tab);
   });
   if (tab === 'monitor')  await loadAndRenderMonitor();
   if (tab === 'research') await loadAndRenderResearch();
+  if (tab === 'alerts')   await loadAndRenderAlerts();
   if (tab === 'emails')   await loadAndRenderEmails();
 }
 
@@ -261,8 +280,19 @@ function renderMonitor() {
       if (e.target.classList.contains('sm-asset-remove')) return;
       selectAsset(asset, card);
     });
-    card.querySelector('.sm-asset-remove').addEventListener('click', async e => {
-      e.stopPropagation(); await removeAsset(asset.symbol);
+    const removeBtn = card.querySelector('.sm-asset-remove');
+    removeBtn.title = `Quitar ${asset.symbol}`;
+    removeBtn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const ok = await smConfirm({
+        title: 'Quitar activo',
+        text: `¿Quitar ${asset.symbol} del portfolio?`,
+        sub: 'Se borran también sus niveles de alarma. Las notas y comentarios quedan guardados.',
+        okLabel: 'Quitar activo',
+        danger: true,
+      });
+      if (!ok) return;
+      await removeAsset(asset.symbol);
     });
     grid.appendChild(card);
   });
@@ -478,45 +508,63 @@ function renderNotesSection(asset, notes) {
         ? `<div style="color:#484F58;font-size:12px;font-style:italic;">No notes yet.</div>`
         : notes.map(n => noteHtml(n)).join('')}
     </div>
-    <div style="background:#161B22;border:1px solid #21262D;border-radius:10px;padding:14px 16px;">
-      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap;">
-        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#484F58;
-                     text-transform:uppercase;letter-spacing:0.08em;">Priority</span>
+    <div class="sm-note-composer">
+      <div class="sm-note-priority-row">
+        <span class="sm-note-priority-label">Prioridad</span>
         ${['green','yellow','red'].map(p => `
-          <button class="sm-priority-btn${p==='green'?' sm-priority-active':''}" data-priority="${p}"
-            style="padding:5px 12px;border-radius:20px;cursor:pointer;font-size:12px;
-                   transition:all 0.18s;font-family:'IBM Plex Sans',sans-serif;
-                   border:1px solid ${PRIORITY[p].border};
-                   background:${p==='green'?PRIORITY[p].bg:'transparent'};
-                   color:${PRIORITY[p].color};">
-            ${PRIORITY[p].emoji} ${PRIORITY[p].label}
+          <button type="button" class="sm-priority-btn" data-priority="${p}"
+            style="border:1px solid ${PRIORITY[p].border};background:transparent;
+                   color:${PRIORITY[p].color};--sm-prio-glow:${PRIORITY[p].glow};">
+            <span>${PRIORITY[p].emoji}</span><span>${PRIORITY[p].label}</span>
           </button>`).join('')}
       </div>
       <div class="sm-textarea sm-rich-input" id="newNoteInput"
            contenteditable="true" role="textbox" aria-multiline="true" spellcheck="true"
-           data-placeholder="Write a note about ${esc(asset.symbol)}… (Ctrl+Enter to save)"
-           style="min-height:70px;max-height:280px;overflow-y:auto;margin-bottom:10px;"></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;color:#6E7681;">
-          <input type="checkbox" id="notifyCheck" style="accent-color:#1F6FEB;">
-          📨 Notify subscribers
+           data-placeholder="Escribí una nota sobre ${esc(asset.symbol)}… (Ctrl+Enter para guardar)"
+           style="min-height:80px;max-height:280px;overflow-y:auto;margin-bottom:12px;"></div>
+      <div class="sm-note-actions">
+        <label class="sm-notify-toggle" id="notifyToggle">
+          <input type="checkbox" id="notifyCheck">
+          <span>📨 Notificar subscribers</span>
         </label>
         <button class="sm-btn sm-btn-primary sm-btn-sm" id="addNoteBtn">+ Add Note</button>
+      </div>
+      <div class="sm-note-sending sm-hidden" id="noteSending">
+        <span class="sm-spinner sm-spinner-dark"></span>
+        <span id="noteSendingText">Guardando nota…</span>
       </div>
     </div>`;
 
   document.getElementById('chartPanel').appendChild(section);
 
+  // ── Selección de prioridad con feedback visual ──
   let selectedPriority = 'green';
+  const paintPriority = () => {
+    section.querySelectorAll('.sm-priority-btn').forEach(b => {
+      const p  = b.dataset.priority;
+      const on = (p === selectedPriority);
+      b.classList.toggle('sm-priority-active', on);
+      b.style.background  = on ? PRIORITY[p].bg : 'transparent';
+      b.style.borderColor = on ? PRIORITY[p].color : PRIORITY[p].border;
+    });
+  };
   section.querySelectorAll('.sm-priority-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       selectedPriority = btn.dataset.priority;
-      section.querySelectorAll('.sm-priority-btn').forEach(b => {
-        const p = b.dataset.priority;
-        b.style.background = (p === selectedPriority) ? PRIORITY[p].bg : 'transparent';
-      });
+      paintPriority();
+      btn.classList.remove('sm-prio-pulse');
+      void btn.offsetWidth;                       // reinicia la animación
+      btn.classList.add('sm-prio-pulse');
+      setTimeout(() => btn.classList.remove('sm-prio-pulse'), 360);
     });
   });
+  paintPriority();
+
+  // ── Toggle de notificación ──
+  const notifyCheck  = document.getElementById('notifyCheck');
+  const notifyToggle = document.getElementById('notifyToggle');
+  notifyCheck?.addEventListener('change', () =>
+    notifyToggle?.classList.toggle('sm-on', notifyCheck.checked));
 
   document.getElementById('addNoteBtn').addEventListener('click', () => submitNote(asset, () => selectedPriority));
   const noteInputEl = document.getElementById('newNoteInput');
@@ -529,29 +577,59 @@ function renderNotesSection(asset, notes) {
   });
   notes.forEach(n => {
     document.getElementById(`del-note-${n.id}`)?.addEventListener('click', async () => {
+      const ok = await smConfirm({
+        title: 'Borrar nota',
+        text: '¿Borrar esta nota?',
+        sub: 'La acción no se puede deshacer.',
+        okLabel: 'Borrar', danger: true });
+      if (!ok) return;
       try { await api('DELETE', `/notes/${n.id}`); await loadNotesAndComments(asset); }
       catch(e) { showError(e.message); }
     });
   });
 }
 
+let noteSubmitting = false;
 async function submitNote(asset, getPriority) {
+  if (noteSubmitting) return;
   const inputEl = document.getElementById('newNoteInput');
   if (!inputEl) return;
-  // Reject if there is no actual text content (a contenteditable can hold
-  // <br> or empty <p> placeholders that look "non-empty" to innerHTML).
+  // Rechaza si no hay texto real (un contenteditable puede tener <br> o <p> vacíos)
   const plain = (inputEl.innerText || inputEl.textContent || '').trim();
-  if (!plain) return;
+  if (!plain) { inputEl.focus(); return; }
   const note = sanitizeNoteHtml(inputEl.innerHTML).trim();
   if (!note) return;
   const priority = getPriority();
   const notify = document.getElementById('notifyCheck')?.checked || false;
+
+  const btn     = document.getElementById('addNoteBtn');
+  const sending = document.getElementById('noteSending');
+  const sendTxt = document.getElementById('noteSendingText');
+
+  noteSubmitting = true;
+  if (btn) { btn.disabled = true; btn.innerHTML = `<span class="sm-spinner"></span> Enviando…`; }
+  if (sendTxt) sendTxt.textContent = notify
+    ? 'Guardando nota y notificando subscribers…'
+    : 'Guardando nota…';
+  sending?.classList.remove('sm-hidden');
+  inputEl.setAttribute('contenteditable', 'false');
+
   try {
     await api('POST', `/portfolios/${activePortId}/assets/${asset.symbol}/notes`,
       fd({ note, priority, notify: String(notify) }));
     inputEl.innerHTML = '';
+    showToast(notify ? '✓ Nota guardada y enviada' : '✓ Nota guardada', 'success');
     await loadNotesAndComments(asset);
-  } catch(e) { showError(e.message); }
+  } catch(e) {
+    showError(e.message);
+  } finally {
+    noteSubmitting = false;
+    // El re-render puede haber reemplazado estos nodos: los buscamos de nuevo
+    const b = document.getElementById('addNoteBtn');
+    if (b) { b.disabled = false; b.textContent = '+ Add Note'; }
+    document.getElementById('noteSending')?.classList.add('sm-hidden');
+    document.getElementById('newNoteInput')?.setAttribute('contenteditable', 'true');
+  }
 }
 
 function noteHtml(n) {
@@ -1046,6 +1124,481 @@ async function sendManualNotification() {
 }
 
 // ══════════════════════════════════════════════════
+//  PRICE ALERTS TAB
+//  Targets (se tocan desde abajo) y stop loss (desde arriba).
+//  No hay recorrido automático: alguien entra y le da Play.
+// ══════════════════════════════════════════════════
+async function loadAndRenderAlerts() {
+  try {
+    const res = await api('GET', `/portfolios/${activePortId}/alerts`);
+    // Contrato: { status, alerts: [...], warning: string|null }
+    alerts = Array.isArray(res) ? res : (res.alerts || []);
+    const warning = Array.isArray(res) ? null : (res.warning || null);
+    let events = [];
+    try { events = await api('GET', `/portfolios/${activePortId}/alerts/events?top=15`); }
+    catch { events = []; }
+    renderAlerts(Array.isArray(events) ? events : [], warning);
+  } catch(e) {
+    renderAlertsError(e.message);
+  }
+}
+
+function renderAlertsError(msg) {
+  const container = document.getElementById('tabContentAlerts');
+  container.innerHTML = `
+    <div class="sm-alerts-panel">
+      <div class="sm-alerts-panel-head">
+        <div class="sm-alerts-panel-title">🔔 Price Alerts</div>
+        <button class="sm-btn sm-btn-ghost sm-btn-sm" id="retryAlertsBtn">↻ Reintentar</button>
+      </div>
+      <div class="sm-alerts-panel-body">
+        <div class="sm-alerts-warning">
+          <span>⚠️</span>
+          <div>
+            <b>No se pudo cargar el panel de alarmas.</b><br>
+            ${esc(msg || 'Error desconocido')}<br><br>
+            Si es la primera vez que abrís esta pestaña, falta correr el script
+            <code>sql/sm_price_alerts.sql</code> en la base de research
+            (crea las tablas <code>sm_asset_alerts</code> / <code>sm_alert_events</code>
+            y los stored procedures <code>sm_*_alert*</code>).
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('retryAlertsBtn')?.addEventListener('click', loadAndRenderAlerts);
+  showError(msg);
+}
+
+function fmtNum(v, dec = 2) {
+  if (v === null || v === undefined || v === '') return '—';
+  return Number(v).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+
+function renderAlerts(events, warning) {
+  const container = document.getElementById('tabContentAlerts');
+
+  const warnHtml = warning ? `
+    <div class="sm-alerts-warning">
+      <span>⚠️</span>
+      <div>${esc(warning)}<br>
+        Corré <code>sql/sm_price_alerts.sql</code> en la base de research y recargá.</div>
+    </div>` : '';
+
+  const rowsHtml = alerts.length === 0
+    ? `<div style="padding:26px;text-align:center;color:#484F58;font-size:13px;">
+         Todavía no hay activos en este portfolio. Agregá símbolos en la pestaña Monitor.
+       </div>`
+    : alerts.map(a => `
+      <div class="sm-alert-row" data-symbol="${esc(a.symbol)}">
+        <div class="sm-alert-sym">${esc(a.symbol)}${a.orphan ? ' <span style="color:#D29922;font-size:10px;">(fuera del portfolio)</span>' : ''}</div>
+        <div class="sm-alert-last">
+          Último visto: ${fmtNum(a.last_price)}
+          ${a.last_triggered_at ? ` · disparó ${esc(String(a.last_trigger_type || ''))}` : ''}
+        </div>
+        <div>
+          <input type="text" inputmode="decimal" class="sm-alert-input sm-target"
+                 data-field="target" placeholder="Target ↑"
+                 value="${a.target_price !== null && a.target_price !== undefined ? a.target_price : ''}">
+        </div>
+        <div>
+          <input type="text" inputmode="decimal" class="sm-alert-input sm-stop"
+                 data-field="stop" placeholder="Stop loss ↓"
+                 value="${a.stop_loss !== null && a.stop_loss !== undefined ? a.stop_loss : ''}">
+        </div>
+        <div>
+          <label class="sm-notify-toggle${a.enabled ? ' sm-on' : ''}" style="padding:5px 9px;">
+            <input type="checkbox" class="sm-alert-enabled" ${a.enabled ? 'checked' : ''}>
+            <span>Activa</span>
+          </label>
+        </div>
+        <div class="sm-alert-saved">✓ guardado</div>
+      </div>`).join('');
+
+  const eventsHtml = events.length === 0
+    ? `<div style="color:#484F58;font-size:12px;font-style:italic;">Todavía no hubo disparos.</div>`
+    : events.map(e => `
+        <div class="sm-alert-event">
+          <span>${e.event_type === 'stop_loss' ? '🛑' : '🎯'}</span>
+          <b>${esc(e.symbol)}</b>
+          <span>${e.event_type === 'stop_loss' ? 'stop loss' : 'target'} ${fmtNum(e.level_price)}</span>
+          <span>· precio ${fmtNum(e.price)}</span>
+          ${e.notified ? '<span style="color:#3FB950;">· notificado</span>' : ''}
+          <span class="sm-ev-date">${esc(String(e.created_at || '').slice(0, 16))}</span>
+        </div>`).join('');
+
+  container.innerHTML = `
+    <div class="sm-alerts-layout">
+
+      ${warnHtml}
+
+      <!-- ── Configuración de niveles ── -->
+      <div class="sm-alerts-panel">
+        <div class="sm-alerts-panel-head">
+          <button class="sm-alerts-toggle" id="toggleAlertsCfg" title="Mostrar / ocultar">
+            <span class="sm-chevron${alertsCollapsed ? ' sm-collapsed' : ''}">▾</span>
+            <span class="sm-alerts-panel-title">⚙️ Niveles por activo</span>
+            <span class="sm-alerts-count" id="alertsCount"></span>
+          </button>
+          <div class="sm-alerts-head-actions">
+            <input type="text" class="sm-alert-input sm-alert-filter" id="alertFilterInput"
+                   placeholder="🔎 Filtrar por símbolo…" value="${esc(alertFilter)}">
+            <button class="sm-btn sm-btn-ghost sm-btn-sm" id="importLevelsBtn"
+                    title="Importar niveles desde una planilla">📥 Importar Excel</button>
+            <button class="sm-btn sm-btn-ghost sm-btn-sm" id="reloadAlertsBtn">↻ Recargar</button>
+          </div>
+        </div>
+        <div class="sm-alerts-panel-body${alertsCollapsed ? ' sm-hidden' : ''}" id="alertsCfgBody">
+          <p class="sm-alerts-hint">
+            El <b style="color:#3FB950;">target</b> queda alcanzado cuando el precio
+            <b>llega o supera</b> ese valor; el <b style="color:#F85149;">stop loss</b>
+            cuando el precio <b>llega o cae por debajo</b>. Dejá el campo vacío para no
+            usar ese nivel. Los cambios se guardan al salir del campo.
+          </p>
+          <div class="sm-alert-table">
+            <div class="sm-alert-thead">
+              <div>Activo</div><div>Estado</div><div>Target ↑</div>
+              <div>Stop loss ↓</div><div>Alarma</div><div></div>
+            </div>
+            ${rowsHtml}
+            <div id="alertsEmptyFilter" class="sm-hidden"
+                 style="padding:22px;text-align:center;color:#484F58;font-size:12px;">
+              Ningún símbolo coincide con el filtro.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Corrida manual ── -->
+      <div class="sm-alerts-panel">
+        <div class="sm-alerts-panel-head">
+          <div class="sm-alerts-panel-title">▶️ Recorrido de precios</div>
+        </div>
+        <div class="sm-alerts-panel-body">
+          <p class="sm-alerts-hint">
+            Recorre todos los activos con niveles cargados, trae el precio actual y arma el
+            informe. Se dispara alarma sólo cuando el precio <b>cruza</b> el nivel respecto
+            de la última corrida — en la primera corrida se toma la referencia y no dispara nada.
+          </p>
+          <div class="sm-run-box">
+            <button class="sm-btn sm-btn-primary sm-run-btn" id="runAlertsBtn">▶ Correr alarmas</button>
+            <label class="sm-notify-toggle sm-on" id="runNotifyToggle">
+              <input type="checkbox" id="runAlertsNotify" checked>
+              <span>📨 Mandar mails a los subscribers</span>
+            </label>
+            <div class="sm-run-status" id="runAlertsStatus"></div>
+          </div>
+          <div id="runAlertsResults"></div>
+        </div>
+      </div>
+
+      <!-- ── Historial ── -->
+      <div class="sm-alerts-panel">
+        <div class="sm-alerts-panel-head">
+          <div class="sm-alerts-panel-title">🕘 Últimos disparos</div>
+        </div>
+        <div class="sm-alerts-panel-body">
+          <div class="sm-alert-events">${eventsHtml}</div>
+        </div>
+      </div>
+
+    </div>`;
+
+  // ── Wiring ──
+  document.getElementById('reloadAlertsBtn').addEventListener('click', loadAndRenderAlerts);
+  document.getElementById('importLevelsBtn').addEventListener('click', openImportLevelsModal);
+
+  document.getElementById('toggleAlertsCfg').addEventListener('click', () => {
+    alertsCollapsed = !alertsCollapsed;
+    document.getElementById('alertsCfgBody').classList.toggle('sm-hidden', alertsCollapsed);
+    document.querySelector('#toggleAlertsCfg .sm-chevron')
+            ?.classList.toggle('sm-collapsed', alertsCollapsed);
+  });
+
+  const filterInput = document.getElementById('alertFilterInput');
+  filterInput.addEventListener('input', () => {
+    alertFilter = filterInput.value;
+    applyAlertFilter();
+  });
+  filterInput.addEventListener('click', e => e.stopPropagation());
+  applyAlertFilter();
+  document.getElementById('runAlertsBtn').addEventListener('click', runAlertSweep);
+
+  const runNotify = document.getElementById('runAlertsNotify');
+  runNotify?.addEventListener('change', () =>
+    document.getElementById('runNotifyToggle')?.classList.toggle('sm-on', runNotify.checked));
+
+  container.querySelectorAll('.sm-alert-row').forEach(row => {
+    row.querySelectorAll('.sm-alert-input').forEach(inp => {
+      inp.addEventListener('blur', () => saveAlertRow(row));
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+    });
+    const cb = row.querySelector('.sm-alert-enabled');
+    cb?.addEventListener('change', () => {
+      cb.closest('.sm-notify-toggle')?.classList.toggle('sm-on', cb.checked);
+      saveAlertRow(row);
+    });
+  });
+}
+
+function applyAlertFilter() {
+  const q = (alertFilter || '').trim().toUpperCase();
+  const rows = document.querySelectorAll('#alertsCfgBody .sm-alert-row');
+  let visible = 0;
+  rows.forEach(row => {
+    const hit = !q || row.dataset.symbol.includes(q);
+    row.classList.toggle('sm-hidden', !hit);
+    if (hit) visible++;
+  });
+  document.getElementById('alertsEmptyFilter')?.classList.toggle('sm-hidden', visible > 0 || !q);
+  const counter = document.getElementById('alertsCount');
+  if (counter) counter.textContent = q ? `${visible}/${rows.length}` : `${rows.length}`;
+}
+
+// ── Importación de niveles desde planilla ──
+let importLevelsFile = null;
+
+function openImportLevelsModal() {
+  importLevelsFile = null;
+  document.getElementById('importLevelsInput').value = '';
+  document.getElementById('importLevelsName').textContent = '';
+  document.getElementById('importLevelsStatus').innerHTML = '';
+  document.getElementById('runImportLevels').disabled = true;
+  document.getElementById('importLevelsModal').classList.remove('sm-hidden');
+}
+
+function onImportLevelsFileChosen(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  importLevelsFile = f;
+  document.getElementById('importLevelsName').textContent = f.name;
+  document.getElementById('importLevelsStatus').innerHTML = '';
+  document.getElementById('runImportLevels').disabled = false;
+}
+
+async function runImportLevels() {
+  if (!importLevelsFile || !activePortId) return;
+  const btn    = document.getElementById('runImportLevels');
+  const status = document.getElementById('importLevelsStatus');
+  const strict = document.getElementById('importLevelsStrict')?.checked;
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="sm-spinner"></span> Importando…';
+  status.innerHTML = '<span class="sm-spinner sm-spinner-dark"></span> Leyendo la planilla…';
+
+  const form = new FormData();
+  form.append('file', importLevelsFile);
+  form.append('only_portfolio_assets', String(!!strict));
+
+  try {
+    const res = await api('POST', `/portfolios/${activePortId}/alerts/import_excel`, form);
+    const color = { ok: '#3FB950', skipped: '#8B949E', error: '#F85149' };
+    const icon  = { ok: '✓', skipped: '–', error: '⚠' };
+    status.innerHTML = `
+      <div style="color:#C9D1D9;margin-bottom:8px;">
+        ${res.applied} de ${res.total} fila(s) aplicadas
+      </div>` + res.summary.map(s => `
+      <div style="color:${color[s.status]};margin:2px 0;">
+        ${icon[s.status]} <b>${esc(s.symbol)}</b> (fila ${s.row}) — ${esc(s.detail)}
+      </div>`).join('');
+    if (res.applied > 0) {
+      showToast(`✓ ${res.applied} nivel(es) importado(s)`, 'success');
+      await loadAndRenderAlerts();
+    }
+  } catch(err) {
+    status.innerHTML = `<span style="color:#F85149;">⚠ ${esc(err.message)}</span>`;
+  } finally {
+    const b = document.getElementById('runImportLevels');
+    if (b) { b.disabled = false; b.textContent = 'Importar'; }
+  }
+}
+
+function parseLevel(raw) {
+  const s = String(raw ?? '').replace(/[$\s]/g, '').replace(',', '.').trim();
+  if (!s) return '';
+  const n = parseFloat(s);
+  return isNaN(n) ? null : String(n);   // null = inválido
+}
+
+async function saveAlertRow(row) {
+  const symbol = row.dataset.symbol;
+  const tgtEl  = row.querySelector('.sm-alert-input[data-field="target"]');
+  const stpEl  = row.querySelector('.sm-alert-input[data-field="stop"]');
+  const cb     = row.querySelector('.sm-alert-enabled');
+
+  const target = parseLevel(tgtEl.value);
+  const stop   = parseLevel(stpEl.value);
+
+  if (target === null) { tgtEl.style.borderColor = '#F85149'; showError(`Target inválido en ${symbol}`); return; }
+  if (stop   === null) { stpEl.style.borderColor = '#F85149'; showError(`Stop loss inválido en ${symbol}`); return; }
+  tgtEl.style.borderColor = ''; stpEl.style.borderColor = '';
+
+  if (target !== '' && stop !== '' && parseFloat(stop) >= parseFloat(target)) {
+    showError(`${symbol}: el stop loss tiene que estar por debajo del target`);
+    return;
+  }
+
+  // Si se carga un nivel, la alarma se activa sola (si no, quedaba cargada pero muda)
+  if ((target !== '' || stop !== '') && cb && !cb.checked) {
+    cb.checked = true;
+    cb.closest('.sm-notify-toggle')?.classList.add('sm-on');
+  }
+
+  try {
+    const res = await api('POST', `/portfolios/${activePortId}/alerts/${symbol}`,
+      fd({ target_price: target, stop_loss: stop, enabled: String(!!cb?.checked) }));
+    // Refresca el estado en memoria
+    const idx = alerts.findIndex(a => a.symbol === symbol);
+    if (idx >= 0 && res.alert) alerts[idx] = res.alert;
+    else if (idx >= 0) { alerts[idx].target_price = null; alerts[idx].stop_loss = null; }
+    const saved = row.querySelector('.sm-alert-saved');
+    saved.classList.add('sm-show');
+    setTimeout(() => saved.classList.remove('sm-show'), 1600);
+  } catch(e) { showError(e.message); }
+}
+
+async function runAlertSweep() {
+  const btn    = document.getElementById('runAlertsBtn');
+  const status = document.getElementById('runAlertsStatus');
+  const notify = document.getElementById('runAlertsNotify')?.checked || false;
+  const box    = document.getElementById('runAlertsResults');
+
+  const hasLevel = a => (a.target_price !== null && a.target_price !== undefined) ||
+                        (a.stop_loss    !== null && a.stop_loss    !== undefined);
+  const withLevels = alerts.filter(hasLevel);
+  const configured = withLevels.filter(a => a.enabled);
+  if (configured.length === 0) {
+    showError(withLevels.length
+      ? `${withLevels.map(a => a.symbol).join(', ')}: tienen niveles cargados pero la alarma está desactivada — marcá "Activa"`
+      : 'No hay ningún activo con niveles de precio cargados');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="sm-spinner"></span> Recorriendo…';
+  status.innerHTML = `<span class="sm-spinner sm-spinner-dark"></span>
+                      <span>Consultando ${configured.length} activo(s)…</span>`;
+  box.innerHTML = '';
+
+  try {
+    const res = await api('POST', `/portfolios/${activePortId}/alerts/run`,
+      fd({ notify: String(notify) }));
+    renderRunResults(res);
+    const n = (res.triggered || []).length;
+    if (n === 0) {
+      status.innerHTML = `<span style="color:#3FB950;">✓ Listo — ningún nivel alcanzado</span>`;
+    } else {
+      const mail = (res.notified || []).length
+        ? `<span style="color:#3FB950;"> · 📨 mail enviado a ${res.notified.length} subscriber(s)</span>`
+        : `<span style="color:#F85149;"> · ✗ sin mail: ${esc(res.mail_error || 'notificación desactivada')}</span>`;
+      status.innerHTML = `<span style="color:#D29922;">🔔 ${n} nivel(es) alcanzado(s)</span>${mail}`;
+    }
+    if (n > 0) showToast(`🔔 ${n} alarma(s) de precio`, 'success');
+    // Refresca niveles + historial sin perder el informe en pantalla
+    const rendered = box.innerHTML, st = status.innerHTML;
+    await loadAndRenderAlerts();
+    document.getElementById('runAlertsResults').innerHTML = rendered;
+    document.getElementById('runAlertsStatus').innerHTML  = st;
+  } catch(e) {
+    status.innerHTML = `<span style="color:#F85149;">✗ ${esc(e.message)}</span>`;
+    showError(e.message);
+  } finally {
+    const b = document.getElementById('runAlertsBtn');
+    if (b) { b.disabled = false; b.textContent = '▶ Correr alarmas'; }
+  }
+}
+
+function renderRunResults(res) {
+  const box = document.getElementById('runAlertsResults');
+  let report = res.report || [];
+  if (report.length === 0) { box.innerHTML = ''; return; }
+
+  const hits  = report.filter(r => (r.events || []).includes('target')).length;
+  const stops = report.filter(r => (r.events || []).includes('stop_loss')).length;
+
+  // El stop loss se muestra primero: es el que pide acción
+  const order = { below_stop: 0, above_target: 1, in_range: 2, no_price: 3 };
+  report = [...report].sort((a, b) => (order[a.state] ?? 9) - (order[b.state] ?? 9));
+
+  const items = report.map(r => {
+    const fired = r.events || [];
+    const isNew = (r.new_events || []).length > 0;
+    const cls = fired.includes('stop_loss') ? ' sm-fired-stop'
+              : fired.includes('target')    ? ' sm-fired-target'
+              : r.state === 'no_price'      ? ' sm-no-price' : '';
+    const base = ALERT_BADGE[r.state] || ALERT_BADGE.in_range;
+    const badge = { cls: base.cls, text: base.text + (isNew && fired.length ? ' · NUEVO' : '') };
+
+    return `
+      <div class="sm-run-item${cls}">
+        <div class="sm-run-item-sym">${esc(r.symbol)}</div>
+        <div class="sm-run-item-detail">
+          <span>Precio <b>${fmtNum(r.price)}</b></span>
+          <span>Target <b>${fmtNum(r.target)}</b>${
+            r.target_gap_pct !== null && r.target_gap_pct !== undefined
+              ? ` (${r.target_gap_pct > 0 ? '+' : ''}${fmtNum(r.target_gap_pct)}%)` : ''}</span>
+          <span>Stop <b>${fmtNum(r.stop_loss)}</b>${
+            r.stop_gap_pct !== null && r.stop_gap_pct !== undefined
+              ? ` (${r.stop_gap_pct > 0 ? '+' : ''}${fmtNum(r.stop_gap_pct)}%)` : ''}</span>
+          <span style="color:#484F58;">Previo ${fmtNum(r.prev_price)}</span>
+        </div>
+        <div><span class="sm-run-badge ${badge.cls}">${badge.text}</span></div>
+      </div>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div class="sm-run-summary">
+      <div class="sm-run-stat">
+        <div class="sm-run-stat-num">${report.length}</div>
+        <div class="sm-run-stat-lbl">Revisados</div>
+      </div>
+      <div class="sm-run-stat sm-hit">
+        <div class="sm-run-stat-num">${hits}</div>
+        <div class="sm-run-stat-lbl">Take profit</div>
+      </div>
+      <div class="sm-run-stat sm-stop">
+        <div class="sm-run-stat-num">${stops}</div>
+        <div class="sm-run-stat-lbl">Stop loss</div>
+      </div>
+      <div class="sm-run-stat">
+        <div class="sm-run-stat-num">${(res.notified || []).length}</div>
+        <div class="sm-run-stat-lbl">Mails</div>
+      </div>
+    </div>
+    <div class="sm-run-results">${items}</div>`;
+}
+
+
+// ══════════════════════════════════════════════════
+//  MODAL DE CONFIRMACIÓN
+// ══════════════════════════════════════════════════
+let confirmResolver = null;
+
+function smConfirm({ title = 'Confirmar', text = '¿Seguro?', sub = '',
+                     okLabel = 'Confirmar', danger = false } = {}) {
+  return new Promise(resolve => {
+    // Si ya había uno abierto, se resuelve en falso
+    if (confirmResolver) { confirmResolver(false); }
+    confirmResolver = resolve;
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmText').textContent  = text;
+    const subEl = document.getElementById('confirmSub');
+    subEl.textContent = sub;
+    subEl.classList.toggle('sm-hidden', !sub);
+    const ok = document.getElementById('confirmOkBtn');
+    ok.textContent = okLabel;
+    ok.className = 'sm-btn ' + (danger ? 'sm-btn-danger' : 'sm-btn-primary');
+    document.getElementById('confirmModal').classList.remove('sm-hidden');
+    setTimeout(() => ok.focus(), 80);
+  });
+}
+
+function resolveConfirm(value) {
+  closeModal('confirmModal');
+  if (confirmResolver) { const r = confirmResolver; confirmResolver = null; r(value); }
+}
+
+
+// ══════════════════════════════════════════════════
 //  UTILS
 // ══════════════════════════════════════════════════
 function esc(str) { const d = document.createElement('div'); d.textContent = String(str??''); return d.innerHTML; }
@@ -1093,8 +1646,40 @@ function wireStaticEvents() {
 
   document.getElementById('tabMonitor').addEventListener('click', () => switchTab('monitor'));
   document.getElementById('tabResearch').addEventListener('click', () => switchTab('research'));
+  document.getElementById('tabAlerts').addEventListener('click', () => switchTab('alerts'));
   document.getElementById('tabEmails').addEventListener('click', () => switchTab('emails'));
-  document.getElementById('closeChartBtn').addEventListener('click', hideChart);
+
+  // Cerrar el panel del gráfico pide confirmación (se apretaba por error)
+  document.getElementById('closeChartBtn').addEventListener('click', async () => {
+    const ok = await smConfirm({
+      title: 'Cerrar panel',
+      text: `¿Cerrar el panel de ${activeAsset ? activeAsset.symbol : 'este activo'}?`,
+      sub: 'Se cierran el gráfico, las notas y los comentarios. Nada de lo guardado se pierde.',
+      okLabel: 'Cerrar panel',
+      danger: true,
+    });
+    if (ok) hideChart();
+  });
+
+  // ── Modal de importación de niveles ──
+  document.getElementById('closeImportLevelsModal').addEventListener('click', () => closeModal('importLevelsModal'));
+  document.getElementById('cancelImportLevels').addEventListener('click', () => closeModal('importLevelsModal'));
+  document.getElementById('importLevelsModal').addEventListener('click', e => {
+    if (e.target.id === 'importLevelsModal') closeModal('importLevelsModal');
+  });
+  document.getElementById('importLevelsInput').addEventListener('change', onImportLevelsFileChosen);
+  document.getElementById('runImportLevels').addEventListener('click', runImportLevels);
+  const strictCb = document.getElementById('importLevelsStrict');
+  strictCb.addEventListener('change', () =>
+    document.getElementById('importLevelsStrictToggle').classList.toggle('sm-on', strictCb.checked));
+
+  // ── Modal de confirmación ──
+  document.getElementById('confirmOkBtn').addEventListener('click', () => resolveConfirm(true));
+  document.getElementById('confirmCancelBtn').addEventListener('click', () => resolveConfirm(false));
+  document.getElementById('confirmCloseX').addEventListener('click', () => resolveConfirm(false));
+  document.getElementById('confirmModal').addEventListener('click', e => {
+    if (e.target.id === 'confirmModal') resolveConfirm(false);
+  });
 
   document.getElementById('addResearchTabBtn').addEventListener('click', () => {
     document.getElementById('researchTopicInput').value = '';
@@ -1128,9 +1713,15 @@ function wireStaticEvents() {
   document.getElementById('researchCellNumber').addEventListener('keydown', e => { if (e.key==='Enter') saveCellEdit(); });
 
   document.addEventListener('keydown', e => {
-    if (e.key==='Escape') ['portfolioModal','assetModal','researchCellModal','researchTopicModal'].forEach(id => closeModal(id));
+    if (e.key === 'Escape') {
+      if (!document.getElementById('confirmModal')?.classList.contains('sm-hidden')) {
+        resolveConfirm(false);
+      }
+      ['portfolioModal','assetModal','researchCellModal','researchTopicModal','importExcelModal']
+        .forEach(id => closeModal(id));
+    }
   });
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-else init();
+else init();

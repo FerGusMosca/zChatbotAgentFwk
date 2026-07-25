@@ -1,14 +1,20 @@
-# stock_monitor_mailer.py  — v2
+# stock_monitor_mailer.py  — v3
 import smtplib, logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 log = logging.getLogger(__name__)
 
+# Etiquetas de prioridad — deben coincidir con las de la UI (stock_monitor.js)
 PRIORITY_META = {
-    'red':    {'emoji': '🔴', 'color': '#F85149', 'bg': '#1A0A0A', 'label': 'HIGH PRIORITY'},
-    'yellow': {'emoji': '🟡', 'color': '#D29922', 'bg': '#1A1400', 'label': 'MEDIUM PRIORITY'},
-    'green':  {'emoji': '🟢', 'color': '#3FB950', 'bg': '#0A1F10', 'label': 'INFO'},
+    'red':    {'emoji': '🔴', 'color': '#F85149', 'bg': '#1A0A0A', 'label': 'NEGATIVO'},
+    'yellow': {'emoji': '🟡', 'color': '#D29922', 'bg': '#1A1400', 'label': 'ALERTA'},
+    'green':  {'emoji': '🟢', 'color': '#3FB950', 'bg': '#0A1F10', 'label': 'POSITIVO'},
+}
+
+ALERT_META = {
+    'target':    {'emoji': '🎯', 'color': '#3FB950', 'bg': '#0A1F10', 'label': 'TARGET ALCANZADO'},
+    'stop_loss': {'emoji': '🛑', 'color': '#F85149', 'bg': '#1A0A0A', 'label': 'STOP LOSS ALCANZADO'},
 }
 
 
@@ -75,6 +81,69 @@ class StockMonitorMailer:
                   font-size:14px;line-height:1.6;'>{note}</blockquote>
                 <p style='margin:14px 0 0;color:#6E7681;font-size:12px;'>
                   Portfolio: <b style='color:#C9D1D9;'>{portfolio_name}</b></p>"""))
+
+    def notify_price_alerts(self, portfolio_name, events, recipients):
+        """Informe consolidado de niveles de precio alcanzados.
+
+        `events` es una lista de dicts:
+            {symbol, event_type ('target'|'stop_loss'), level, price, prev_price}
+        """
+        if not events:
+            return True
+
+        rows = []
+        for ev in events:
+            m = ALERT_META.get(ev.get('event_type'), ALERT_META['target'])
+            level = ev.get('level')
+            price = ev.get('price')
+            prev = ev.get('prev_price')
+            nuevo = " · NUEVO" if ev.get('is_new') else ""
+            rows.append(f"""
+              <tr>
+                <td style='padding:10px 12px;border-bottom:1px solid #21262D;'>
+                  <span class='chip'>{ev.get('symbol','')}</span></td>
+                <td style='padding:10px 12px;border-bottom:1px solid #21262D;
+                    color:{m['color']};font-size:12px;font-family:monospace;
+                    white-space:nowrap;'>{m['emoji']} {m['label']}{nuevo}</td>
+                <td style='padding:10px 12px;border-bottom:1px solid #21262D;
+                    color:#8B949E;font-size:12px;font-family:monospace;
+                    text-align:right;'>{'' if level is None else f'{level:,.2f}'}</td>
+                <td style='padding:10px 12px;border-bottom:1px solid #21262D;
+                    color:#E6EDF3;font-size:13px;font-family:monospace;
+                    text-align:right;font-weight:600;'>{'' if price is None else f'{price:,.2f}'}</td>
+                <td style='padding:10px 12px;border-bottom:1px solid #21262D;
+                    color:#484F58;font-size:11px;font-family:monospace;
+                    text-align:right;'>{'—' if prev is None else f'{prev:,.2f}'}</td>
+              </tr>""")
+
+        body = f"""
+          <p>Se detectaron <b>{len(events)}</b> nivel(es) de precio alcanzado(s) en
+             <b>{portfolio_name}</b>.</p>
+          <table style='width:100%;border-collapse:collapse;margin-top:10px;
+                        background:#0D1117;border:1px solid #21262D;border-radius:8px;'>
+            <tr>
+              <th style='padding:8px 12px;text-align:left;color:#484F58;font-size:10px;
+                  text-transform:uppercase;letter-spacing:0.1em;
+                  border-bottom:1px solid #21262D;'>Activo</th>
+              <th style='padding:8px 12px;text-align:left;color:#484F58;font-size:10px;
+                  text-transform:uppercase;letter-spacing:0.1em;
+                  border-bottom:1px solid #21262D;'>Evento</th>
+              <th style='padding:8px 12px;text-align:right;color:#484F58;font-size:10px;
+                  text-transform:uppercase;letter-spacing:0.1em;
+                  border-bottom:1px solid #21262D;'>Nivel</th>
+              <th style='padding:8px 12px;text-align:right;color:#484F58;font-size:10px;
+                  text-transform:uppercase;letter-spacing:0.1em;
+                  border-bottom:1px solid #21262D;'>Precio</th>
+              <th style='padding:8px 12px;text-align:right;color:#484F58;font-size:10px;
+                  text-transform:uppercase;letter-spacing:0.1em;
+                  border-bottom:1px solid #21262D;'>Previo</th>
+            </tr>
+            {''.join(rows)}
+          </table>"""
+
+        return self._send(recipients,
+            f"[BIAS] {portfolio_name} — 🔔 {len(events)} alarma(s) de precio",
+            self._base(f"🔔 Alarmas de precio · <b>{portfolio_name}</b>", body))
 
     def _send(self, recipients, subject, html):
         if not recipients: return True

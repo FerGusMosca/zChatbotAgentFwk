@@ -1,4 +1,4 @@
-# stock_monitor_manager.py — v4
+# stock_monitor_manager.py — v5
 import pyodbc
 from dataclasses import dataclass
 from datetime import datetime
@@ -47,6 +47,29 @@ class ResearchRow:
 class PortfolioEmail:
     id: int; portfolio_id: int; email: str
     name: Optional[str]; added_at: datetime
+
+@dataclass
+class AssetAlert:
+    """Niveles de precio configurados para un activo del portfolio."""
+    id: int; portfolio_id: int; symbol: str
+    target_price: Optional[Decimal]       = None   # alarma al tocarlo DESDE ABAJO
+    stop_loss: Optional[Decimal]          = None   # alarma al tocarlo DESDE ARRIBA
+    enabled: bool                         = True
+    last_price: Optional[Decimal]         = None   # baseline para detectar el cruce
+    last_checked_at: Optional[datetime]   = None
+    last_triggered_at: Optional[datetime] = None
+    last_trigger_type: Optional[str]      = None
+    created_at: Optional[datetime]        = None
+    updated_at: Optional[datetime]        = None
+
+@dataclass
+class AlertEvent:
+    id: int; portfolio_id: int; symbol: str; event_type: str
+    level_price: Optional[Decimal] = None
+    price: Optional[Decimal]       = None
+    prev_price: Optional[Decimal]  = None
+    notified: bool                 = False
+    created_at: Optional[datetime] = None
 
 
 class StockMonitorManager:
@@ -243,3 +266,68 @@ class StockMonitorManager:
             conn.commit(); cur.close(); conn.close()
         except Exception as e:
             import logging; logging.getLogger(__name__).error(f"log_notification failed: {e}")
+
+    # ── Price Alerts ─────────────────────────────────────────
+    def get_alerts(self, portfolio_id):
+        conn = self._connect(); cur = conn.cursor()
+        cur.execute("EXEC dbo.sm_get_alerts @portfolio_id=?", portfolio_id)
+        rows = cur.fetchall(); cur.close(); conn.close()
+        return [self._map_alert(r) for r in rows]
+
+    def upsert_alert(self, portfolio_id, symbol, target_price=None, stop_loss=None, enabled=True):
+        conn = self._connect(); cur = conn.cursor()
+        cur.execute(
+            """EXEC dbo.sm_upsert_alert
+                @portfolio_id=?, @symbol=?, @target_price=?, @stop_loss=?, @enabled=?""",
+            portfolio_id, symbol.upper().strip(), target_price, stop_loss, 1 if enabled else 0)
+        row = cur.fetchone(); conn.commit(); cur.close(); conn.close()
+        return self._map_alert(row)
+
+    def delete_alert(self, portfolio_id, symbol):
+        conn = self._connect(); cur = conn.cursor()
+        cur.execute("EXEC dbo.sm_delete_alert @portfolio_id=?, @symbol=?",
+                    portfolio_id, symbol.upper().strip())
+        conn.commit(); cur.close(); conn.close()
+
+    def update_alert_state(self, portfolio_id, symbol, last_price, trigger_type=None):
+        conn = self._connect(); cur = conn.cursor()
+        cur.execute(
+            """EXEC dbo.sm_update_alert_state
+                @portfolio_id=?, @symbol=?, @last_price=?, @trigger_type=?""",
+            portfolio_id, symbol.upper().strip(), last_price, trigger_type)
+        conn.commit(); cur.close(); conn.close()
+
+    def log_alert_event(self, portfolio_id, symbol, event_type,
+                        level_price=None, price=None, prev_price=None, notified=False):
+        try:
+            conn = self._connect(); cur = conn.cursor()
+            cur.execute(
+                """EXEC dbo.sm_log_alert_event
+                    @portfolio_id=?, @symbol=?, @event_type=?,
+                    @level_price=?, @price=?, @prev_price=?, @notified=?""",
+                portfolio_id, symbol.upper().strip(), event_type,
+                level_price, price, prev_price, 1 if notified else 0)
+            row = cur.fetchone(); conn.commit(); cur.close(); conn.close()
+            return int(row.id) if row else None
+        except Exception as e:
+            import logging; logging.getLogger(__name__).error(f"log_alert_event failed: {e}")
+            return None
+
+    def get_alert_events(self, portfolio_id, top=50):
+        conn = self._connect(); cur = conn.cursor()
+        cur.execute("EXEC dbo.sm_get_alert_events @portfolio_id=?, @top=?", portfolio_id, top)
+        rows = cur.fetchall(); cur.close(); conn.close()
+        return [AlertEvent(id=r.id, portfolio_id=r.portfolio_id, symbol=r.symbol,
+                           event_type=r.event_type, level_price=r.level_price,
+                           price=r.price, prev_price=r.prev_price,
+                           notified=bool(r.notified), created_at=r.created_at) for r in rows]
+
+    def _map_alert(self, r):
+        return AssetAlert(
+            id=r.id, portfolio_id=r.portfolio_id, symbol=r.symbol,
+            target_price=r.target_price, stop_loss=r.stop_loss,
+            enabled=bool(r.enabled), last_price=r.last_price,
+            last_checked_at=r.last_checked_at,
+            last_triggered_at=r.last_triggered_at,
+            last_trigger_type=r.last_trigger_type,
+            created_at=r.created_at, updated_at=r.updated_at)

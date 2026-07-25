@@ -1,4 +1,4 @@
-# stock_monitor_controller.py — v3
+# stock_monitor_controller.py — v4
 import csv, io, os
 
 import httpx
@@ -11,6 +11,7 @@ from common.util.mailer.stock_monitor_mailer import StockMonitorMailer
 from common.util.std_in_out.root_locator import RootLocator
 from data_access_layer.stock_monitor_manager import StockMonitorManager
 from services.research_excel_importer import list_sheets, extract_sheet
+from services.alert_levels_importer import parse_levels
 
 
 RESEARCH_FIELD_LABELS = {
@@ -97,6 +98,8 @@ class StockMonitorController:
         async def remove_asset(portfolio_id: int, symbol: str):
             try:
                 self.mgr.remove_asset(portfolio_id, symbol)
+                try: self.mgr.delete_alert(portfolio_id, symbol)
+                except Exception: pass
                 if self.mailer:
                     recipients = self._get_emails(portfolio_id)
                     ok = self.mailer.notify_asset_removed(self._get_portfolio_name(portfolio_id), symbol, recipients)
@@ -353,48 +356,278 @@ class StockMonitorController:
             try: self.mgr.delete_research_row(topic_id, symbol); return JSONResponse({"status":"ok"})
             except Exception as e: return JSONResponse({"status":"error","message":str(e)}, status_code=500)
 
-        @self.router.get("/price")
-        async def get_price(symbol: str):
-            """
-            Proxy for Yahoo Finance v8 quote endpoint.
-            Returns: { symbol, price, change, change_pct, name }
-            """
+        # ══════════════════════════════════════════════════════
+        #  PRICE ALERTS — targets & stop loss
+        # ══════════════════════════════════════════════════════
+        @self.router.get("/portfolios/{portfolio_id}/alerts")
+        async def get_alerts(portfolio_id: int):
+            """Un renglón por cada activo del portfolio, con los niveles
+            configurados (si los tiene). Si todavía no se corrió el script
+            sql/sm_price_alerts.sql devuelve la lista igual, con un warning,
+            para que la pantalla no se caiga."""
+            import traceback
+            warning = None
+            configured = {}
             try:
-                url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
-                       f"?interval=1d&range=1d")
-                headers = {
-                    "User-Agent": "Mozilla/5.0",
-                    "Accept": "application/json",
-                }
-                async with httpx.AsyncClient(timeout=8.0) as client:
-                    resp = await client.get(url, headers=headers)
+                configured = {a.symbol.upper(): a for a in self.mgr.get_alerts(portfolio_id)}
+            except Exception as e:
+                traceback.print_exc()
+                warning = (f"No se pudieron leer las alarmas de la base ({e}). "
+                           f"Verificá que se haya corrido el script sql/sm_price_alerts.sql.")
+            try:
+                assets = self.mgr.get_assets(portfolio_id)
+            except Exception as e:
+                traceback.print_exc()
+                return JSONResponse({"status":"error","message":str(e),
+                                     "alerts":[], "warning":str(e)}, status_code=500)
+            out = []
+            for asset in assets:
+                sym = asset.symbol.upper()
+                out.append(self._al(sym, configured.get(sym), portfolio_id))
+            sym_set = {a.symbol.upper() for a in assets}
+            for sym, al in configured.items():
+                if sym not in sym_set:
+                    out.append(self._al(sym, al, portfolio_id, orphan=True))
+            return JSONResponse({"status":"ok", "alerts":out, "warning":warning})
 
-                if resp.status_code != 200:
-                    return JSONResponse({"symbol": symbol, "price": None,
-                                         "change": None, "change_pct": None, "name": None})
+        @self.router.get("/portfolios/{portfolio_id}/alerts/events")
+        async def get_alert_events(portfolio_id: int, top: int = 50):
+            try:
+                return JSONResponse([self._ev(e) for e in self.mgr.get_alert_events(portfolio_id, top)])
+            except Exception:
+                import traceback; traceback.print_exc()
+                return JSONResponse([])
 
-                data = resp.json()
-                meta = data.get("chart", {}).get("result", [{}])[0].get("meta", {})
-                price = meta.get("regularMarketPrice")
-                prev = meta.get("chartPreviousClose") or meta.get("previousClose")
-                name = meta.get("longName") or meta.get("shortName") or symbol
+        @self.router.post("/portfolios/{portfolio_id}/alerts/run")
+        async def run_alerts(portfolio_id: int, notify: str = Form('true')):
+            """Recorre todos los activos del portfolio con niveles cargados,
+            trae el precio actual y arma el informe. Un nivel cuenta como
+            ALCANZADO si el precio está en/pasado el nivel en este momento
+            (target: precio >= target; stop loss: precio <= stop). Se marcan
+            como `nuevos` los que no estaban alcanzados en la corrida previa."""
+            try:
+                do_notify = str(notify).lower() in ('true', '1', 'yes')
+                alerts = [a for a in self.mgr.get_alerts(portfolio_id)
+                          if a.enabled and (a.target_price is not None or a.stop_loss is not None)]
 
-                change = round(price - prev, 4) if price and prev else None
-                change_pct = round((change / prev) * 100, 2) if change and prev else None
+                report, triggered = [], []
+
+                for a in alerts:
+                    sym = a.symbol.upper()
+                    quote = await self._fetch_quote(sym)
+                    price = quote.get("price")
+                    tgt = float(a.target_price) if a.target_price is not None else None
+                    stp = float(a.stop_loss)    if a.stop_loss    is not None else None
+                    prev = float(a.last_price)  if a.last_price   is not None else None
+
+                    if price is None:
+                        report.append({"symbol": sym, "price": None, "target": tgt,
+                                       "stop_loss": stp, "prev_price": prev,
+                                       "state": "no_price", "events": []})
+                        continue
+
+                    price = float(price)
+
+                    # Un nivel está ALCANZADO si el precio está en/pasado el nivel
+                    # ahora mismo. `nuevo` marca los que no lo estaban en la
+                    # corrida anterior (para distinguir el primer toque).
+                    events, new_events = [], []
+                    if tgt is not None and price >= tgt:
+                        events.append("target")
+                        if prev is None or prev < tgt:
+                            new_events.append("target")
+                    if stp is not None and price <= stp:
+                        events.append("stop_loss")
+                        if prev is None or prev > stp:
+                            new_events.append("stop_loss")
+
+                    if "stop_loss" in events:
+                        state = "below_stop"
+                    elif "target" in events:
+                        state = "above_target"
+                    else:
+                        state = "in_range"
+
+                    entry = {
+                        "symbol": sym, "name": quote.get("name"),
+                        "price": round(price, 4),
+                        "prev_price": round(prev, 4) if prev is not None else None,
+                        "target": tgt, "stop_loss": stp,
+                        "target_gap_pct": round((price - tgt) / tgt * 100, 2) if tgt else None,
+                        "stop_gap_pct":   round((price - stp) / stp * 100, 2) if stp else None,
+                        "state": state, "events": events,
+                        "new_events": new_events,
+                    }
+                    report.append(entry)
+
+                    for ev in events:
+                        triggered.append({
+                            "symbol": sym, "event_type": ev,
+                            "level": tgt if ev == "target" else stp,
+                            "price": price, "prev_price": prev,
+                            "is_new": ev in new_events,
+                        })
+
+                    # Guardar el nuevo baseline
+                    try:
+                        self.mgr.update_alert_state(portfolio_id, sym, price,
+                                                    events[0] if events else None)
+                    except Exception as e:
+                        print(f"[run_alerts] update_alert_state failed for {sym}: {e}")
+
+                # Mails a los subscribers
+                sent_to = []
+                recipients = self._get_emails(portfolio_id)
+                mail_error = None
+                if triggered and do_notify and not self.mailer:
+                    mail_error = "El mailer SMTP no está configurado (settings.smtp_*)"
+                if triggered and do_notify and self.mailer and not recipients:
+                    mail_error = "No hay subscribers cargados en este portfolio"
+                if triggered and do_notify and self.mailer:
+                    if recipients:
+                        ok = self.mailer.notify_price_alerts(
+                            self._get_portfolio_name(portfolio_id), triggered, recipients)
+                        sent_to = recipients if ok else []
+                        if not ok:
+                            mail_error = "El envío SMTP falló — revisá el log del mailer"
+                        self.mgr.log_notification(
+                            portfolio_id, 'price_alerts',
+                            ','.join(f"{t['symbol']}:{t['event_type']}" for t in triggered),
+                            ','.join(recipients), 'sent' if ok else 'failed')
+
+                for t_ev in triggered:
+                    self.mgr.log_alert_event(
+                        portfolio_id, t_ev["symbol"], t_ev["event_type"],
+                        t_ev["level"], t_ev["price"], t_ev["prev_price"],
+                        notified=bool(sent_to))
 
                 return JSONResponse({
-                    "symbol": symbol.upper(),
-                    "price": price,
-                    "change": change,
-                    "change_pct": change_pct,
-                    "name": name,
+                    "status": "ok",
+                    "checked": len(report),
+                    "report": report,
+                    "triggered": triggered,
+                    "notified": sent_to,
+                    "recipients": len(recipients),
+                    "mail_error": mail_error,
                 })
             except Exception as e:
-                return JSONResponse({"symbol": symbol, "price": None,
-                                     "change": None, "change_pct": None, "name": None})
+                import traceback; traceback.print_exc()
+                return JSONResponse({"status":"error","message":str(e)}, status_code=500)
+
+        @self.router.post("/portfolios/{portfolio_id}/alerts/import_excel")
+        async def import_alert_levels(portfolio_id: int,
+                                      file: UploadFile = File(...),
+                                      only_portfolio_assets: str = Form('true')):
+            """Carga niveles desde una planilla (.xlsx/.csv) con columnas
+            symbol / target / stop_loss / enabled. Por defecto sólo actualiza
+            símbolos que ya están en el portfolio."""
+            import traceback
+            try:
+                content = await file.read()
+                rows = parse_levels(content, file.filename or '')
+
+                strict = str(only_portfolio_assets).lower() in ('true', '1', 'yes')
+                portfolio_syms = {a.symbol.upper() for a in self.mgr.get_assets(portfolio_id)}
+
+                applied, summary = 0, []
+                for r in rows:
+                    sym = r['symbol']
+                    if r.get('error'):
+                        summary.append({"symbol": sym, "row": r['row'],
+                                        "status": "error", "detail": r['error']})
+                        continue
+                    if strict and sym not in portfolio_syms:
+                        summary.append({"symbol": sym, "row": r['row'], "status": "skipped",
+                                        "detail": "no está en el portfolio"})
+                        continue
+                    try:
+                        self.mgr.upsert_alert(portfolio_id, sym, r['target'],
+                                              r['stop_loss'], r['enabled'])
+                        applied += 1
+                        summary.append({
+                            "symbol": sym, "row": r['row'], "status": "ok",
+                            "detail": f"target {r['target'] if r['target'] is not None else '—'} / "
+                                      f"stop {r['stop_loss'] if r['stop_loss'] is not None else '—'}"
+                                      f"{'' if r['enabled'] else ' (desactivada)'}",
+                        })
+                    except Exception as e:
+                        traceback.print_exc()
+                        summary.append({"symbol": sym, "row": r['row'],
+                                        "status": "error", "detail": str(e)})
+
+                return JSONResponse({"status": "ok", "applied": applied,
+                                     "total": len(rows), "summary": summary})
+            except Exception as e:
+                traceback.print_exc()
+                return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
+
+        @self.router.post("/portfolios/{portfolio_id}/alerts/{symbol}")
+        async def upsert_alert(portfolio_id: int, symbol: str,
+                               target_price: str = Form(None),
+                               stop_loss: str = Form(None),
+                               enabled: str = Form('true')):
+            try:
+                def to_dec(v):
+                    if v is None or not str(v).strip(): return None
+                    try: return float(str(v).replace(',', '.').replace('$', '').strip())
+                    except: return None
+                tgt = to_dec(target_price)
+                stp = to_dec(stop_loss)
+                on = str(enabled).lower() in ('true', '1', 'yes')
+                if tgt is None and stp is None:
+                    # Sin niveles => se elimina la configuración
+                    self.mgr.delete_alert(portfolio_id, symbol)
+                    return JSONResponse({"status":"ok","alert":None})
+                al = self.mgr.upsert_alert(portfolio_id, symbol, tgt, stp, on)
+                return JSONResponse({"status":"ok",
+                                     "alert": self._al(symbol.upper(), al, portfolio_id)})
+            except Exception as e:
+                import traceback; traceback.print_exc()
+                return JSONResponse({"status":"error","message":str(e)}, status_code=500)
+
+        @self.router.delete("/portfolios/{portfolio_id}/alerts/{symbol}")
+        async def delete_alert(portfolio_id: int, symbol: str):
+            try:
+                self.mgr.delete_alert(portfolio_id, symbol)
+                return JSONResponse({"status":"ok"})
+            except Exception as e:
+                return JSONResponse({"status":"error","message":str(e)}, status_code=500)
+
+        @self.router.get("/price")
+        async def get_price(symbol: str):
+            """Proxy de Yahoo Finance. Devuelve { symbol, price, change, change_pct, name }"""
+            return JSONResponse(await self._fetch_quote(symbol))
 
 
     # ── Helpers ───────────────────────────────────────────────
+    async def _fetch_quote(self, symbol: str) -> dict:
+        """Cotización puntual desde Yahoo Finance (v8 chart endpoint).
+        Devuelve siempre un dict; ante cualquier error los valores van en None."""
+        empty = {"symbol": symbol.upper() if symbol else symbol, "price": None,
+                 "change": None, "change_pct": None, "name": None}
+        try:
+            url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+                   f"?interval=1d&range=1d")
+            headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                resp = await client.get(url, headers=headers)
+            if resp.status_code != 200:
+                return empty
+
+            data = resp.json()
+            meta = data.get("chart", {}).get("result", [{}])[0].get("meta", {})
+            price = meta.get("regularMarketPrice")
+            prev = meta.get("chartPreviousClose") or meta.get("previousClose")
+            name = meta.get("longName") or meta.get("shortName") or symbol
+
+            change = round(price - prev, 4) if price and prev else None
+            change_pct = round((change / prev) * 100, 2) if change and prev else None
+
+            return {"symbol": symbol.upper(), "price": price, "change": change,
+                    "change_pct": change_pct, "name": name}
+        except Exception:
+            return empty
+
     def _build_mailer(self):
         try:
             if all([settings.smtp_host, settings.smtp_user, settings.smtp_password]):
@@ -461,4 +694,26 @@ class StockMonitorController:
                 "earnings":r.earnings,"conclusion":r.conclusion,
                 "latest_comments":r.latest_comments,
                 "rating": float(r.rating) if r.rating is not None else None,
-                "updated_at":str(r.updated_at)}
+                "updated_at":str(r.updated_at)}
+    def _al(self, symbol, alert, portfolio_id, orphan=False):
+        if alert is None:
+            return {"portfolio_id": portfolio_id, "symbol": symbol,
+                    "target_price": None, "stop_loss": None, "enabled": True,
+                    "last_price": None, "last_checked_at": None,
+                    "last_triggered_at": None, "last_trigger_type": None,
+                    "configured": False, "orphan": orphan}
+        f = lambda v: float(v) if v is not None else None
+        return {"portfolio_id": alert.portfolio_id, "symbol": alert.symbol.upper(),
+                "target_price": f(alert.target_price), "stop_loss": f(alert.stop_loss),
+                "enabled": bool(alert.enabled), "last_price": f(alert.last_price),
+                "last_checked_at": str(alert.last_checked_at) if alert.last_checked_at else None,
+                "last_triggered_at": str(alert.last_triggered_at) if alert.last_triggered_at else None,
+                "last_trigger_type": alert.last_trigger_type,
+                "configured": True, "orphan": orphan}
+
+    def _ev(self, e):
+        f = lambda v: float(v) if v is not None else None
+        return {"id": e.id, "portfolio_id": e.portfolio_id, "symbol": e.symbol,
+                "event_type": e.event_type, "level_price": f(e.level_price),
+                "price": f(e.price), "prev_price": f(e.prev_price),
+                "notified": bool(e.notified), "created_at": str(e.created_at)}

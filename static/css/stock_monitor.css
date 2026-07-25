@@ -655,4 +655,514 @@
 .sm-rating-pill.r-4 { background: rgba(86,179,102,0.18);  color: #7ee787; border-color: rgba(86,179,102,0.40); }
 .sm-rating-pill.r-3 { background: rgba(212,153,34,0.18);  color: #e3b341; border-color: rgba(212,153,34,0.40); }
 .sm-rating-pill.r-2 { background: rgba(219,138,0,0.18);   color: #f0883e; border-color: rgba(219,138,0,0.40); }
-.sm-rating-pill.r-1 { background: rgba(248,81,73,0.18);   color: #ff7b72; border-color: rgba(248,81,73,0.40); }
+.sm-rating-pill.r-1 { background: rgba(248,81,73,0.18);   color: #ff7b72; border-color: rgba(248,81,73,0.40); }
+
+
+/* ══════════════════════════════════════════════════════════════════
+   v5 — CONTROLES DE FORMULARIO (fix del checkbox cortado)
+   main.css aplica `input { width:100%; padding:16px 20px }` a TODOS
+   los inputs, lo que rompía los checkbox/radio del dashboard.
+══════════════════════════════════════════════════════════════════ */
+.sm-root input[type="checkbox"],
+.sm-root input[type="radio"],
+.sm-modal input[type="checkbox"],
+.sm-modal input[type="radio"] {
+  width: 16px !important;
+  height: 16px;
+  min-width: 16px;
+  flex: 0 0 16px;
+  padding: 0 !important;
+  margin: 0;
+  border-radius: 4px;
+  accent-color: #1F6FEB;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   v5 — BOTÓN CERRAR DEL PANEL DE GRÁFICO (más chico + confirmación)
+══════════════════════════════════════════════════════════════════ */
+.sm-chart-close {
+  background: none;
+  border: 1px solid transparent;
+  color: #6E7681;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  transition: all 0.15s;
+}
+.sm-chart-close:hover {
+  background: rgba(248,81,73,0.12);
+  border-color: rgba(248,81,73,0.35);
+  color: #F85149;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   v5 — MODAL DE CONFIRMACIÓN GENÉRICO
+══════════════════════════════════════════════════════════════════ */
+.sm-confirm-content { max-width: 380px; }
+.sm-confirm-text {
+  color: #C9D1D9;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
+.sm-confirm-sub {
+  color: #6E7681;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   v5 — PANEL DE CARGA DE NOTAS
+══════════════════════════════════════════════════════════════════ */
+.sm-note-composer {
+  background: #161B22;
+  border: 1px solid #21262D;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.sm-note-priority-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.sm-note-priority-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: #484F58;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-right: 2px;
+}
+.sm-priority-btn {
+  padding: 6px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.12s ease, box-shadow 0.18s ease,
+              background 0.18s ease, border-color 0.18s ease;
+  position: relative;
+  user-select: none;
+}
+.sm-priority-btn:hover { transform: translateY(-1px); }
+.sm-priority-btn:active { transform: scale(0.94); }
+.sm-priority-btn.sm-priority-active {
+  font-weight: 600;
+  box-shadow: 0 0 0 3px var(--sm-prio-glow, rgba(31,111,235,0.18));
+  transform: translateY(-1px);
+}
+.sm-priority-btn.sm-priority-active::after {
+  content: '✓';
+  font-size: 10px;
+  opacity: 0.85;
+}
+/* pulso al hacer click */
+@keyframes sm-prio-pulse {
+  0%   { transform: scale(0.90); }
+  55%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.sm-priority-btn.sm-prio-pulse { animation: sm-prio-pulse 0.32s ease; }
+
+.sm-note-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.sm-notify-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #8B949E;
+  padding: 6px 10px;
+  border: 1px solid #21262D;
+  border-radius: 8px;
+  background: #0D1117;
+  transition: border-color 0.18s, color 0.18s;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.sm-notify-toggle:hover { border-color: #30363D; color: #C9D1D9; }
+.sm-notify-toggle.sm-on { border-color: rgba(31,111,235,0.45); color: #58A6FF; }
+
+
+/* ══════════════════════════════════════════════════════════════════
+   v5 — SPINNER
+══════════════════════════════════════════════════════════════════ */
+.sm-spinner {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(255,255,255,0.25);
+  border-top-color: #FFFFFF;
+  border-radius: 50%;
+  animation: sm-spin 0.7s linear infinite;
+  flex: 0 0 13px;
+}
+.sm-spinner-dark {
+  border-color: rgba(88,166,255,0.25);
+  border-top-color: #58A6FF;
+}
+@keyframes sm-spin { to { transform: rotate(360deg); } }
+
+.sm-btn[disabled] { opacity: 0.65; cursor: not-allowed; transform: none !important; }
+
+.sm-note-sending {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: #58A6FF;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   v5 — TAB DE ALARMAS DE PRECIO
+══════════════════════════════════════════════════════════════════ */
+.sm-alerts-layout { display: flex; flex-direction: column; gap: 22px; }
+
+.sm-alerts-panel {
+  background: #0D1117;
+  border: 1px solid #21262D;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.sm-alerts-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #161B22;
+  background: #161B22;
+  flex-wrap: wrap;
+}
+.sm-alerts-panel-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: #8B949E;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.sm-alerts-panel-body { padding: 16px 18px; }
+.sm-alerts-hint {
+  color: #6E7681;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0 0 14px;
+}
+
+/* Tabla de configuración */
+.sm-alert-table { display: flex; flex-direction: column; }
+.sm-alert-thead,
+.sm-alert-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 150px 150px 90px 78px;
+  gap: 10px;
+  align-items: center;
+}
+.sm-alert-thead {
+  padding: 0 4px 10px;
+  border-bottom: 1px solid #21262D;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: #484F58;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.sm-alert-row {
+  padding: 10px 4px;
+  border-bottom: 1px solid #161B22;
+}
+.sm-alert-row:last-child { border-bottom: none; }
+.sm-alert-sym {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+  color: #E6EDF3;
+  font-size: 13px;
+}
+.sm-alert-last {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: #6E7681;
+}
+.sm-alert-input {
+  width: 100%;
+  padding: 7px 10px;
+  background: #161B22;
+  border: 1px solid #21262D;
+  border-radius: 7px;
+  color: #E6EDF3;
+  font-size: 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  box-sizing: border-box;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.sm-alert-input:focus {
+  outline: none;
+  border-color: #1F6FEB;
+  box-shadow: 0 0 0 3px rgba(31,111,235,0.15);
+}
+.sm-alert-input.sm-target:focus { border-color: #3FB950; box-shadow: 0 0 0 3px rgba(63,185,80,0.15); }
+.sm-alert-input.sm-stop:focus   { border-color: #F85149; box-shadow: 0 0 0 3px rgba(248,81,73,0.15); }
+.sm-alert-input::placeholder { color: #30363D; }
+
+.sm-alert-saved {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: #3FB950;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.sm-alert-saved.sm-show { opacity: 1; }
+
+/* Panel de corrida */
+.sm-run-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.sm-run-btn {
+  padding: 11px 22px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.sm-run-status {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: #8B949E;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 18px;
+}
+
+.sm-run-summary {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 16px 0 4px;
+}
+.sm-run-stat {
+  background: #161B22;
+  border: 1px solid #21262D;
+  border-radius: 10px;
+  padding: 10px 16px;
+  min-width: 108px;
+}
+.sm-run-stat-num {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 20px;
+  font-weight: 600;
+  color: #E6EDF3;
+  line-height: 1.2;
+}
+.sm-run-stat-lbl {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  color: #484F58;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 3px;
+}
+.sm-run-stat.sm-hit  .sm-run-stat-num { color: #3FB950; }
+.sm-run-stat.sm-stop .sm-run-stat-num { color: #F85149; }
+
+.sm-run-results { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.sm-run-item {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  background: #161B22;
+  border: 1px solid #21262D;
+  border-left: 3px solid #30363D;
+  border-radius: 0 9px 9px 0;
+  padding: 10px 14px;
+}
+.sm-run-item.sm-fired-target { border-left-color: #3FB950; background: rgba(63,185,80,0.07); }
+.sm-run-item.sm-fired-stop   { border-left-color: #F85149; background: rgba(248,81,73,0.07); }
+.sm-run-item.sm-no-price     { opacity: 0.55; }
+.sm-run-item-sym {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+  color: #E6EDF3;
+  font-size: 13px;
+}
+.sm-run-item-detail {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: #8B949E;
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.sm-run-item-detail b { color: #C9D1D9; font-weight: 600; }
+.sm-run-badge {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.sm-badge-target   { background: rgba(63,185,80,0.15);  color: #3FB950; border: 1px solid rgba(63,185,80,0.35); }
+.sm-badge-stop     { background: rgba(248,81,73,0.15);  color: #F85149; border: 1px solid rgba(248,81,73,0.35); }
+.sm-badge-range    { background: rgba(110,118,129,0.12); color: #6E7681; border: 1px solid #21262D; }
+.sm-badge-baseline { background: rgba(210,153,34,0.12); color: #D29922; border: 1px solid rgba(210,153,34,0.3); }
+.sm-badge-noprice  { background: rgba(110,118,129,0.12); color: #484F58; border: 1px solid #21262D; }
+
+.sm-alert-events { display: flex; flex-direction: column; gap: 6px; }
+.sm-alert-event {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: #8B949E;
+  padding: 7px 12px;
+  background: #161B22;
+  border: 1px solid #21262D;
+  border-radius: 7px;
+}
+.sm-alert-event b { color: #E6EDF3; }
+.sm-alert-event .sm-ev-date { margin-left: auto; color: #484F58; }
+
+@media (max-width: 900px) {
+  .sm-alert-thead { display: none; }
+  .sm-alert-row {
+    grid-template-columns: 1fr 1fr;
+    row-gap: 8px;
+    padding: 14px 4px;
+  }
+  .sm-run-item { grid-template-columns: 1fr; }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   v5.1 — RESET DE BOTONES ICONO
+   main.css aplica `button { padding:16px 32px; min-width:140px }` a
+   TODOS los botones: min-width le gana a width, así que los botones
+   de icono (× de la card, cerrar gráfico, cerrar modal) quedaban
+   gigantes. Acá se los devuelve a su tamaño real.
+══════════════════════════════════════════════════════════════════ */
+.sm-asset-remove,
+.sm-chart-close,
+.sm-modal-close,
+.sm-priority-btn,
+.sm-research-tab-remove,
+.sm-remove-asset-research,
+.sm-btn-sm {
+  min-width: 0 !important;
+  overflow: visible;
+}
+
+.sm-asset-remove {
+  position: absolute; top: 7px; right: 7px;
+  width: 17px !important; height: 17px !important;
+  min-width: 0 !important; max-width: 17px;
+  padding: 0 !important;
+  background: rgba(248,81,73,0.10);
+  border: 1px solid transparent;
+  border-radius: 50%;
+  color: #F85149;
+  font-size: 11px; line-height: 1; font-weight: 400;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.18s, background 0.15s, border-color 0.15s;
+  box-sizing: border-box;
+}
+.sm-asset-card:hover .sm-asset-remove { opacity: 0.75; }
+.sm-asset-remove:hover {
+  opacity: 1;
+  background: rgba(248,81,73,0.25);
+  border-color: rgba(248,81,73,0.45);
+}
+
+.sm-chart-close,
+.sm-modal-close {
+  padding: 0 !important;
+  font-weight: 400;
+}
+.sm-modal-close { width: 26px; height: 26px; }
+
+.sm-priority-btn { padding: 6px 14px !important; }
+
+/* Aviso cuando falta correr el SQL de alarmas */
+.sm-alerts-warning {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: rgba(210,153,34,0.08);
+  border: 1px solid rgba(210,153,34,0.35);
+  border-radius: 10px;
+  padding: 12px 16px;
+  color: #D29922;
+  font-size: 12px;
+  line-height: 1.6;
+  margin-bottom: 18px;
+}
+.sm-alerts-warning code {
+  background: #0D1117; border: 1px solid #21262D; border-radius: 4px;
+  padding: 1px 6px; font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; color: #E6EDF3;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   v5.4 — PANEL DE NIVELES COLAPSABLE + FILTRO
+══════════════════════════════════════════════════════════════════ */
+.sm-alerts-toggle {
+  display: inline-flex; align-items: center; gap: 9px;
+  background: none !important; border: none;
+  min-width: 0 !important; padding: 0 !important;
+  cursor: pointer; color: inherit;
+  font-family: 'IBM Plex Mono', monospace;
+}
+.sm-chevron {
+  color: #6E7681; font-size: 12px; line-height: 1;
+  transition: transform 0.2s ease;
+}
+.sm-chevron.sm-collapsed { transform: rotate(-90deg); }
+.sm-alerts-toggle:hover .sm-chevron,
+.sm-alerts-toggle:hover .sm-alerts-panel-title { color: #C9D1D9; }
+
+.sm-alerts-count {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+  color: #484F58; background: #0D1117; border: 1px solid #21262D;
+  border-radius: 20px; padding: 2px 9px;
+}
+
+.sm-alerts-head-actions {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.sm-alert-filter {
+  width: 200px; padding: 6px 11px; font-size: 12px;
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+
+.sm-alert-row.sm-hidden { display: none !important; }
