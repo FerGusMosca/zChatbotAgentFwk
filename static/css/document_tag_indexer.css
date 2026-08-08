@@ -228,14 +228,7 @@
 .dti-runs-table td { padding: 9px 11px; color: #C9D1D9; vertical-align: middle; }
 
 /* Table action buttons */
-.dti-runs-table .view-json-btn,
-.dti-runs-table .view-rank-btn,
-.dti-runs-table .run-query-btn {
-  border: none; padding: 5px 11px; border-radius: 6px;
-  cursor: pointer; font-size: 11.5px; font-weight: 500;
-  min-width: 76px; text-align: center;
-  font-family: 'IBM Plex Sans', sans-serif; transition: all 0.18s;
-}
+/* Table action buttons: sizing now lives in the icon-btn block below */
 .dti-runs-table .view-json-btn  { background: #0D2040; color: #58A6FF; border: 1px solid #1A3D6B; }
 .dti-runs-table .view-rank-btn  { background: #0F2B17; color: #3FB950; border: 1px solid #1A3D21; }
 .dti-runs-table .run-query-btn  { background: #1F1040; color: #A371F7; border: 1px solid #2D1A5A; }
@@ -313,4 +306,68 @@
   .dti-form-grid { grid-template-columns: 1fr; }
   .dti-submit-btn { width: 100%; }
   .dti-button-container { justify-content: stretch; }
+}
+
+/* ── Run Type selector ── */
+.dti-runtype {
+  display: flex; gap: 22px; padding: 4px 0;
+}
+.dti-runtype-opt {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12.5px; color: #C9D1D9; cursor: pointer;
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+.dti-runtype-opt input[type="radio"] { accent-color: #58A6FF; cursor: pointer; }
+
+/* ── Row density: every action is an icon and text cells get real widths ──
+   The table is table-layout:fixed, so without explicit widths every column got
+   the same slice and long values (portfolio, source, tag model) spilled over
+   the next column instead of being cut. */
+.dti-runs-table td {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dti-runs-table th:nth-child(1),  .dti-runs-table td:nth-child(1)  { width: 62px; }   /* ID */
+.dti-runs-table th:nth-child(2),  .dti-runs-table td:nth-child(2)  { width: 15%; }    /* Portfolio */
+.dti-runs-table th:nth-child(3),  .dti-runs-table td:nth-child(3)  { width: 15%; }    /* Source */
+.dti-runs-table th:nth-child(4),  .dti-runs-table td:nth-child(4)  { width: 52px; }   /* Year */
+.dti-runs-table th:nth-child(5),  .dti-runs-table td:nth-child(5)  { width: 14%; }    /* Tag Model */
+.dti-runs-table th:nth-child(6),  .dti-runs-table td:nth-child(6)  { width: 72px; }   /* Doc Type */
+.dti-runs-table th:nth-child(7),  .dti-runs-table td:nth-child(7)  { width: 11%; }    /* Tag Name */
+.dti-runs-table th:nth-child(8),  .dti-runs-table td:nth-child(8)  { width: 96px; }   /* Run Date */
+.dti-runs-table th:nth-child(9),  .dti-runs-table td:nth-child(9)  { width: 86px; }   /* Status */
+
+.dti-runs-table .dti-col-icon { width: 42px; text-align: center; }
+.dti-runs-table .icon-cell { text-align: center; padding-left: 2px; padding-right: 2px; }
+
+.dti-runs-table .icon-btn {
+  border: none; border-radius: 6px; cursor: pointer;
+  width: 30px; height: 28px; padding: 0;
+  min-width: 0; font-size: 13px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: 'IBM Plex Sans', sans-serif; transition: all 0.18s;
+}
+.dti-runs-table .view-json-btn     { background: #0D2040; color: #58A6FF; border: 1px solid #1A3D6B; }
+.dti-runs-table .view-rank-btn     { background: #0F2B17; color: #3FB950; border: 1px solid #1A3D21; }
+.dti-runs-table .run-query-btn     { background: #1F1040; color: #A371F7; border: 1px solid #2D1A5A; }
+.dti-runs-table .deprecate-run-btn { background: #3A2A0D; color: #D29922; border: 1px solid #4D3A12; }
+.dti-runs-table .delete-run-btn    { background: #3D1418; color: #F85149; border: 1px solid #5A1D22; }
+
+.dti-runs-table .view-json-btn:hover     { background: #0D2B5A; border-color: #58A6FF; }
+.dti-runs-table .view-rank-btn:hover     { background: #163D22; border-color: #3FB950; }
+.dti-runs-table .run-query-btn:hover     { background: #2D1A5A; border-color: #A371F7; }
+.dti-runs-table .deprecate-run-btn:hover:not(:disabled) { background: #4D3A12; border-color: #D29922; }
+.dti-runs-table .delete-run-btn:hover    { background: #5A1D22; border-color: #F85149; }
+
+.dti-runs-table .deprecate-run-btn:disabled { opacity: 0.28; cursor: not-allowed; }
+.dti-runs-table .icon-btn.icon-busy { opacity: 0.45; }
+
+/* ── Confirm modal ── */
+#confirmModal .dti-modal-content { max-width: 460px; }
+.dti-modal-confirm-body { padding: 18px; }
+.dti-modal-confirm-body p {
+  margin: 0 0 18px 0; font-size: 13px; color: #C9D1D9; line-height: 1.55;
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+.dti-modal-confirm-footer {
+  display: flex; justify-content: flex-end; gap: 10px; align-items: center;
 }

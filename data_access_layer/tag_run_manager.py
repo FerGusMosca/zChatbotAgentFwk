@@ -68,3 +68,42 @@ class TagRunManager:
         finally:
             cursor.close()
             conn.close()
+
+    def set_status(self, run_id: int, status: str) -> int:
+        """
+        Forces a run into a given status (e.g. 'started' -> 'Deprecated').
+        Returns how many rows were affected, so the caller can tell a real
+        update from an id that no longer exists.
+        """
+        conn = pyodbc.connect(self.connection_string)
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute(
+                "EXEC dbo.update_tag_run_status @id = ?, @status = ?",
+                (run_id, status)
+            )
+            row = cursor.fetchone()
+            affected = int(row[0]) if row else 0
+            conn.commit()
+            return affected
+
+        finally:
+            cursor.close()
+            conn.close()
+
+    def delete(self, run_id: int) -> int:
+        """Deletes a run. Returns how many rows were removed."""
+        conn = pyodbc.connect(self.connection_string)
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("EXEC dbo.delete_tag_run @id = ?", (run_id,))
+            row = cursor.fetchone()
+            affected = int(row[0]) if row else 0
+            conn.commit()
+            return affected
+
+        finally:
+            cursor.close()
+            conn.close()

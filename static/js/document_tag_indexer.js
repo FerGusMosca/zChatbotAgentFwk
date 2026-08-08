@@ -18,8 +18,41 @@ const els = {
   tagContent: document.getElementById('tagContent'),
   form: document.getElementById('newRunForm'),
   resultMsg: document.getElementById('resultMessage'),
-  createBtn: document.getElementById('createRunBtn') // 🔄 spinner button
+  createBtn: document.getElementById('createRunBtn'), // 🔄 spinner button
+  sectorInput: document.getElementById('sectorInput'),
+  overwriteSelect: document.getElementById('overwriteSelect')
 };
+
+// Which report the form fires. Driven by the Run Type radios.
+function currentRunType() {
+  const checked = document.querySelector('input[name="run_type"]:checked');
+  return checked ? checked.value : 'TAG_INDEX';
+}
+
+function isVectorizeMode() {
+  return currentRunType() === 'VECTORIZE';
+}
+
+// Tag fields make no sense for a vectorization run: it stores embeddings, it
+// does not rank against tag phrases. Hiding is not enough, the required
+// attribute has to go too or the browser blocks the submit on hidden inputs.
+function handleRunTypeChange() {
+  const vectorize = isVectorizeMode();
+
+  document.querySelectorAll('.dti-tag-only').forEach(el => {
+    el.classList.toggle('dti-hidden', vectorize);
+    el.querySelectorAll('input, select, textarea').forEach(field => {
+      field.required = !vectorize;
+    });
+  });
+
+  document.querySelectorAll('.dti-vectorize-only').forEach(el => {
+    el.classList.toggle('dti-hidden', !vectorize);
+  });
+
+  els.createBtn.querySelector('.btn-text').textContent =
+    vectorize ? 'Vectorize Documents' : 'Create Tag Index';
+}
 
 // Toggle between modes
 function toggleMode() {
@@ -111,13 +144,26 @@ function showResult(message, status) {
 async function handleFormSubmit(e) {
   e.preventDefault();
 
+  const vectorize = isVectorizeMode();
   const formData = new FormData(els.form);
+
   if (els.sourceSelect.value !== 'Q10') formData.delete('quarter');
+
+  // Strip the fields the target endpoint does not accept
+  if (vectorize) {
+    ['tag_name', 'tag_type', 'tag_content'].forEach(f => formData.delete(f));
+    if (!formData.get('sector')) formData.delete('sector');
+  } else {
+    ['sector', 'overwrite'].forEach(f => formData.delete(f));
+  }
+  formData.delete('run_type');
+
+  const endpoint = vectorize ? 'create_vectorize_run' : 'create_run';
 
   els.createBtn.classList.add('loading'); // 🔄 SHOW SPINNER
 
   try {
-    const response = await fetch(`${BASE_URL}/create_run`, {
+    const response = await fetch(`${BASE_URL}/${endpoint}`, {
       method: 'POST',
       body: formData
     });
@@ -129,6 +175,7 @@ async function handleFormSubmit(e) {
     }
 
     showResult(`✓ Run created: ${data.message}`, 'success');
+    goToOldRuns();
 
   } catch (err) {
     console.error('Form submit failed:', err);
@@ -137,6 +184,20 @@ async function handleFormSubmit(e) {
   } finally {
     els.createBtn.classList.remove('loading'); // ✅ HIDE SPINNER
   }
+}
+
+// Switches to the Old Runs tab and refetches the grid from scratch.
+// The previous version tried to do this by overriding window.showResult, which
+// never fired: handleFormSubmit calls the function declaration directly, so the
+// property assignment on window was dead code.
+function goToOldRuns(delayMs = 1200) {
+  setTimeout(() => {
+    els.modeOld.checked = true;
+    oldRuns.currentPage = 1;
+    oldRuns.allRuns = [];
+    toggleModeEnhanced();
+    oldRuns.loadRuns();
+  }, delayMs);
 }
 
 function init() {
@@ -148,6 +209,10 @@ function init() {
     els.sourceSelect.addEventListener('change', handleSourceChange);
     els.form.addEventListener('submit', handleFormSubmit);
 
+    document.querySelectorAll('input[name="run_type"]').forEach(radio => {
+      radio.addEventListener('change', handleRunTypeChange);
+    });
+
     // Old Runs specific events (pagination + modal)
     setupOldRunsEvents();
 
@@ -155,6 +220,7 @@ function init() {
     loadDropdownData();
     toggleModeEnhanced();      // Sets correct initial view + loads old runs if needed
     handleSourceChange();
+    handleRunTypeChange();
 }
 
 // Start app
@@ -173,6 +239,7 @@ const oldRuns = {
   currentPage: 1,
   pageSize: 15,
   allRuns: [],
+  hasNextPage: false,
 
 /**
  * Load previous tagging runs from the real backend API
@@ -181,11 +248,12 @@ const oldRuns = {
 async loadRuns() {
   try {
     // Use current page and pageSize for pagination
-    const page = this.currentPage;
-    const size = this.pageSize;  // e.g. 15
+    const size = this.pageSize;
+    const offset = (this.currentPage - 1) * size;
 
-    // Real API call - adjust query params if your backend uses offset/limit instead
-    const url = `${BASE_URL}/old_runs?page=${page}&size=${size}`;
+    // The backend takes limit/offset, not page/size. One extra row is requested
+    // so we can tell whether a next page exists without a separate count query.
+    const url = `${BASE_URL}/old_runs?limit=${size + 1}&offset=${offset}`;
 
     // Optional: add filters if you have them later
     // const url = `${BASE_URL}/old_runs?page=${page}&size=${size}&tag_name=ai_adoption&portfolio=US_BIGCAP_EX_SMALL`;
@@ -199,7 +267,10 @@ async loadRuns() {
     const data = await response.json();
 
     // Assuming the backend returns an array of objects with the expected fields
-    this.allRuns = data.map(run => ({
+    this.hasNextPage = data.length > size;
+    const pageRows = this.hasNextPage ? data.slice(0, size) : data;
+
+    this.allRuns = pageRows.map(run => ({
       id: run.id,
       portfolio: run.portfolio,
       source: run.source,
@@ -229,45 +300,60 @@ async loadRuns() {
     const tbody = document.getElementById('runsTableBody');
     tbody.innerHTML = '';
 
-    const start = (this.currentPage - 1) * this.pageSize;
-    const end = start + this.pageSize;
-    const pageItems = this.allRuns.slice(start, end);
-
-    pageItems.forEach(run => {
+    // allRuns already holds exactly this page: the server did the slicing
+    this.allRuns.forEach(run => {
       const row = document.createElement('tr');
+      // Long values are ellipsed by CSS, so every text cell carries the full
+      // value in title= and stays readable on hover
       row.innerHTML = `
         <td>${run.id}</td>
-        <td>${run.portfolio}</td>
-        <td>${run.source}</td>
+        <td title="${run.portfolio}">${run.portfolio}</td>
+        <td title="${run.source}">${run.source}</td>
         <td>${run.year}</td>
-        <td>${run.tag_model}</td>
-        <td>${run.doc_type}</td>
-        <td>${run.tag_name}</td>
+        <td title="${run.tag_model}">${run.tag_model}</td>
+        <td title="${run.doc_type}">${run.doc_type}</td>
+        <td title="${run.tag_name}">${run.tag_name}</td>
         <td>${run.run_date}</td>
-        <td>${run.status}</td>
-        <td class="json-cell">
-          <button class="view-json-btn" data-json='${run.tag_json}'>JSON</button>
+        <td title="${run.status}">${run.status}</td>
+        <td class="icon-cell">
+          <button class="view-json-btn icon-btn" data-json='${run.tag_json}'
+                  title="View tag JSON">&#123;&#125;</button>
         </td>
-        <td class="json-cell">
-            <button class="view-rank-btn"
+        <td class="icon-cell">
+            <button class="view-rank-btn icon-btn"
               data-rank="${run.rank_folder}"
               data-year="${run.year}"
               data-quarter="${run.quarter || ''}"
               data-secprocessed="${run.sec_processed || ''}"
+              title="Details"
             >
-              Details
+              &#9432;
             </button>
         </td>
-        <td class="json-cell">
-          <button class="run-query-btn"
+        <td class="icon-cell">
+          <button class="run-query-btn icon-btn"
                   data-id="${run.id}"
                   data-portfolio="${run.portfolio}"
                   data-source="${run.source}"
                   data-year="${run.year}"
                   data-tag="${run.tag_name}"
                   data-rank-folder="${run.rank_folder}"
+                  title="Run query"
                   >
-            Run Query
+            &#9654;
+          </button>
+        </td>
+        <td class="icon-cell">
+          <button class="deprecate-run-btn icon-btn"
+                  data-id="${run.id}"
+                  title="Deprecate run"
+                  ${String(run.status).toLowerCase() === 'started' ? '' : 'disabled'}>
+            &#9209;
+          </button>
+        </td>
+        <td class="icon-cell">
+          <button class="delete-run-btn icon-btn" data-id="${run.id}" title="Delete run">
+            &#128465;
           </button>
         </td>
 
@@ -276,10 +362,11 @@ async loadRuns() {
     });
 
     // Update pagination controls
-    const totalPages = Math.ceil(this.allRuns.length / this.pageSize);
-    document.getElementById('pageInfo').textContent = `Page ${this.currentPage} of ${totalPages || 1}`;
+    // Without a total count the exact page count is unknown, so the label shows
+    // the current page and Next is driven by the lookahead row
+    document.getElementById('pageInfo').textContent = `Page ${this.currentPage}`;
     document.getElementById('prevPage').disabled = this.currentPage === 1;
-    document.getElementById('nextPage').disabled = this.currentPage >= totalPages;
+    document.getElementById('nextPage').disabled = !this.hasNextPage;
   }
 };
 
@@ -288,13 +375,13 @@ function setupOldRunsEvents() {
   document.getElementById('prevPage')?.addEventListener('click', () => {
     if (oldRuns.currentPage > 1) {
       oldRuns.currentPage--;
-      oldRuns.renderTable();
+      oldRuns.loadRuns();
     }
   });
 
   document.getElementById('nextPage')?.addEventListener('click', () => {
     oldRuns.currentPage++;
-    oldRuns.renderTable();
+    oldRuns.loadRuns();
   });
 
   // Handle click on "View JSON" buttons → show modal
@@ -310,8 +397,9 @@ function setupOldRunsEvents() {
       }
     }
 
-    // Close modal when clicking close button or outside the content area
-    if (e.target.id === 'closeModal' || e.target === document.getElementById('jsonModal')) {
+    // Only the X closes it: clicking outside used to dismiss the popup and
+    // lose whatever the user was reading
+    if (e.target.id === 'closeModal') {
       document.getElementById('jsonModal').classList.add('dti-hidden');
     }
   });
@@ -331,10 +419,7 @@ function setupOldRunsEvents() {
           document.getElementById('rankModal').classList.remove('dti-hidden');
     }
 
-      if (
-        e.target.classList.contains('close-rank-modal') ||
-        e.target === document.getElementById('rankModal')
-      ) {
+      if (e.target.classList.contains('close-rank-modal')) {
         document.getElementById('rankModal').classList.add('dti-hidden');
       }
     });
@@ -367,7 +452,7 @@ document.addEventListener('click', async e => {
   };
 
   e.target.disabled = true;
-  e.target.textContent = 'Running...';
+  e.target.classList.add('icon-busy');
 });
 
 
@@ -421,17 +506,14 @@ document.getElementById('submitRunQueryBtn').addEventListener('click', async () 
 
 // Close modal
 document.addEventListener('click', e => {
-  if (
-    e.target.classList.contains('close-run-query-modal') ||
-    e.target === document.getElementById('runQueryModal')
-  ) {
+  if (e.target.classList.contains('close-run-query-modal')) {
     document.getElementById('runQueryModal').classList.add('dti-hidden');
 
 
-    const btns = document.querySelectorAll('.run-query-btn');
-    btns.forEach(btn => {
+    // Labels are icons now: only the disabled state has to be reset
+    document.querySelectorAll('.run-query-btn').forEach(btn => {
       btn.disabled = false;
-      btn.textContent = 'Run Query';
+      btn.classList.remove('icon-busy');
     });
 
     currentRunQueryPayload = null;
@@ -472,23 +554,92 @@ document.getElementById('submitRunQueryBtn').addEventListener('click', async () 
 });
 
 
-// Override showResult to also trigger grid refresh on success
-const _origShowResult = showResult;
-window.showResult = function(message, status) {
-  _origShowResult(message, status);
+// ─────────────────────────────────────────────────────────────
+//              DEPRECATE / DELETE RUNS
+// ─────────────────────────────────────────────────────────────
 
-  if (status === 'success') {
-    // Small delay so user can read the success message
-    setTimeout(() => {
-      // Switch to Old Runs tab
-      document.getElementById('modeOld').checked = true;
+// One shared confirm popup. pendingAction holds what to run on Confirm.
+let pendingAction = null;
 
-      // Force reload of grid (reset allRuns so it fetches fresh)
-      oldRuns.allRuns = [];
-      oldRuns.currentPage = 1;
+function openConfirm(title, text, action) {
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmText').textContent = text;
+  pendingAction = action;
+  document.getElementById('confirmModal').classList.remove('dti-hidden');
+}
 
-      // Toggle view
-      toggleModeEnhanced();
-    }, 1200);
+function closeConfirm() {
+  document.getElementById('confirmModal').classList.add('dti-hidden');
+  document.getElementById('confirmOkBtn').classList.remove('loading');
+  pendingAction = null;
+}
+
+async function callRunAction(url, method) {
+  const res = await fetch(url, { method });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok || data.status !== 'ok') {
+    throw new Error(data.message || `HTTP ${res.status}`);
   }
-};
+  return data;
+}
+
+// Deprecate: no confirm popup, it is reversible from the database side
+document.addEventListener('click', async e => {
+  if (!e.target.classList.contains('deprecate-run-btn')) return;
+
+  const runId = e.target.dataset.id;
+  const btn = e.target;
+
+  // The label is an icon now, so 'busy' is a class instead of swapped text
+  btn.disabled = true;
+  btn.classList.add('icon-busy');
+
+  try {
+    await callRunAction(`${BASE_URL}/deprecate_run/${runId}`, 'POST');
+    await oldRuns.loadRuns();
+  } catch (err) {
+    console.error('Deprecate failed:', err);
+    btn.disabled = false;
+    btn.classList.remove('icon-busy');
+    alert(`Could not deprecate run ${runId}: ${err.message}`);
+  }
+});
+
+// Delete: destructive, so it goes through the confirm popup
+document.addEventListener('click', e => {
+  if (!e.target.classList.contains('delete-run-btn')) return;
+
+  const runId = e.target.dataset.id;
+
+  openConfirm(
+    'Delete run',
+    `Run ${runId} will be permanently deleted. This cannot be undone.`,
+    async () => {
+      await callRunAction(`${BASE_URL}/delete_run/${runId}`, 'DELETE');
+      await oldRuns.loadRuns();
+    }
+  );
+});
+
+document.getElementById('confirmOkBtn').addEventListener('click', async () => {
+  if (!pendingAction) return;
+
+  const btn = document.getElementById('confirmOkBtn');
+  btn.classList.add('loading');
+
+  try {
+    await pendingAction();
+    closeConfirm();
+  } catch (err) {
+    console.error('Confirm action failed:', err);
+    btn.classList.remove('loading');
+    alert(err.message || 'Action failed');
+  }
+});
+
+// Cancel and X close it. Clicking outside does not, same as every other popup.
+document.getElementById('confirmCancelBtn').addEventListener('click', closeConfirm);
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('close-confirm-modal')) closeConfirm();
+});

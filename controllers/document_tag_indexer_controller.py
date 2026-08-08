@@ -27,6 +27,8 @@ class DocumentTagIndexerController:
 
 
     _TAG_RANKING_REPORT="document_tagging_ranking"
+    _VECTORIZE_REPORT="vectorize_documents"
+    _DEPRECATED_STATUS="Deprecated"
     def __init__(self):
         self.router = APIRouter(prefix="/document_tag_indexer")
 
@@ -205,6 +207,124 @@ class DocumentTagIndexerController:
                         "status": "error",
                         "message": str(e)
                     },
+                    status_code=400
+                )
+
+        @self.router.post("/create_vectorize_run")
+        async def create_vectorize_run(
+                portfolio: str = Form(...),
+                source: str = Form(...),
+                year: str = Form(...),
+                quarter: str = Form(None),
+                tag_model: str = Form(...),
+                doc_type: str = Form(...),
+                sector: str = Form(None),
+                overwrite: str = Form("false")
+        ):
+            """
+            Fires a vectorize_documents run on the MCP server. Same mechanism as
+            create_run: fill a template, open the socket, send the call.
+            No tag name / tag lines here: vectorization stores embeddings, it
+            does not rank against tag phrases.
+            """
+            try:
+                # 1) Build derived fields
+                f_source = f"{portfolio}/{source}"
+
+                # 2) Load MCP template
+                template_path = os.path.join(
+                    RootLocator.get_root(), "static", "mcp", "mcp_vectorize_report.json"
+                )
+                with open(template_path, "r", encoding="utf-8") as f:
+                    payload = json.load(f)
+
+                # 3) Fill template
+                args = payload["params"]["arguments"]
+                args["report"] = DocumentTagIndexerController._VECTORIZE_REPORT
+                args["portfolio"] = portfolio
+                args["source"] = f_source
+                args["year"] = year
+                args["tag_model"] = tag_model
+                args["doc_type"] = doc_type
+                args["overwrite"] = str(overwrite).lower() == "true"
+
+                # Optional arguments are only sent when they carry a value, so the
+                # server keeps its own defaults instead of receiving empty strings
+                if quarter:
+                    args["quarter"] = quarter
+                if sector:
+                    args["sector"] = sector
+
+                # 4) Invoke MCP
+                async with websockets.connect(settings.reports_mcp_server) as ws:
+                    await ws.send(json.dumps({
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "tools/list",
+                        "params": {}
+                    }))
+                    await asyncio.sleep(0.2)
+                    await ws.send(json.dumps(payload))
+
+                return JSONResponse({
+                    "status": "ok",
+                    "message": "Vectorization run successfully created and sent to MCP server"
+                })
+
+            except Exception as e:
+                return JSONResponse(
+                    {
+                        "status": "error",
+                        "message": str(e)
+                    },
+                    status_code=400
+                )
+
+        @self.router.post("/deprecate_run/{run_id}")
+        async def deprecate_run(run_id: int):
+            """Parks a run stuck in 'started' so it stops looking like live work."""
+            try:
+                affected = self.tag_run_mgr.set_status(
+                    run_id, DocumentTagIndexerController._DEPRECATED_STATUS
+                )
+
+                if affected == 0:
+                    return JSONResponse(
+                        {"status": "error", "message": f"Run {run_id} not found"},
+                        status_code=404
+                    )
+
+                return JSONResponse({
+                    "status": "ok",
+                    "message": f"Run {run_id} set to "
+                               f"{DocumentTagIndexerController._DEPRECATED_STATUS}"
+                })
+
+            except Exception as e:
+                return JSONResponse(
+                    {"status": "error", "message": str(e)},
+                    status_code=400
+                )
+
+        @self.router.delete("/delete_run/{run_id}")
+        async def delete_run(run_id: int):
+            try:
+                affected = self.tag_run_mgr.delete(run_id)
+
+                if affected == 0:
+                    return JSONResponse(
+                        {"status": "error", "message": f"Run {run_id} not found"},
+                        status_code=404
+                    )
+
+                return JSONResponse({
+                    "status": "ok",
+                    "message": f"Run {run_id} deleted"
+                })
+
+            except Exception as e:
+                return JSONResponse(
+                    {"status": "error", "message": str(e)},
                     status_code=400
                 )
 

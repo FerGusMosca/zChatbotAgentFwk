@@ -46,6 +46,18 @@
     <!-- NEW RUN -->
     <div id="newRunSection" class="dti-section">
       <form id="newRunForm">
+        <div class="dti-field dti-field-full">
+          <label class="dti-label">Run Type</label>
+          <div class="dti-runtype">
+            <label class="dti-runtype-opt">
+              <input type="radio" name="run_type" value="TAG_INDEX" checked> Tag Index
+            </label>
+            <label class="dti-runtype-opt">
+              <input type="radio" name="run_type" value="VECTORIZE"> Vectorize Documents
+            </label>
+          </div>
+        </div>
+
         <div class="dti-form-grid">
 
           <div class="dti-field">
@@ -92,21 +104,34 @@
             </select>
           </div>
 
-          <div class="dti-field">
+          <div class="dti-field dti-tag-only">
             <label class="dti-label">Tag Name</label>
             <input type="text" name="tag_name" id="tagNameInput" placeholder="Tag name" required class="dti-input">
           </div>
 
-          <div class="dti-field">
+          <div class="dti-field dti-tag-only">
             <label class="dti-label">Tag Type</label>
             <select name="tag_type" id="tagTypeSelect" required class="dti-select">
               <option value="" disabled selected>Tag Type</option>
             </select>
           </div>
 
+          <div class="dti-field dti-vectorize-only dti-hidden">
+            <label class="dti-label">Sector (optional)</label>
+            <input type="text" name="sector" id="sectorInput" placeholder="e.g. ENERGY" class="dti-input">
+          </div>
+
+          <div class="dti-field dti-vectorize-only dti-hidden">
+            <label class="dti-label">Overwrite</label>
+            <select name="overwrite" id="overwriteSelect" class="dti-select">
+              <option value="false" selected>No — skip already vectorized</option>
+              <option value="true">Yes — re-vectorize everything</option>
+            </select>
+          </div>
+
         </div>
 
-        <div class="dti-field dti-field-full">
+        <div class="dti-field dti-field-full dti-tag-only">
           <label class="dti-label">Tag Lines</label>
           <textarea name="tag_content" id="tagContent" class="dti-textarea"
                     placeholder="Tag lines (one per line)" required rows="10"></textarea>
@@ -142,7 +167,9 @@
             <tr>
               <th>ID</th><th>Portfolio</th><th>Source</th><th>Year</th>
               <th>Tag Model</th><th>Doc Type</th><th>Tag Name</th>
-              <th>Run Date</th><th>Status</th><th>JSON</th><th>Rank Folder</th><th>Query</th>
+              <th>Run Date</th><th>Status</th>
+              <th class="dti-col-icon">JSON</th><th class="dti-col-icon">Info</th><th class="dti-col-icon">Query</th>
+              <th class="dti-col-icon">Dep</th><th class="dti-col-icon">Del</th>
             </tr>
           </thead>
           <tbody id="runsTableBody"></tbody>
@@ -193,6 +220,26 @@
       </div>
     </div>
     <pre id="runQueryResponse"></pre>
+  </div>
+</div>
+
+<!-- Confirm Delete Modal -->
+<div id="confirmModal" class="dti-modal dti-hidden">
+  <div class="dti-modal-content">
+    <div class="dti-modal-header">
+      <h3 id="confirmTitle">Confirm</h3>
+      <button class="close-confirm-modal dti-modal-close">&times;</button>
+    </div>
+    <div class="dti-modal-confirm-body">
+      <p id="confirmText"></p>
+      <div class="dti-modal-confirm-footer">
+        <button id="confirmCancelBtn" class="dti-page-btn">Cancel</button>
+        <button id="confirmOkBtn" class="dti-submit-btn">
+          <div class="spinner"></div>
+          <span class="btn-text">Confirm</span>
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 
