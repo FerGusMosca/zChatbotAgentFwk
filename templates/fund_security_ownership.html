@@ -34,17 +34,17 @@
     <div class="fso-header-left">
       <div class="fso-eyebrow">Intelligence · 13F · Neo4j</div>
       <h1 class="fso-title">Fund Security Ownership</h1>
-      <p class="fso-subtitle">Institutional sentiment · Crowding & Capitulation · 13F Holdings</p>
+      <p class="fso-subtitle">Institutional sentiment · Crowding &amp; Capitulation · 13F Holdings</p>
     </div>
     <div class="fso-header-right">
       <!-- Period selector lives here -->
-      <div class="fso-period-inline">
+      <div class="fso-period-inline" id="periodBox">
         <span class="fso-period-label">Period</span>
-        <select id="yearSelect">
+        <select id="yearSelect" disabled>
           <option value="" disabled selected>Year</option>
         </select>
         <span style="color:#3D444D;">Q</span>
-        <select id="quarterSelect">
+        <select id="quarterSelect" disabled>
           <option value="" disabled selected>—</option>
           <option value="1">1</option>
           <option value="2">2</option>
@@ -56,6 +56,16 @@
     </div>
   </div>
 
+  <!-- ── Neo4j connection banner (+1) ── -->
+  <div id="periodLoader" class="fso-loader-bar active">
+    <div class="fso-loader-spinner"></div>
+    <div class="fso-loader-text">
+      <strong id="periodLoaderTitle">Connecting to Neo4j…</strong>
+      <span id="periodLoaderDetail">Reading available 13F periods from the graph. Queries stay disabled until this finishes.</span>
+    </div>
+    <div class="fso-loader-progress"><div class="fso-loader-progress-fill"></div></div>
+  </div>
+
   <!-- ── Tab rail ── -->
   <div class="fso-tab-rail">
     <div class="fso-tabs">
@@ -65,11 +75,23 @@
       <button class="fso-tab" data-tab="capitulation">
         <span class="fso-tab-icon">📉</span> Capitulation
       </button>
+      <button class="fso-tab" data-tab="transitions">
+        <span class="fso-tab-icon">🔀</span> Transitions
+      </button>
+      <button class="fso-tab" data-tab="newpos">
+        <span class="fso-tab-icon">🌱</span> New Positions
+      </button>
+      <button class="fso-tab" data-tab="size">
+        <span class="fso-tab-icon">📊</span> By Size
+      </button>
       <button class="fso-tab" data-tab="portfolio">
         <span class="fso-tab-icon">💼</span> Portfolio Viewer
       </button>
       <button class="fso-tab" data-tab="ownership">
         <span class="fso-tab-icon">🏛️</span> Asset Ownership
+      </button>
+      <button class="fso-tab" data-tab="data">
+        <span class="fso-tab-icon">⚙️</span> Data
       </button>
     </div>
   </div>
@@ -87,6 +109,17 @@
         <div class="fso-control-group">
           <label>Min Crowd Score</label>
           <input type="number" id="crowdedMinScore" placeholder="Optional" step="0.01" style="width:130px;">
+        </div>
+        <div class="fso-control-group">
+          <label>Size</label>
+          <select id="crowdedSize" style="width:110px;">
+            <option value="">All</option>
+            <option value="MEGA">Mega</option>
+            <option value="LARGE">Large</option>
+            <option value="MID">Mid</option>
+            <option value="SMALL">Small</option>
+            <option value="MICRO">Micro</option>
+          </select>
         </div>
         <div class="fso-control-group">
           <label>Results</label>
@@ -116,6 +149,17 @@
           <input type="number" id="capOffset" value="0" min="0" step="100" style="width:90px;">
         </div>
         <div class="fso-control-group">
+          <label>Size</label>
+          <select id="capSize" style="width:110px;">
+            <option value="">All</option>
+            <option value="MEGA">Mega</option>
+            <option value="LARGE">Large</option>
+            <option value="MID">Mid</option>
+            <option value="SMALL">Small</option>
+            <option value="MICRO">Micro</option>
+          </select>
+        </div>
+        <div class="fso-control-group">
           <label>Results</label>
           <select id="capLimit" style="width:90px;">
             <option value="50">50</option>
@@ -128,6 +172,170 @@
           <span class="btn-text">Search</span>
           <div class="spinner"></div>
         </button>
+      </div>
+      <div class="fso-hint">
+        Ranking bottom-up shows names already left for dead. To track what
+        institutions are actually starting to buy, use <strong>New Positions</strong>.
+      </div>
+    </div>
+
+    <!-- TAB: Transitions -->
+    <div id="tab-transitions" class="fso-tab-content">
+      <div class="fso-controls">
+        <div class="fso-control-group">
+          <label>From</label>
+          <div class="fso-period-pair">
+            <select id="trFromYear" style="width:90px;"></select>
+            <span>Q</span>
+            <select id="trFromQuarter" style="width:60px;">
+              <option value="1">1</option><option value="2">2</option>
+              <option value="3">3</option><option value="4">4</option>
+            </select>
+          </div>
+        </div>
+        <div class="fso-control-group">
+          <label>To</label>
+          <div class="fso-period-pair">
+            <select id="trToYear" style="width:90px;"></select>
+            <span>Q</span>
+            <select id="trToQuarter" style="width:60px;">
+              <option value="1">1</option><option value="2">2</option>
+              <option value="3">3</option><option value="4">4</option>
+            </select>
+          </div>
+        </div>
+        <div class="fso-control-group">
+          <label>Direction</label>
+          <select id="trDirection" style="width:140px;">
+            <option value="LOADING" selected>Loading (piling in)</option>
+            <option value="UNLOADING">Unloading (leaving)</option>
+            <option value="ALL">Any change</option>
+          </select>
+        </div>
+        <div class="fso-control-group">
+          <label>Min Tier Jump</label>
+          <select id="trMinJump" style="width:80px;">
+            <option value="1" selected>1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+          </select>
+        </div>
+        <div class="fso-control-group">
+          <label>Min Owners</label>
+          <input type="number" id="trMinOwners" value="5" min="1" style="width:90px;">
+        </div>
+        <div class="fso-control-group">
+          <label>Size</label>
+          <select id="trSize" style="width:110px;">
+            <option value="">All</option>
+            <option value="MEGA">Mega</option>
+            <option value="LARGE">Large</option>
+            <option value="MID">Mid</option>
+            <option value="SMALL">Small</option>
+            <option value="MICRO">Micro</option>
+          </select>
+        </div>
+        <div class="fso-control-group">
+          <label>Results</label>
+          <select id="trLimit" style="width:90px;">
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="250">250</option>
+            <option value="500">500</option>
+          </select>
+        </div>
+        <button id="trSearchBtn" class="fso-action-btn">
+          <span class="btn-text">Run Transitions</span>
+          <div class="spinner"></div>
+        </button>
+        <button id="trMatrixBtn" class="fso-secondary-btn">Tier Matrix</button>
+      </div>
+      <div class="fso-hint">
+        Every asset is bucketed into 5 crowding tiers by its crowd-score percentile
+        inside the quarter. A move from tier 4 to tier 2 means funds piled in.
+      </div>
+      <div id="trMatrixBox" class="fso-matrix-box"></div>
+    </div>
+
+    <!-- TAB: New Positions -->
+    <div id="tab-newpos" class="fso-tab-content">
+      <div class="fso-controls">
+        <div class="fso-control-group">
+          <label>From</label>
+          <div class="fso-period-pair">
+            <select id="npFromYear" style="width:90px;"></select>
+            <span>Q</span>
+            <select id="npFromQuarter" style="width:60px;">
+              <option value="1">1</option><option value="2">2</option>
+              <option value="3">3</option><option value="4">4</option>
+            </select>
+          </div>
+        </div>
+        <div class="fso-control-group">
+          <label>To</label>
+          <div class="fso-period-pair">
+            <select id="npToYear" style="width:90px;"></select>
+            <span>Q</span>
+            <select id="npToQuarter" style="width:60px;">
+              <option value="1">1</option><option value="2">2</option>
+              <option value="3">3</option><option value="4">4</option>
+            </select>
+          </div>
+        </div>
+        <div class="fso-control-group">
+          <label>Min Owners (to)</label>
+          <input type="number" id="npMinOwners" value="5" min="1" style="width:100px;">
+        </div>
+        <div class="fso-control-group">
+          <label>Scope</label>
+          <select id="npBrandNew" style="width:160px;">
+            <option value="0" selected>New or re-entered</option>
+            <option value="1">Brand new only</option>
+          </select>
+        </div>
+        <div class="fso-control-group">
+          <label>Size</label>
+          <select id="npSize" style="width:110px;">
+            <option value="">All</option>
+            <option value="MEGA">Mega</option>
+            <option value="LARGE">Large</option>
+            <option value="MID">Mid</option>
+            <option value="SMALL">Small</option>
+            <option value="MICRO">Micro</option>
+          </select>
+        </div>
+        <div class="fso-control-group">
+          <label>Results</label>
+          <select id="npLimit" style="width:90px;">
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="250">250</option>
+            <option value="500">500</option>
+          </select>
+        </div>
+        <button id="npSearchBtn" class="fso-action-btn">
+          <span class="btn-text">Find New Positions</span>
+          <div class="spinner"></div>
+        </button>
+      </div>
+      <div class="fso-hint">
+        Assets that show up in the destination quarter and were absent (or below
+        the owner threshold) in the base quarter.
+      </div>
+    </div>
+
+    <!-- TAB: By Size -->
+    <div id="tab-size" class="fso-tab-content">
+      <div class="fso-controls">
+        <button id="sizeSearchBtn" class="fso-action-btn">
+          <span class="btn-text">Group by Size</span>
+          <div class="spinner"></div>
+        </button>
+      </div>
+      <div class="fso-hint">
+        13F filings carry no market cap, so size is proxied by the total
+        institutional dollar value held in the asset.
+        MEGA ≥ 200B · LARGE ≥ 10B · MID ≥ 2B · SMALL ≥ 300M · MICRO below that.
       </div>
     </div>
 
@@ -180,6 +388,25 @@
       </div>
       <div id="selectedAsset" class="fso-selected-entity"></div>
       <div id="assetStats" class="fso-stats-box"></div>
+    </div>
+
+    <!-- TAB: Data / aggregates -->
+    <div id="tab-data" class="fso-tab-content">
+      <div class="fso-controls">
+        <button id="buildCurrentBtn" class="fso-action-btn">
+          <span class="btn-text">Build Selected Period</span>
+          <div class="spinner"></div>
+        </button>
+        <button id="buildAllBtn" class="fso-secondary-btn">Rebuild All Periods</button>
+        <button id="refreshStatusBtn" class="fso-secondary-btn">Refresh</button>
+      </div>
+      <div class="fso-hint">
+        Every ranking reads a pre-computed snapshot (one node per asset/period)
+        instead of walking the whole HOLDS graph. Build a period once and the
+        rankings, transitions and new-position reports all become instant.
+      </div>
+      <div id="buildProgress" class="fso-build-progress"></div>
+      <div id="aggregatesTable" class="fso-aggregates"></div>
     </div>
 
     <!-- ── Status / result message ── -->
