@@ -75,6 +75,7 @@
         <button class="sm-tab" id="tabResearch">🔬 Research</button>
         <button class="sm-tab" id="tabAlerts">🔔 Price Alerts</button>
         <button class="sm-tab" id="tabEmails">📬 Subscribers</button>
+        <button class="sm-tab" id="tabSimulation">🧪 Simulation</button>
       </div>
 
       <!-- MONITOR TAB -->
@@ -120,6 +121,97 @@
       <!-- EMAILS / SUBSCRIBERS TAB -->
       <div class="sm-tab-content sm-hidden" id="tabContentEmails">
         <!-- rendered entirely by JS -->
+      </div>
+
+      <!-- SIMULATION TAB -->
+      <div class="sm-tab-content sm-hidden" id="tabContentSimulation">
+
+        <div class="sm-sim-form">
+
+          <!-- What to simulate -->
+          <div class="sm-sim-block">
+            <div class="sm-sim-block-title">1 &middot; What to simulate</div>
+
+            <div class="sm-sim-source">
+              <label class="sm-sim-radio">
+                <input type="radio" name="simSource" value="portfolio" checked>
+                <span>A saved portfolio</span>
+              </label>
+              <label class="sm-sim-radio">
+                <input type="radio" name="simSource" value="paste">
+                <span>Paste symbols</span>
+              </label>
+            </div>
+
+            <div id="simPortfolioRow">
+              <select class="sm-input" id="simPortfolioSelect"></select>
+            </div>
+
+            <div id="simPasteRow" class="sm-hidden">
+              <textarea class="sm-input sm-sim-textarea" id="simSymbols"
+                        placeholder="AAPL, MSFT, NVDA"></textarea>
+            </div>
+          </div>
+
+          <!-- Weights -->
+          <div class="sm-sim-block">
+            <div class="sm-sim-block-title">2 &middot; Weights</div>
+
+            <div class="sm-sim-source">
+              <label class="sm-sim-radio">
+                <input type="radio" name="simWeights" value="equal" checked>
+                <span>Equally weighted</span>
+              </label>
+              <label class="sm-sim-radio">
+                <input type="radio" name="simWeights" value="relative">
+                <span>Relative weights</span>
+              </label>
+            </div>
+
+            <div id="simWeightsRow" class="sm-hidden">
+              <div class="sm-sim-hint">
+                Any numbers will do &mdash; 3 / 2 / 1 or 50 / 30 / 20. They get
+                normalised, so they need not add up to anything.
+              </div>
+              <div class="sm-sim-weights" id="simWeightsGrid"></div>
+            </div>
+          </div>
+
+          <!-- Rule -->
+          <div class="sm-sim-block">
+            <div class="sm-sim-block-title">3 &middot; Rule</div>
+            <div class="sm-sim-rule">
+              <span>Hold while the price is above its</span>
+              <input type="number" class="sm-input sm-sim-number" id="simMaWindow"
+                     value="200" min="2" max="500">
+              <span>day moving average, sit in cash otherwise.</span>
+            </div>
+            <div class="sm-sim-hint">
+              The signal is acted on the following day, and prices before the start
+              date are pulled in so the average is already warmed up on day one.
+            </div>
+          </div>
+
+          <!-- Dates -->
+          <div class="sm-sim-block">
+            <div class="sm-sim-block-title">4 &middot; Period</div>
+            <div class="sm-sim-dates">
+              <label class="sm-sim-date">
+                <span>From</span>
+                <input type="date" class="sm-input" id="simStart">
+              </label>
+              <label class="sm-sim-date">
+                <span>To</span>
+                <input type="date" class="sm-input" id="simEnd">
+              </label>
+              <button class="sm-btn sm-btn-primary" id="simRunBtn">Run simulation</button>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="sm-sim-results" id="simResults"></div>
+
       </div>
 
     </div>

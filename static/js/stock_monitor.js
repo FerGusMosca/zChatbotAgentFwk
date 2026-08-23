@@ -212,7 +212,7 @@ function showEmptyState(show) {
 // ══════════════════════════════════════════════════
 async function switchTab(tab) {
   activeTab = tab;
-  ['monitor','research','alerts','emails'].forEach(t => {
+  ['monitor','research','alerts','emails','simulation'].forEach(t => {
     const T = t.charAt(0).toUpperCase() + t.slice(1);
     document.getElementById('tab'+T)?.classList.toggle('sm-tab-active', t === tab);
     document.getElementById('tabContent'+T)?.classList.toggle('sm-hidden', t !== tab);
@@ -221,6 +221,7 @@ async function switchTab(tab) {
   if (tab === 'research') await loadAndRenderResearch();
   if (tab === 'alerts')   await loadAndRenderAlerts();
   if (tab === 'emails')   await loadAndRenderEmails();
+  if (tab === 'simulation') renderSimulationTab();
 }
 
 // ══════════════════════════════════════════════════
@@ -1648,6 +1649,8 @@ function wireStaticEvents() {
   document.getElementById('tabResearch').addEventListener('click', () => switchTab('research'));
   document.getElementById('tabAlerts').addEventListener('click', () => switchTab('alerts'));
   document.getElementById('tabEmails').addEventListener('click', () => switchTab('emails'));
+  document.getElementById('tabSimulation').addEventListener('click', () => switchTab('simulation'));
+  wireSimulation();
 
   // Cerrar el panel del gráfico pide confirmación (se apretaba por error)
   document.getElementById('closeChartBtn').addEventListener('click', async () => {
@@ -1725,3 +1728,315 @@ function wireStaticEvents() {
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
 else init();
+
+// ══════════════════════════════════════════════════
+//  SIMULATION TAB
+//
+//  Backtests a set of symbols under the moving average rule and puts the
+//  result next to buy and hold: a return with no drawdown beside it, and no
+//  comparison, says nothing about whether the rule was worth following.
+// ══════════════════════════════════════════════════
+
+let SIM_LAST = null;
+
+function simEl(id) { return document.getElementById(id); }
+
+function wireSimulation() {
+  document.querySelectorAll('input[name="simSource"]').forEach(radio => {
+    radio.addEventListener('change', onSimSourceChange);
+  });
+
+  document.querySelectorAll('input[name="simWeights"]').forEach(radio => {
+    radio.addEventListener('change', onSimWeightModeChange);
+  });
+
+  simEl('simSymbols').addEventListener('input', debounceWeightsGrid);
+  simEl('simPortfolioSelect').addEventListener('change', buildWeightsGrid);
+  simEl('simRunBtn').addEventListener('click', runSimulation);
+
+  // Defaults: the last five years, ending today
+  const today = new Date();
+  const past = new Date(today.getFullYear() - 5, today.getMonth(), today.getDate());
+  simEl('simEnd').value = today.toISOString().slice(0, 10);
+  simEl('simStart').value = past.toISOString().slice(0, 10);
+}
+
+function renderSimulationTab() {
+  const select = simEl('simPortfolioSelect');
+  const current = select.value;
+  select.innerHTML = '';
+
+  (portfolios || []).forEach(p => {
+    const option = document.createElement('option');
+    option.value = p.id;
+    option.textContent = p.name;
+    select.appendChild(option);
+  });
+
+  select.value = current || activePortId || (portfolios[0] && portfolios[0].id) || '';
+  buildWeightsGrid();
+}
+
+function onSimSourceChange() {
+  const usePortfolio = simSourceMode() === 'portfolio';
+  simEl('simPortfolioRow').classList.toggle('sm-hidden', !usePortfolio);
+  simEl('simPasteRow').classList.toggle('sm-hidden', usePortfolio);
+  buildWeightsGrid();
+}
+
+function onSimWeightModeChange() {
+  simEl('simWeightsRow').classList.toggle('sm-hidden', simWeightMode() !== 'relative');
+  buildWeightsGrid();
+}
+
+function simSourceMode() {
+  return document.querySelector('input[name="simSource"]:checked').value;
+}
+
+function simWeightMode() {
+  return document.querySelector('input[name="simWeights"]:checked').value;
+}
+
+// Symbols currently selected, whichever way they were chosen
+function simSymbolList() {
+  if (simSourceMode() === 'paste') {
+    return (simEl('simSymbols').value || '')
+      .replace(/\n/g, ',').split(',')
+      .map(s => s.trim().toUpperCase()).filter(Boolean);
+  }
+
+  const id = parseInt(simEl('simPortfolioSelect').value, 10);
+  if (!id) return [];
+
+  // assets holds the ACTIVE portfolio; a different pick needs its own read,
+  // which happens when the grid is built.
+  return (SIM_PORTFOLIO_ASSETS[id] || []).map(a => a.symbol);
+}
+
+const SIM_PORTFOLIO_ASSETS = {};
+let simWeightsTimer = null;
+
+function debounceWeightsGrid() {
+  clearTimeout(simWeightsTimer);
+  simWeightsTimer = setTimeout(buildWeightsGrid, 400);
+}
+
+async function buildWeightsGrid() {
+  // A saved portfolio needs its assets before the weight boxes can be drawn
+  if (simSourceMode() === 'portfolio') {
+    const id = parseInt(simEl('simPortfolioSelect').value, 10);
+    if (id && !SIM_PORTFOLIO_ASSETS[id]) {
+      try {
+        SIM_PORTFOLIO_ASSETS[id] = await api('GET', `/portfolios/${id}/assets`);
+      } catch (e) {
+        SIM_PORTFOLIO_ASSETS[id] = [];
+      }
+    }
+  }
+
+  if (simWeightMode() !== 'relative') return;
+
+  const grid = simEl('simWeightsGrid');
+  const symbols = simSymbolList();
+  const previous = {};
+
+  grid.querySelectorAll('input[data-symbol]').forEach(input => {
+    previous[input.dataset.symbol] = input.value;
+  });
+
+  grid.innerHTML = symbols.map(symbol => `
+    <label class="sm-sim-weight">
+      <span>${symbol}</span>
+      <input type="number" class="sm-input sm-sim-number" min="0" step="any"
+             data-symbol="${symbol}" value="${previous[symbol] || 1}">
+    </label>`).join('');
+
+  if (!symbols.length) {
+    grid.innerHTML = '<div class="sm-sim-hint">Pick a portfolio or paste symbols first.</div>';
+  }
+}
+
+function collectRelativeWeights() {
+  const out = {};
+  simEl('simWeightsGrid').querySelectorAll('input[data-symbol]').forEach(input => {
+    out[input.dataset.symbol] = parseFloat(input.value) || 0;
+  });
+  return out;
+}
+
+// ── Run ──
+async function runSimulation() {
+  const btn = simEl('simRunBtn');
+  const box = simEl('simResults');
+
+  const symbols = simSymbolList();
+  if (!symbols.length) {
+    box.innerHTML = simError('There are no symbols to simulate.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+  box.innerHTML = `<div class="sm-sim-loading">Downloading prices and walking the calendar…</div>`;
+
+  try {
+    const fd = new FormData();
+    fd.append('symbols', symbols.join(','));
+    fd.append('weight_mode', simWeightMode());
+    fd.append('start_date', simEl('simStart').value);
+    fd.append('end_date', simEl('simEnd').value);
+    fd.append('ma_window', simEl('simMaWindow').value || 200);
+
+    if (simWeightMode() === 'relative') {
+      fd.append('weights', JSON.stringify(collectRelativeWeights()));
+    }
+
+    const resp = await fetch('/stock_monitor/simulate', { method: 'POST', body: fd });
+    const json = await resp.json();
+
+    if (json.status !== 'ok') {
+      box.innerHTML = simError(json.message || 'The simulation failed.');
+      return;
+    }
+
+    SIM_LAST = json.result;
+    box.innerHTML = renderSimulation(json.result);
+
+  } catch (e) {
+    box.innerHTML = simError(`Could not reach the dashboard: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Run simulation';
+  }
+}
+
+// ── Render ──
+function simError(message) {
+  return `<div class="sm-sim-error">${esc(message)}</div>`;
+}
+
+function simPct(value) {
+  if (value === null || value === undefined) return '—';
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${(value * 100).toFixed(2)}%`;
+}
+
+function simTone(value) {
+  if (value === null || value === undefined) return '#8B949E';
+  return value >= 0 ? '#3FB950' : '#F85149';
+}
+
+function simMetric(label, value, color, note) {
+  return `
+    <div class="sm-sim-metric">
+      <div class="sm-sim-metric-label">${label}</div>
+      <div class="sm-sim-metric-value" style="color:${color};">${value}</div>
+      ${note ? `<div class="sm-sim-metric-note">${note}</div>` : ''}
+    </div>`;
+}
+
+function renderSimulation(r) {
+  const s = r.strategy;
+  const h = r.buy_hold;
+
+  const failed = Object.keys(r.failures || {});
+  const noSignal = r.symbols_without_signal || [];
+
+  const warnings = [];
+  if (failed.length) {
+    warnings.push(`No prices for ${failed.join(', ')} — dropped, and the remaining
+                   weights were scaled back up to 100%.`);
+  }
+  if (noSignal.length) {
+    warnings.push(`${noSignal.join(', ')} never had enough history to fill a
+                   ${r.ma_window}-day average, so they stayed in cash throughout.`);
+  }
+
+  const rows = r.per_symbol.map(x => `
+    <tr>
+      <td class="sm-sim-sym">${x.symbol}</td>
+      <td>${(x.weight * 100).toFixed(1)}%</td>
+      <td style="color:${simTone(x.strategy_return)};">${simPct(x.strategy_return)}</td>
+      <td style="color:${simTone(x.buy_hold_return)};">${simPct(x.buy_hold_return)}</td>
+      <td>${(x.time_invested * 100).toFixed(0)}%</td>
+      <td>${x.switches}</td>
+    </tr>`).join('');
+
+  return `
+    <div class="sm-sim-result-head">
+      <span class="sm-sim-range">${r.from} → ${r.to}</span>
+      <span class="sm-sim-meta">${r.trading_days} trading days ·
+        ${r.ma_window}-day average · ${r.per_symbol.length} symbols</span>
+    </div>
+
+    ${warnings.length ? `<div class="sm-sim-warning">${warnings.map(w => `<div>${w}</div>`).join('')}</div>` : ''}
+
+    <div class="sm-sim-metrics">
+      ${simMetric('Strategy return', simPct(s.total_return), simTone(s.total_return),
+                  s.annualized_return !== null ? `${simPct(s.annualized_return)} a year` : '')}
+      ${simMetric('Max drawdown', simPct(s.max_drawdown), simTone(s.max_drawdown),
+                  s.max_drawdown_date ? `deepest on ${s.max_drawdown_date}` : '')}
+      ${simMetric('Buy &amp; hold return', simPct(h.total_return), simTone(h.total_return),
+                  h.annualized_return !== null ? `${simPct(h.annualized_return)} a year` : '')}
+      ${simMetric('Buy &amp; hold drawdown', simPct(h.max_drawdown), simTone(h.max_drawdown),
+                  'same period, no rule')}
+    </div>
+
+    ${simCurve(r.curve)}
+
+    <div class="sm-sim-table-wrap">
+      <table class="sm-sim-table">
+        <thead>
+          <tr>
+            <th>Symbol</th><th>Weight</th><th>With the rule</th>
+            <th>Buy &amp; hold</th><th>Time invested</th><th>Switches</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+
+    <div class="sm-sim-actions">
+      <button class="sm-btn sm-btn-ghost sm-btn-sm" onclick="exportSimulation()">Export JSON</button>
+    </div>`;
+}
+
+// Inline SVG so the tab needs no charting library
+function simCurve(curve) {
+  if (!curve || curve.length < 2) return '';
+
+  const W = 720, H = 200, PAD = 4;
+  const values = curve.flatMap(p => [p.strategy, p.buy_hold]);
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = (max - min) || 1;
+
+  const path = key => curve.map((p, i) => {
+    const x = PAD + (i / (curve.length - 1)) * (W - PAD * 2);
+    const y = H - PAD - ((p[key] - min) / span) * (H - PAD * 2);
+    return `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  return `
+    <div class="sm-sim-chart">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="sm-sim-svg">
+        <path d="${path('buy_hold')}" fill="none" stroke="#484F58" stroke-width="1.5"/>
+        <path d="${path('strategy')}" fill="none" stroke="#1F6FEB" stroke-width="2"/>
+      </svg>
+      <div class="sm-sim-legend">
+        <span><i style="background:#1F6FEB;"></i> With the rule</span>
+        <span><i style="background:#484F58;"></i> Buy &amp; hold</span>
+      </div>
+    </div>`;
+}
+
+function exportSimulation() {
+  if (!SIM_LAST) return;
+
+  const blob = new Blob([JSON.stringify(SIM_LAST, null, 2)],
+                        { type: 'application/json;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `simulation_${SIM_LAST.from}_${SIM_LAST.to}.json`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}

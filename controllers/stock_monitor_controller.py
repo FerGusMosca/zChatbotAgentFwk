@@ -1,5 +1,5 @@
 # stock_monitor_controller.py — v4
-import csv, io, os
+import csv, io, json, os
 
 import httpx
 from fastapi import APIRouter, Request, Form, UploadFile, File
@@ -12,6 +12,8 @@ from common.util.std_in_out.root_locator import RootLocator
 from data_access_layer.stock_monitor_manager import StockMonitorManager
 from services.research_excel_importer import list_sheets, extract_sheet
 from services.alert_levels_importer import parse_levels
+from services.portfolio_simulator import (run_simulation, SimulationError,
+                                          DEFAULT_MA_WINDOW)
 
 
 RESEARCH_FIELD_LABELS = {
@@ -592,6 +594,67 @@ class StockMonitorController:
                 return JSONResponse({"status":"ok"})
             except Exception as e:
                 return JSONResponse({"status":"error","message":str(e)}, status_code=500)
+
+        # ── Simulation ────────────────────────────────────────
+        #
+        # Backtests a set of symbols under one rule over a date range. The
+        # symbols either come from a saved portfolio or are pasted by hand.
+
+        @self.router.get("/simulation/defaults")
+        async def simulation_defaults():
+            return JSONResponse({"status": "ok", "ma_window": DEFAULT_MA_WINDOW})
+
+        @self.router.post("/simulate")
+        async def simulate_portfolio(
+                symbols: str = Form(None),
+                portfolio_id: int = Form(None),
+                weight_mode: str = Form("equal"),
+                weights: str = Form(None),
+                start_date: str = Form(...),
+                end_date: str = Form(...),
+                ma_window: int = Form(DEFAULT_MA_WINDOW),
+        ):
+            try:
+                # A saved portfolio wins over pasted text only when no text
+                # was pasted: editing the box should not be silently ignored.
+                symbol_list = symbols
+                if not (symbols or "").strip():
+                    if not portfolio_id:
+                        return JSONResponse(
+                            {"status": "error",
+                             "message": "Pick a portfolio or paste some symbols."},
+                            status_code=400)
+                    symbol_list = [a.symbol for a in self.mgr.get_assets(portfolio_id)]
+
+                # Relative weights arrive as JSON: {"AAPL": 3, "MSFT": 1}
+                parsed_weights = None
+                if weight_mode == "relative" and weights:
+                    try:
+                        parsed_weights = json.loads(weights)
+                    except ValueError:
+                        return JSONResponse(
+                            {"status": "error",
+                             "message": "The relative weights are not valid JSON."},
+                            status_code=400)
+
+                result = await run_simulation(
+                    symbols=symbol_list,
+                    weight_mode=weight_mode,
+                    raw_weights=parsed_weights,
+                    start_date=start_date,
+                    end_date=end_date,
+                    ma_window=ma_window,
+                )
+
+                return JSONResponse({"status": "ok", "result": result})
+
+            except SimulationError as e:
+                return JSONResponse({"status": "error", "message": str(e)},
+                                    status_code=400)
+            except Exception as e:
+                return JSONResponse(
+                    {"status": "error", "message": f"{type(e).__name__}: {e}"},
+                    status_code=500)
 
         @self.router.get("/price")
         async def get_price(symbol: str):
