@@ -467,3 +467,143 @@ body {
   .dca-action-btn { width: 100%; min-width: unset; }
   .dca-modal-large { width: 100%; border-radius: 14px 14px 0 0; align-self: flex-end; }
 }
+/* ══════════════════════════════════════════════════════════════════════
+   Filing calendar, score reference and readable fragments
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Filing calendar row ── */
+.dca-cal-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px 16px;
+  align-items: center;
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  background: #0D1117;
+  border: 1px solid #21262D;
+  border-radius: 10px;
+}
+.dca-cal-main { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.dca-cal-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; color: #6E7681;
+  text-transform: uppercase; letter-spacing: 0.14em;
+}
+.dca-cal-value {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 16px; font-weight: 500; color: #E6EDF3;
+}
+.dca-cal-ok    { color: #3FB950; }
+.dca-cal-empty { color: #6E7681; }
+.dca-cal-err   { color: #F85149; }
+.dca-cal-wait  { color: #58A6FF; }
+.dca-cal-hint  { font-size: 12px; color: #6E7681; }
+
+.dca-cal-btn {
+  padding: 7px 14px;
+  background: transparent; color: #8B949E;
+  border: 1px solid #21262D; border-radius: 8px;
+  font-size: 12px; cursor: pointer;
+  font-family: 'IBM Plex Sans', sans-serif;
+  transition: all 0.18s;
+}
+.dca-cal-btn:hover:not(:disabled) { color: #E6EDF3; border-color: #30363D; background: #161B22; }
+.dca-cal-btn:disabled { opacity: 0.5; cursor: default; }
+
+.dca-cal-all {
+  grid-column: 1 / -1;
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.dca-cal-all:empty { display: none; }
+.dca-cal-chip {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; color: #8B949E;
+  background: #080C10; border: 1px solid #161B22;
+  border-radius: 6px; padding: 4px 9px;
+}
+.dca-cal-chip b { color: #6E7681; font-weight: 500; margin-right: 4px; }
+.dca-cal-chip.active { border-color: #1F6FEB; color: #E6EDF3; }
+.dca-cal-chip.active b { color: #58A6FF; }
+
+/* ── Score reference ── */
+.dca-help {
+  margin-bottom: 16px; padding: 16px;
+  background: #0D1117; border: 1px solid #21262D; border-radius: 10px;
+}
+.dca-help-grid {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+.dca-help-card {
+  background: #080C10; border: 1px solid #161B22;
+  border-radius: 8px; padding: 12px 14px;
+}
+.dca-help-code {
+  display: inline-block; margin-bottom: 7px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px; color: #58A6FF;
+  background: #0D2040; border-radius: 5px; padding: 3px 8px;
+}
+.dca-help-what { font-size: 12.5px; color: #E6EDF3; margin-bottom: 5px; }
+.dca-help-why  { font-size: 12px; color: #8B949E; line-height: 1.6; }
+.dca-help-why code {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #58A6FF;
+}
+
+/* ── Fragments ── */
+.dca-frag-group { margin-bottom: 18px; }
+.dca-frag-group-head {
+  display: flex; align-items: baseline; gap: 10px;
+  font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  margin-bottom: 10px;
+}
+.dca-frag-count {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; color: #6E7681;
+  text-transform: none; letter-spacing: 0;
+}
+
+.dca-frag {
+  background: #0D1117; border: 1px solid #161B22;
+  border-left: 3px solid #30363D;
+  border-radius: 8px; padding: 12px 14px; margin-bottom: 8px;
+}
+.dca-frag.positive { border-left-color: #3FB950; }
+.dca-frag.negative { border-left-color: #F85149; }
+
+.dca-frag-head {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+}
+.dca-frag-rank {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; color: #484F58; flex-shrink: 0;
+}
+.dca-frag-bar {
+  flex: 1; height: 3px; border-radius: 2px;
+  background: #161B22; overflow: hidden;
+}
+.dca-frag-bar-fill { display: block; height: 100%; border-radius: 2px; }
+.dca-frag-score {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px; font-weight: 500; flex-shrink: 0;
+}
+
+.dca-frag-text {
+  font-size: 13.5px; line-height: 1.7; color: #C9D1D9;
+}
+.dca-frag-ellipsis { color: #484F58; }
+
+.dca-frag-more {
+  margin-top: 8px; padding: 0;
+  background: none; border: none;
+  color: #58A6FF; font-size: 11.5px; cursor: pointer;
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+.dca-frag-more:hover { text-decoration: underline; }
+
+/* Actions inside the results modal header */
+.dca-modal-actions {
+  display: flex; gap: 8px; margin-left: auto; margin-right: 12px;
+}
+.dca-modal-actions .dca-cal-btn[hidden] { display: none; }

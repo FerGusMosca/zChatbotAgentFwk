@@ -87,7 +87,23 @@
 
       </div>
 
+      <!-- ── Filing calendar: the date the document really represents ── -->
+      <div id="calendarRow" class="dca-cal-row dca-hidden">
+        <div class="dca-cal-main">
+          <span class="dca-cal-label">Filing date</span>
+          <span class="dca-cal-value" id="calValue">&mdash;</span>
+          <span class="dca-cal-hint" id="calHint">Pick a symbol and a year</span>
+        </div>
+
+        <div class="dca-cal-actions">
+          <button type="button" id="calRefreshBtn" class="dca-cal-btn">Fetch calendar</button>
+        </div>
+
+        <div class="dca-cal-all" id="calAll"></div>
+      </div>
+
       <!-- ── Free Text row ── -->
+
       <div id="freeTextRow" class="dca-hidden" style="margin-bottom:14px;">
         <hr class="dca-divider">
         <p class="dca-section-label">Document Content</p>
@@ -221,9 +237,60 @@
   <div class="dca-modal-content dca-modal-large">
     <div class="dca-modal-header">
       <h3 id="resultsModalTitle">Analysis Results</h3>
+      <div class="dca-modal-actions">
+        <button type="button" id="scoreHelpBtn" class="dca-cal-btn"
+                aria-expanded="false" aria-controls="scoreHelp">What do the scores mean?</button>
+        <button type="button" id="exportJsonBtn" class="dca-cal-btn">Export JSON</button>
+      </div>
       <button id="closeResultsModal" class="dca-modal-close">×</button>
     </div>
     <div class="dca-modal-body">
+
+      <!-- Score reference: lives next to the numbers it explains -->
+      <div class="dca-help" id="scoreHelp" hidden>
+        <div class="dca-help-grid">
+
+          <div class="dca-help-card">
+            <code class="dca-help-code">mdna_sentiment</code>
+            <div class="dca-help-what">Average tone of the management discussion.</div>
+            <div class="dca-help-why">An average over every scored sentence, so one glowing
+              paragraph barely moves it. A high value means the optimism is sustained.</div>
+          </div>
+
+          <div class="dca-help-card">
+            <code class="dca-help-code">outlook_sentiment</code>
+            <div class="dca-help-what">Tone of the section read as the outlook.</div>
+            <div class="dca-help-why">Today it carries the same value as
+              <code>mdna_sentiment</code>. Treat it as a placeholder until the forward
+              sentences are scored on their own.</div>
+          </div>
+
+          <div class="dca-help-card">
+            <code class="dca-help-code">forward_ratio</code>
+            <div class="dca-help-what">Share of sentences about the future.</div>
+            <div class="dca-help-why">High means the section is spent on what is coming
+              rather than on what happened. It says nothing about tone: a company can be
+              forward-looking and gloomy at once.</div>
+          </div>
+
+          <div class="dca-help-card">
+            <code class="dca-help-code">hedge_ratio</code>
+            <div class="dca-help-what">Share of sentences full of hedging words.</div>
+            <div class="dca-help-why">"May", "could", "we believe" everywhere means the
+              claims are being softened. Good news wrapped in hedging is weaker than the
+              tone alone suggests.</div>
+          </div>
+
+          <div class="dca-help-card">
+            <code class="dca-help-code">financial_sentences</code>
+            <div class="dca-help-what">How many sentences survived the filters.</div>
+            <div class="dca-help-why">This is the sample size, not a score. A tone built on
+              twenty sentences is far shakier than one built on two hundred.</div>
+          </div>
+
+        </div>
+      </div>
+
       <div id="resultsModalContent"></div>
     </div>
   </div>

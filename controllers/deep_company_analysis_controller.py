@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 from common.config.settings import settings
 from common.util.std_in_out.root_locator import RootLocator
 from data_access_layer.portfolio_securities_manager import PortfolioSecuritiesManager
+from data_access_layer.security_calendar_manager import SecurityCalendarManager
 
 
 class DeepCompanyAnalysisController:
@@ -33,6 +34,11 @@ class DeepCompanyAnalysisController:
     }
 
     DOWNLOAD_K8_REPORT = "download_k8_single_security"
+    DOWNLOAD_CALENDAR_REPORT = "download_securities_reports_calendar"
+
+    # One security only, so the run is short. If it goes past this, something
+    # is wrong on the server side rather than slow.
+    CALENDAR_TIMEOUT = 90
     DOWNLOAD_F4_REPORT = "download_f4_single_security"
 
     SINGLE_SEC_TOPIC_REP = "document_tagging_single_security"
@@ -264,6 +270,10 @@ class DeepCompanyAnalysisController:
         # Initialize PortfolioSecuritiesManager for symbol validation
         self.sec_mgr = PortfolioSecuritiesManager(settings.research_connection_string)
 
+        # Filing calendar: the date a 10-Q or 10-K actually landed, which is what
+        # the fiscal quarter on screen does not tell you.
+        self.calendar_mgr = SecurityCalendarManager(settings.research_connection_string)
+
         @self.router.get("/", response_class=HTMLResponse)
         async def deep_company_analysis_page(request: Request):
             """Main page for deep company analysis"""
@@ -273,6 +283,196 @@ class DeepCompanyAnalysisController:
             )
 
 
+
+        # ─────────────────────────────────────────────────────────────
+        # Filing calendar
+        #
+        # The quarter picked on screen is a FISCAL quarter. What the analyst
+        # needs to know is the day the filing actually landed, because the same
+        # Q3 arrives in July for one company and in October for another.
+        # ─────────────────────────────────────────────────────────────
+
+        def _fmt_date(value):
+            if not value:
+                return None
+            if hasattr(value, "strftime"):
+                return value.strftime("%Y-%m-%d")
+            return str(value)
+
+        def _read_calendar(symbol: str, year: str):
+            """Returns every filing date on file for one symbol and year."""
+            rows = self.calendar_mgr.get(symbol.upper().strip(), year)
+            if not rows:
+                return None
+
+            row = rows[0]
+            return {
+                "K10": _fmt_date(row.get("k10_filing_date")),
+                "Q1": _fmt_date(row.get("q1_filing_date")),
+                "Q2": _fmt_date(row.get("q2_filing_date")),
+                "Q3": _fmt_date(row.get("q3_filing_date")),
+                "Q4": _fmt_date(row.get("q4_filing_date")),
+            }
+
+        @self.router.get("/calendar")
+        async def get_calendar(symbol: str, year: str):
+            """Reads what is already stored. Never downloads anything."""
+            try:
+                dates = _read_calendar(symbol, year)
+
+                if dates is None:
+                    return JSONResponse({
+                        "status": "empty",
+                        "symbol": symbol.upper().strip(),
+                        "year": year,
+                        "message": "No calendar row stored for this symbol and year."
+                    })
+
+                return JSONResponse({
+                    "status": "ok",
+                    "symbol": symbol.upper().strip(),
+                    "year": year,
+                    "dates": dates
+                })
+
+            except Exception as e:
+                return JSONResponse(
+                    {"status": "error", "message": f"{type(e).__name__}: {e}"},
+                    status_code=500
+                )
+
+        @self.router.post("/calendar/refresh")
+        async def refresh_calendar(
+                symbol: str = Form(...),
+                year: str = Form(...),
+                portfolio: str = Form(self.DEFAULT_REMOTE_PORTF)
+        ):
+            """
+            Fires the calendar report for ONE security and reads the result back.
+
+            The report re-extracts the dates from the filings already on disk, so
+            it only helps when the 10-K/10-Q were downloaded; if they were not,
+            the answer comes back empty and the screen says so.
+            """
+            symbol_upper = symbol.upper().strip()
+
+            payload = {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "run_report",
+                    "arguments": {
+                        "report": self.DOWNLOAD_CALENDAR_REPORT,
+                        "portfolio": portfolio,
+                        "symbol": symbol_upper,
+                        "year": str(year).strip()
+                    }
+                }
+            }
+
+            try:
+                async with websockets.connect(settings.reports_mcp_server,
+                                              open_timeout=10) as ws:
+                    await ws.send(json.dumps({
+                        "jsonrpc": "2.0", "id": 1,
+                        "method": "tools/list", "params": {}
+                    }))
+                    await asyncio.sleep(0.2)
+                    await ws.send(json.dumps(payload))
+
+                    # The report ends by logging a JSON line with
+                    # event=completed / report=download_securities_calendar.
+                    # That line is the only reliable "it finished" signal, so the
+                    # socket is drained until it shows up.
+                    error_message = None
+                    run_summary = None
+
+                    while True:
+                        msg = await asyncio.wait_for(ws.recv(), timeout=self.CALENDAR_TIMEOUT)
+                        msg_data = json.loads(msg)
+
+                        if "error" in msg_data:
+                            error_message = msg_data["error"].get("message", str(msg_data["error"]))
+                            break
+
+                        if msg_data.get("method") != "job/progress":
+                            continue
+
+                        text = msg_data.get("params", {}).get("message", "") or ""
+
+                        if "ABORT" in text:
+                            error_message = text
+                            break
+
+                        # Progress lines are plain text; only the completion line
+                        # parses as JSON, so a failed parse simply means "keep going".
+                        try:
+                            event = json.loads(text)
+                        except (ValueError, TypeError):
+                            continue
+
+                        if (isinstance(event, dict)
+                                and event.get("event") == "completed"
+                                and event.get("report") == "download_securities_calendar"):
+                            run_summary = event.get("summary")
+                            break
+
+                if error_message:
+                    return JSONResponse(
+                        {"status": "error", "message": error_message},
+                        status_code=502
+                    )
+
+            except asyncio.TimeoutError:
+                return JSONResponse(
+                    {"status": "error",
+                     "message": f"The calendar report did not finish within {self.CALENDAR_TIMEOUT} seconds."},
+                    status_code=504
+                )
+
+            except (OSError, websockets.exceptions.WebSocketException) as e:
+                return JSONResponse(
+                    {"status": "error",
+                     "message": f"Could not reach the reports server at "
+                                f"{settings.reports_mcp_server}. It is most likely off. "
+                                f"({type(e).__name__}: {e})"},
+                    status_code=503
+                )
+
+            except Exception as e:
+                return JSONResponse(
+                    {"status": "error", "message": f"{type(e).__name__}: {e}"},
+                    status_code=500
+                )
+
+            # Read back what the run left behind
+            try:
+                dates = _read_calendar(symbol_upper, year)
+            except Exception as e:
+                return JSONResponse(
+                    {"status": "error",
+                     "message": f"The report ran but the calendar could not be read back: "
+                                f"{type(e).__name__}: {e}"},
+                    status_code=500
+                )
+
+            if dates is None:
+                return JSONResponse({
+                    "status": "empty",
+                    "symbol": symbol_upper,
+                    "year": year,
+                    "message": "The report ran but left no dates. The filings for this "
+                               "symbol and year are probably not downloaded yet."
+                })
+
+            return JSONResponse({
+                "status": "ok",
+                "symbol": symbol_upper,
+                "year": year,
+                "dates": dates,
+                "summary": run_summary
+            })
 
         @self.router.post("/analyze_sentiment")
         async def analyze_sentiment(

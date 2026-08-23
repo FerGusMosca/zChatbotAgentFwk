@@ -9,6 +9,14 @@ const els = {
   docTypeSelect:              document.getElementById('docTypeSelect'),
   yearInput:                  document.getElementById('yearInput'),
   quarterSelect:              document.getElementById('quarterSelect'),
+  calendarRow:                document.getElementById('calendarRow'),
+  calValue:                   document.getElementById('calValue'),
+  calHint:                    document.getElementById('calHint'),
+  calAll:                     document.getElementById('calAll'),
+  calRefreshBtn:              document.getElementById('calRefreshBtn'),
+  scoreHelpBtn:               document.getElementById('scoreHelpBtn'),
+  scoreHelp:                  document.getElementById('scoreHelp'),
+  exportJsonBtn:              document.getElementById('exportJsonBtn'),
   quarterPlaceholder:         document.getElementById('quarterPlaceholder'),
   freeTextRow:                document.getElementById('freeTextRow'),
   freeTextArea:               document.getElementById('freeTextArea'),
@@ -85,6 +93,12 @@ function setAnalysisButtonsEnabled(enabled) {
 // ══════════════════════════════════════════════════
 function setupEventListeners() {
   els.docTypeSelect.addEventListener('change', handleDocTypeChange);
+  els.quarterSelect.addEventListener('change', refreshCalendarView);
+  els.yearInput.addEventListener('change', loadCalendar);
+  els.symbolInput.addEventListener('blur', loadCalendar);
+  els.calRefreshBtn.addEventListener('click', downloadCalendar);
+  els.scoreHelpBtn.addEventListener('click', toggleScoreHelp);
+  els.exportJsonBtn.addEventListener('click', exportAnalysisJson);
   els.symbolInput.addEventListener('input', handleSymbolInput);
   els.symbolInput.addEventListener('blur', validateSymbol);
   els.sentimentBtn.addEventListener('click', () => handleAnalysis('sentiment'));
@@ -226,6 +240,9 @@ function handleDocTypeChange() {
   els.quarterSelect.classList.add('dca-hidden');
   els.quarterPlaceholder?.classList.remove('dca-hidden');
 
+  // The filing calendar only exists for the periodic reports.
+  els.calendarRow.classList.toggle('dca-hidden', dt !== '10Q' && dt !== '10K');
+
   els.freeAnalysisBtn.classList.add('dca-hidden');
   els.freeAnalysisPromptSection.classList.add('dca-hidden');
   els.sentimentBtn.classList.remove('dca-hidden');
@@ -253,6 +270,8 @@ function handleDocTypeChange() {
     els.sentimentBtn.classList.add('dca-hidden');
     els.topicsBtn.classList.add('dca-hidden');
   }
+
+  refreshCalendarView();
 }
 
 // ══════════════════════════════════════════════════
@@ -460,29 +479,8 @@ function displayResults(data, analysisType) {
             ${metricCard('Hedging Language', pct(m.hedge_ratio || 0), (m.hedge_ratio||0)>0.2?'#F85149':'#8B949E')}
           </div>
 
-          ${topPos.length ? `
-            <div style="margin-bottom:16px;">
-              <div class="dca-section-label" style="color:#3FB950;margin-bottom:8px;">✅ Most Positive</div>
-              <div class="dca-scroll-inner">
-                ${topPos.map(x => `
-                  <div class="dca-sentiment-card positive">
-                    ${escapeHtml(x.sent)}
-                    <div class="dca-sentiment-score">Score: ${x.score.toFixed(3)}</div>
-                  </div>`).join('')}
-              </div>
-            </div>` : ''}
-
-          ${topNeg.length ? `
-            <div>
-              <div class="dca-section-label" style="color:#F85149;margin-bottom:8px;">⚠️ Most Negative</div>
-              <div class="dca-scroll-inner">
-                ${topNeg.map(x => `
-                  <div class="dca-sentiment-card negative">
-                    ${escapeHtml(x.sent)}
-                    <div class="dca-sentiment-score">Score: ${x.score.toFixed(3)}</div>
-                  </div>`).join('')}
-              </div>
-            </div>` : ''}
+          ${sentimentFragments('Most Positive', topPos, 'positive')}
+          ${sentimentFragments('Most Negative', topNeg, 'negative')}
         </div>`;
     } else {
       html = unexpectedBlock(data);
@@ -548,8 +546,17 @@ function displayResults(data, analysisType) {
     }
   }
 
+  // Kept so the modal can export exactly what came back from the service.
+  LAST_ANALYSIS = { type: analysisType, data: data };
+
   const titles = { sentiment: '📊 Sentiment Analysis', topics: '🏷️ Topic Analysis', free: '🤖 Free Analysis' };
   showResultsModal(titles[analysisType] || 'Results', html);
+
+  // The score reference only explains the sentiment numbers.
+  els.scoreHelpBtn.hidden = analysisType !== 'sentiment';
+  els.scoreHelp.hidden = true;
+  els.scoreHelpBtn.setAttribute('aria-expanded', 'false');
+  els.scoreHelpBtn.textContent = 'What do the scores mean?';
   showResult('✓ Analysis completed', 'success', true);
 }
 
@@ -658,4 +665,286 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {
   init();
+}
+// ══════════════════════════════════════════════════
+//  FILING CALENDAR
+//
+//  The quarter on screen is a FISCAL quarter. What the analyst needs is the
+//  day the filing actually landed: the same Q3 arrives in July for one company
+//  and in October for another, and that gap changes what the text is about.
+// ══════════════════════════════════════════════════
+
+// Every date on file for the current symbol/year, keyed by K10 / Q1..Q4.
+let CAL_DATES = null;
+let CAL_LOADING = false;
+
+function calendarApplies() {
+  const dt = els.docTypeSelect.value;
+  return dt === '10Q' || dt === '10K';
+}
+
+function currentPeriodKey() {
+  if (els.docTypeSelect.value === '10K') return 'K10';
+  return (els.quarterSelect.value || '').trim() || null;
+}
+
+function setCalendar(value, hint, kind) {
+  els.calValue.textContent = value;
+  els.calHint.textContent = hint || '';
+  els.calValue.className = 'dca-cal-value' + (kind ? ` dca-cal-${kind}` : '');
+}
+
+// Paints the date for the period currently selected, plus the rest as chips so
+// the neighbouring quarters are visible without a second round trip.
+function refreshCalendarView() {
+  if (!calendarApplies()) return;
+
+  if (CAL_LOADING) {
+    setCalendar('…', 'Reading the calendar', 'wait');
+    els.calAll.innerHTML = '';
+    return;
+  }
+
+  if (!CAL_DATES) {
+    setCalendar('—', 'No calendar stored yet — press Fetch calendar', 'empty');
+    els.calAll.innerHTML = '';
+    return;
+  }
+
+  const key = currentPeriodKey();
+
+  if (!key) {
+    setCalendar('—', 'Pick a quarter', 'empty');
+  } else if (CAL_DATES[key]) {
+    setCalendar(CAL_DATES[key], `${key} landed on this date`, 'ok');
+  } else {
+    setCalendar('—', `${key} has no filing date on file`, 'empty');
+  }
+
+  // Chips for the other periods
+  const chips = Object.keys(CAL_DATES)
+    .filter(k => CAL_DATES[k])
+    .map(k => `<span class="dca-cal-chip${k === key ? ' active' : ''}">
+                 <b>${k}</b> ${CAL_DATES[k]}
+               </span>`)
+    .join('');
+
+  els.calAll.innerHTML = chips || '';
+}
+
+async function loadCalendar() {
+  if (!calendarApplies()) return;
+
+  const symbol = els.symbolInput.value.trim().toUpperCase();
+  const year = els.yearInput.value.trim();
+
+  if (!symbol || !year) {
+    CAL_DATES = null;
+    refreshCalendarView();
+    return;
+  }
+
+  CAL_LOADING = true;
+  refreshCalendarView();
+
+  try {
+    const resp = await fetch(
+      `/deep_company_analysis/calendar?symbol=${encodeURIComponent(symbol)}&year=${encodeURIComponent(year)}`);
+    const data = await resp.json();
+
+    CAL_DATES = data.status === 'ok' ? data.dates : null;
+
+    if (data.status === 'error') {
+      CAL_LOADING = false;
+      setCalendar('—', data.message || 'Could not read the calendar', 'err');
+      els.calAll.innerHTML = '';
+      return;
+    }
+
+  } catch (e) {
+    CAL_DATES = null;
+    CAL_LOADING = false;
+    setCalendar('—', `Could not reach the dashboard: ${e.message}`, 'err');
+    return;
+  }
+
+  CAL_LOADING = false;
+  refreshCalendarView();
+}
+
+// Fires the calendar report for THIS security only and reads the result back.
+async function downloadCalendar() {
+  const symbol = els.symbolInput.value.trim().toUpperCase();
+  const year = els.yearInput.value.trim();
+
+  if (!symbol || !year) {
+    setCalendar('—', 'A symbol and a year are needed first', 'err');
+    return;
+  }
+
+  const btn = els.calRefreshBtn;
+  btn.disabled = true;
+  btn.textContent = 'Fetching…';
+  setCalendar('…', `Running the calendar report for ${symbol}`, 'wait');
+  els.calAll.innerHTML = '';
+
+  try {
+    const fd = new FormData();
+    fd.append('symbol', symbol);
+    fd.append('year', year);
+
+    const resp = await fetch('/deep_company_analysis/calendar/refresh',
+                             { method: 'POST', body: fd });
+    const data = await resp.json();
+
+    if (data.status === 'ok') {
+      CAL_DATES = data.dates;
+      refreshCalendarView();
+
+      // The report tells how many securities it touched and how many dates it
+      // wrote. Showing it makes clear the run really did something.
+      const sum = data.summary || {};
+      if (sum.processed !== undefined) {
+        els.calHint.textContent =
+          `Report finished — ${sum.saved || 0} saved, ${sum.new_dates || 0} new, ${sum.errors || 0} errors`;
+      }
+    } else {
+      CAL_DATES = null;
+      els.calAll.innerHTML = '';
+      setCalendar('—', data.message || 'The report returned nothing', 
+                  data.status === 'empty' ? 'empty' : 'err');
+    }
+
+  } catch (e) {
+    CAL_DATES = null;
+    setCalendar('—', `Could not reach the dashboard: ${e.message}`, 'err');
+
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Fetch calendar';
+  }
+}
+
+// ══════════════════════════════════════════════════
+//  SCORE REFERENCE
+// ══════════════════════════════════════════════════
+function toggleScoreHelp() {
+  const open = els.scoreHelp.hidden;
+  els.scoreHelp.hidden = !open;
+  els.scoreHelpBtn.setAttribute('aria-expanded', String(open));
+  els.scoreHelpBtn.textContent = open ? 'Hide the score reference'
+                                      : 'What do the scores mean?';
+}
+
+// ══════════════════════════════════════════════════
+//  SENTIMENT FRAGMENTS
+//
+//  The old version dumped the raw sentence into a box. Two things made it hard
+//  to read: the score sat below the text with no scale to compare it against,
+//  and long boilerplate sentences buried the part that actually scored. Here
+//  each fragment gets a rank, a bar showing how far it sits from neutral, and
+//  a cut-off with a "show the rest" toggle.
+// ══════════════════════════════════════════════════
+
+const FRAGMENT_PREVIEW_CHARS = 260;
+
+function fragmentBar(score) {
+  // Scores land roughly in [-3, 3]; the bar is the share of that range used.
+  const width = Math.min(Math.abs(score) / 3, 1) * 100;
+  const color = score >= 0 ? '#3FB950' : '#F85149';
+  return `<span class="dca-frag-bar">
+            <span class="dca-frag-bar-fill" style="width:${width.toFixed(1)}%;background:${color};"></span>
+          </span>`;
+}
+
+function sentimentFragments(title, items, kind) {
+  if (!items || !items.length) return '';
+
+  const accent = kind === 'positive' ? '#3FB950' : '#F85149';
+
+  const cards = items.map((x, i) => {
+    const text = String(x.sent || '');
+    const long = text.length > FRAGMENT_PREVIEW_CHARS;
+    const head = escapeHtml(long ? text.slice(0, FRAGMENT_PREVIEW_CHARS).trim() : text);
+    const tail = long ? escapeHtml(text.slice(FRAGMENT_PREVIEW_CHARS)) : '';
+    const id = `frag-${kind}-${i}`;
+
+    return `
+      <div class="dca-frag ${kind}">
+        <div class="dca-frag-head">
+          <span class="dca-frag-rank">#${i + 1}</span>
+          ${fragmentBar(x.score || 0)}
+          <span class="dca-frag-score" style="color:${accent};">${(x.score || 0).toFixed(3)}</span>
+        </div>
+
+        <div class="dca-frag-text">${head}${long
+          ? `<span class="dca-frag-tail" id="${id}" hidden>${tail}</span><span class="dca-frag-ellipsis" id="${id}-dots">…</span>`
+          : ''}</div>
+
+        ${long ? `<button type="button" class="dca-frag-more"
+                    onclick="toggleFragment('${id}', this)">Show the rest</button>` : ''}
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="dca-frag-group">
+      <div class="dca-frag-group-head" style="color:${accent};">
+        ${title}
+        <span class="dca-frag-count">${items.length} fragment${items.length !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="dca-scroll-inner">${cards}</div>
+    </div>`;
+}
+
+function toggleFragment(id, btn) {
+  const tail = document.getElementById(id);
+  const dots = document.getElementById(`${id}-dots`);
+  if (!tail) return;
+
+  const opening = tail.hidden;
+  tail.hidden = !opening;
+  if (dots) dots.hidden = opening;
+  btn.textContent = opening ? 'Show less' : 'Show the rest';
+}
+
+// ══════════════════════════════════════════════════
+//  EXPORT
+//
+//  Exports what the service actually returned, not what the modal drew: the
+//  raw metrics and fragments are what gets pasted into a spreadsheet or fed
+//  into another script later.
+// ══════════════════════════════════════════════════
+
+let LAST_ANALYSIS = null;
+
+function exportAnalysisJson() {
+  if (!LAST_ANALYSIS) return;
+
+  const payload = {
+    exported_at: new Date().toISOString(),
+    analysis_type: LAST_ANALYSIS.type,
+    symbol: els.symbolInput.value.trim().toUpperCase() || null,
+    doc_type: els.docTypeSelect.value || null,
+    year: els.yearInput.value.trim() || null,
+    quarter: els.quarterSelect.value || null,
+    // The date the filing really landed travels with the scores: without it
+    // the numbers cannot be lined up against anything.
+    filing_dates: CAL_DATES,
+    result: LAST_ANALYSIS.data
+  };
+
+  const stamp = [
+    payload.symbol || 'export',
+    payload.year || '',
+    payload.quarter || payload.doc_type || '',
+    LAST_ANALYSIS.type
+  ].filter(Boolean).join('_');
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)],
+                        { type: 'application/json;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${stamp}.json`;
+  link.click();
+  URL.revokeObjectURL(link.href);
 }
