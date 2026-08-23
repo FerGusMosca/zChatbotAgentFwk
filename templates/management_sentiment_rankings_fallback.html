@@ -11,6 +11,7 @@
 </head>
 <body class="srfb-body">
 
+<!-- Nav: same shape as Deep Company Analysis so the screens read as one app -->
 <nav class="srfb-nav">
   <a href="/" class="srfb-nav-logo">
     <span class="srfb-nav-logo-b">B</span>
@@ -18,6 +19,8 @@
   </a>
   <ul class="srfb-nav-links">
     <li><a href="/">Home</a></li>
+    <li><a href="/deep_company_analysis">Deep Company Analysis</a></li>
+    <li><a href="/management_sentiment">Management Sentiment</a></li>
     <li><a href="/management_sentiment_rankings_fallback" class="active">Sentiment Ranking FB</a></li>
   </ul>
 </nav>
@@ -25,8 +28,9 @@
 <div class="srfb-page">
 
   <div class="srfb-page-header">
-    <div class="srfb-eyebrow">Rankings · #7-Fb</div>
-    <h1 class="srfb-title">📉 Sentiment Ranking Fallback</h1>
+    <div class="srfb-eyebrow">Analysis &middot; #7-Fb</div>
+    <h1 class="srfb-title">Sentiment Ranking Fallback</h1>
+    <div class="srfb-sub">Ask the ranking bot about the management discussion of a portfolio's filings</div>
   </div>
 
   <div class="srfb-panel">
@@ -34,7 +38,7 @@
     <form id="fallbackForm" method="POST" class="srfb-form">
 
       <div class="srfb-field srfb-field-full">
-        <label class="srfb-label">Query</label>
+        <label class="srfb-label" for="freeText">Query</label>
         <textarea id="freeText" name="freeText" required
                   placeholder="Example: Best optimism score..."
                   class="srfb-textarea"></textarea>
@@ -43,18 +47,18 @@
       <div class="srfb-fields-row">
 
         <div class="srfb-field">
-          <label class="srfb-label">Dataset</label>
+          <label class="srfb-label" for="k10Selector">Dataset</label>
           <select id="k10Selector" name="k10Selector" required class="srfb-select">
-            <option value="">Select dataset…</option>
+            <option value="">Select dataset&hellip;</option>
             <option value="K10">K10</option>
             <option value="Q10">Q10</option>
           </select>
         </div>
 
-        <div class="srfb-field">
-          <label class="srfb-label">Quarter</label>
-          <select id="quarterSelector" name="quarterSelector" class="srfb-select" style="display:none;">
-            <option value="">Select quarter…</option>
+        <div class="srfb-field" id="quarterField" hidden>
+          <label class="srfb-label" for="quarterSelector">Quarter</label>
+          <select id="quarterSelector" name="quarterSelector" class="srfb-select">
+            <option value="">Select quarter&hellip;</option>
             <option value="Q1">Q1</option>
             <option value="Q2">Q2</option>
             <option value="Q3">Q3</option>
@@ -63,7 +67,7 @@
         </div>
 
         <div class="srfb-field">
-          <label class="srfb-label">Year</label>
+          <label class="srfb-label" for="yearInput">Year</label>
           <input id="yearInput" name="yearInput" type="number" required
                  placeholder="e.g. 2025" class="srfb-input">
         </div>
@@ -71,15 +75,71 @@
       </div>
 
       <div class="srfb-form-footer">
-        <button type="submit" class="srfb-btn">
-          <span class="spinner"></span>
-          <span>🔍 Search</span>
+        <button type="button" class="srfb-btn-ghost" id="btnHelp"
+                aria-expanded="false" aria-controls="scoreHelp">
+          What can I ask for?
+        </button>
+        <span class="srfb-spacer"></span>
+        <button type="submit" class="srfb-btn" id="btnSearch">
+          <span id="btnSearchLabel">Search</span>
         </button>
       </div>
 
     </form>
 
-    <div id="result" class="srfb-result"></div>
+    <!-- Score reference: hidden by default, opened on demand -->
+    <div class="srfb-help" id="scoreHelp" hidden>
+      <div class="srfb-help-head">
+        <span class="srfb-help-title">The five numbers behind every ranking</span>
+        <span class="srfb-help-note">Name any of them in the query to rank by it</span>
+      </div>
+
+      <div class="srfb-help-grid">
+
+        <div class="srfb-help-card">
+          <code class="srfb-help-code">mdna_sentiment</code>
+          <div class="srfb-help-what">Average tone of the management discussion.</div>
+          <div class="srfb-help-why">Positive means the wording leans optimistic across the
+            whole section. It is an average, so one glowing paragraph does not move it much:
+            a high value means the optimism is sustained.</div>
+        </div>
+
+        <div class="srfb-help-card">
+          <code class="srfb-help-code">outlook_sentiment</code>
+          <div class="srfb-help-what">Tone of the section read as the outlook.</div>
+          <div class="srfb-help-why">Today it carries the same value as
+            <code>mdna_sentiment</code>, so ranking by one or the other gives the same order.
+            Treat it as a placeholder until the forward sentences are scored apart.</div>
+        </div>
+
+        <div class="srfb-help-card">
+          <code class="srfb-help-code">forward_ratio</code>
+          <div class="srfb-help-what">Share of sentences that talk about the future.</div>
+          <div class="srfb-help-why">High means management spends the section on what is
+            coming rather than on what happened. It says nothing about tone: a company can be
+            forward-looking and gloomy at the same time.</div>
+        </div>
+
+        <div class="srfb-help-card">
+          <code class="srfb-help-code">hedge_ratio</code>
+          <div class="srfb-help-what">Share of sentences full of hedging words.</div>
+          <div class="srfb-help-why">High means "may", "could", "we believe" everywhere: the
+            claims are being softened. Read it next to the tone, because good news wrapped in
+            hedging is weaker than the tone alone suggests.</div>
+        </div>
+
+        <div class="srfb-help-card">
+          <code class="srfb-help-code">financial_sentences</code>
+          <div class="srfb-help-what">How many sentences survived the filters and got scored.</div>
+          <div class="srfb-help-why">This is the sample size, not a score. A tone built on
+            twenty sentences is far shakier than one built on two hundred, so check it before
+            trusting an extreme ranking.</div>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="result" class="srfb-result" hidden></div>
 
   </div>
 </div>

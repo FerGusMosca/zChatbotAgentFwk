@@ -1,3 +1,4 @@
+import asyncio
 import re
 
 from fastapi import APIRouter, Request, Form
@@ -7,6 +8,11 @@ import websockets
 from pathlib import Path
 from common.config.settings import settings, get_settings
 from data_access_layer.security_calendar_manager import SecurityCalendarManager
+
+
+# Seconds to wait for the bot: one to open the socket, one for the answer.
+BOT_CONNECT_TIMEOUT = 8
+BOT_ANSWER_TIMEOUT = 180
 
 
 class ManagementSentimentRankingsFallbackController:
@@ -111,10 +117,40 @@ class ManagementSentimentRankingsFallbackController:
             suffix = f" Usa el archivo {quarterSelector or ''} del {k10Selector} del {yearInput}"
             query_final = f"{freeText.strip()}.{suffix}"
 
-            # Connect to fallback bot WebSocket
+            # Connect to fallback bot WebSocket.
+            #
+            # The bot lives in another container and is routinely off. Without
+            # this guard the browser only got a 500 with no body, which looks
+            # exactly like a broken screen instead of a bot that is down.
             uri = settings.ranking_fallback_url
-            async with websockets.connect(uri) as ws:
-                await ws.send(query_final)
-                resp = await ws.recv()
+
+            try:
+                async with websockets.connect(uri, open_timeout=BOT_CONNECT_TIMEOUT) as ws:
+                    await ws.send(query_final)
+                    resp = await asyncio.wait_for(ws.recv(), timeout=BOT_ANSWER_TIMEOUT)
+
+            except asyncio.TimeoutError:
+                return JSONResponse(
+                    {"message": "error",
+                     "error_kind": "timeout",
+                     "error": f"The bot at {uri} accepted the question but did not answer "
+                              f"within {BOT_ANSWER_TIMEOUT} seconds."},
+                    status_code=504)
+
+            except (OSError, websockets.exceptions.WebSocketException) as e:
+                return JSONResponse(
+                    {"message": "error",
+                     "error_kind": "unreachable",
+                     "error": f"Could not reach the bot at {uri}. It is most likely turned "
+                              f"off. ({type(e).__name__}: {e})"},
+                    status_code=503)
+
+            except Exception as e:
+                return JSONResponse(
+                    {"message": "error",
+                     "error_kind": "unexpected",
+                     "error": f"{type(e).__name__}: {e}"},
+                    status_code=500)
+
             resp = eval_footer(resp,yearInput,k10Selector,quarterSelector)
             return JSONResponse({"message": "ok", "bot_response": resp})
