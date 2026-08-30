@@ -144,15 +144,23 @@ class StockMonitorController:
         async def add_note(portfolio_id: int, symbol: str,
                            note: str = Form(...),
                            priority: str = Form('green'),
-                           notify: str = Form('false')):
+                           notify: str = Form('false'),
+                           embed: str = Form('true'),
+                           attach: str = Form('true'),
+                           file: UploadFile = File(None)):
             try:
                 do_notify = notify.lower() in ('true','1','yes')
                 new_id = self.mgr.add_asset_note(portfolio_id, symbol, note, priority, do_notify)
                 if do_notify and self.mailer:
+                    report_html, file_name = await self._read_report_file(file)
                     recipients = self._get_emails(portfolio_id)
                     ok = self.mailer.notify_asset_note(
-                        self._get_portfolio_name(portfolio_id), symbol, note, priority, recipients)
-                    self.mgr.log_notification(portfolio_id, 'note_added', f"symbol={symbol},priority={priority}",
+                        self._get_portfolio_name(portfolio_id), symbol, note, priority, recipients,
+                        report_html=report_html, file_name=file_name,
+                        embed=str(embed).lower() == 'true',
+                        attach=str(attach).lower() == 'true')
+                    self.mgr.log_notification(portfolio_id, 'note_added',
+                        f"symbol={symbol},priority={priority},file={file_name or '-'}",
                         ','.join(recipients), 'sent' if ok else 'failed')
                 return JSONResponse({"status":"ok","id":new_id})
             except Exception as e: return JSONResponse({"status":"error","message":str(e)}, status_code=500)
@@ -174,6 +182,61 @@ class StockMonitorController:
                     ','.join(recipients), 'sent' if ok else 'failed')
                 return JSONResponse({"status":"ok","sent_to":recipients})
             except Exception as e: return JSONResponse({"status":"error","message":str(e)}, status_code=500)
+
+        # ── Reporte cargado a mano (HTML) ─────────────────────
+        @self.router.post("/portfolios/{portfolio_id}/notify_report")
+        async def send_report(portfolio_id: int,
+                              title: str = Form(None),
+                              message: str = Form(None),
+                              embed: str = Form("true"),
+                              attach: str = Form("true"),
+                              file: UploadFile = File(None)):
+            try:
+                if not self.mailer:
+                    return JSONResponse({"status":"error","message":"El mailer SMTP no está configurado (settings.smtp_*)"})
+                recipients = self._get_emails(portfolio_id)
+                if not recipients:
+                    return JSONResponse({"status":"error","message":"El portfolio no tiene subscribers"})
+
+                report_html, file_name = await self._read_report_file(file)
+                if not report_html and not (message or '').strip():
+                    return JSONResponse({"status":"error","message":"Cargá un archivo HTML o escribí un mensaje"})
+
+                pname = self._get_portfolio_name(portfolio_id)
+                ok = self.mailer.notify_report(
+                    portfolio_name=pname, title=title, message=message,
+                    recipients=recipients, report_html=report_html,
+                    file_name=file_name,
+                    embed=str(embed).lower() == 'true',
+                    attach=str(attach).lower() == 'true')
+
+                self.mgr.log_notification(portfolio_id, 'report',
+                    (title or '') + ' | ' + (file_name or 'sin archivo'),
+                    ','.join(recipients), 'sent' if ok else 'failed')
+
+                if not ok:
+                    return JSONResponse({"status":"error","message":"El envío SMTP falló — revisá el log del mailer"})
+                return JSONResponse({"status":"ok","sent_to":recipients,"file":file_name})
+            except Exception as e:
+                return JSONResponse({"status":"error","message":str(e)}, status_code=500)
+
+        @self.router.post("/portfolios/{portfolio_id}/notify_report/preview", response_class=HTMLResponse)
+        async def preview_report(portfolio_id: int,
+                                 title: str = Form(None),
+                                 message: str = Form(None),
+                                 embed: str = Form("true"),
+                                 file: UploadFile = File(None)):
+            """Devuelve el mail ya armado, sin enviar nada."""
+            try:
+                if not self.mailer:
+                    return HTMLResponse("<p>El mailer SMTP no está configurado.</p>", status_code=200)
+                report_html, _ = await self._read_report_file(file)
+                html = self.mailer.build_report_email(
+                    self._get_portfolio_name(portfolio_id), title, message,
+                    report_html, str(embed).lower() == 'true')
+                return HTMLResponse(html)
+            except Exception as e:
+                return HTMLResponse(f"<p>No se pudo armar la vista previa: {e}</p>", status_code=200)
 
         # ── Email subscribers ──────────────────────────────────
         @self.router.get("/portfolios/{portfolio_id}/emails")
@@ -699,6 +762,31 @@ class StockMonitorController:
                     from_addr=settings.smtp_from or settings.smtp_user)
         except Exception: pass
         return None
+
+    MAX_REPORT_BYTES = 8 * 1024 * 1024   # 8 MB
+
+    async def _read_report_file(self, file):
+        """Lee el archivo cargado en la pantalla. Devuelve (contenido, nombre).
+
+        Para un HTML el contenido es texto; para un PDF son los bytes tal cual.
+        """
+        if file is None or not getattr(file, 'filename', ''):
+            return None, None
+        nombre = os.path.basename(file.filename)
+        if not nombre.lower().endswith(('.html', '.htm', '.pdf')):
+            raise ValueError("El archivo tiene que ser .html o .pdf")
+        crudo = await file.read()
+        if len(crudo) > self.MAX_REPORT_BYTES:
+            raise ValueError("El archivo pesa más de 8 MB")
+        if not crudo.strip():
+            raise ValueError("El archivo está vacío")
+        if nombre.lower().endswith('.pdf'):
+            return crudo, nombre
+        try:
+            texto = crudo.decode('utf-8')
+        except UnicodeDecodeError:
+            texto = crudo.decode('latin-1')
+        return texto, nombre
 
     def _get_emails(self, portfolio_id=None, topic_id=None):
         try:

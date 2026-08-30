@@ -45,6 +45,8 @@ let activeAsset  = null;
 let alerts       = [];
 let alertsCollapsed = false;
 let alertFilter     = '';
+let reportFile      = null;   // archivo HTML cargado en la pantalla de subscribers
+let noteReportFile  = null;   // archivo HTML cargado en el panel de notas
 
 // ══════════════════════════════════════════════════
 //  API
@@ -66,6 +68,17 @@ function fd(obj) {
   const f = new FormData();
   Object.entries(obj).forEach(([k,v]) => { if (v !== null && v !== undefined) f.append(k, String(v)); });
   return f;
+}
+
+// Deja el boton girando mientras dura el trabajo y despues lo devuelve como estaba.
+// Asi no se puede apretar dos veces ni queda la pantalla dura sin avisar nada.
+async function withSpinner(btn, label, fn) {
+  if (!btn) return await fn();
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="sm-spinner"></span> ${label}`;
+  try { return await fn(); }
+  finally { btn.disabled = false; btn.innerHTML = original; }
 }
 
 // ══════════════════════════════════════════════════
@@ -523,6 +536,23 @@ function renderNotesSection(asset, notes) {
            contenteditable="true" role="textbox" aria-multiline="true" spellcheck="true"
            data-placeholder="Escribí una nota sobre ${esc(asset.symbol)}… (Ctrl+Enter para guardar)"
            style="min-height:80px;max-height:280px;overflow-y:auto;margin-bottom:12px;"></div>
+      <input type="file" id="noteReportInput" accept=".html,.htm,.pdf" style="display:none;">
+      <div class="sm-report-drop" id="noteReportDrop">
+        <div class="sm-report-drop-icon">📎</div>
+        <div>
+          <div class="sm-report-drop-title">Cargar un reporte, HTML o PDF (opcional)</div>
+          <div class="sm-report-drop-hint">Viaja con el mail de la nota · hasta 8 MB</div>
+        </div>
+      </div>
+      <div class="sm-report-file sm-hidden" id="noteReportChip">
+        <span id="noteReportName"></span>
+        <button type="button" id="noteReportClear" title="Quitar el archivo">✕</button>
+      </div>
+      <div class="sm-report-opts sm-hidden" id="noteReportOpts">
+        <label><input type="checkbox" id="noteReportEmbed" checked> Mostrarlo dentro del mail</label>
+        <label><input type="checkbox" id="noteReportAttach" checked> Adjuntar el archivo</label>
+      </div>
+
       <div class="sm-note-actions">
         <label class="sm-notify-toggle" id="notifyToggle">
           <input type="checkbox" id="notifyCheck">
@@ -537,6 +567,8 @@ function renderNotesSection(asset, notes) {
     </div>`;
 
   document.getElementById('chartPanel').appendChild(section);
+  noteReportFile = null;
+  setupNoteReportDrop();
 
   // ── Selección de prioridad con feedback visual ──
   let selectedPriority = 'green';
@@ -590,16 +622,65 @@ function renderNotesSection(asset, notes) {
   });
 }
 
+// ── Reporte HTML que puede viajar con la nota ──
+function setupNoteReportDrop() {
+  const drop  = document.getElementById('noteReportDrop');
+  const input = document.getElementById('noteReportInput');
+  if (!drop || !input) return;
+
+  drop.addEventListener('click', () => input.click());
+  input.addEventListener('change', e => setNoteReportFile(e.target.files[0]));
+  document.getElementById('noteReportClear')?.addEventListener('click', () => setNoteReportFile(null));
+
+  ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.add('sm-report-drop-over');
+  }));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.remove('sm-report-drop-over');
+  }));
+  drop.addEventListener('drop', e => setNoteReportFile(e.dataTransfer?.files?.[0]));
+}
+
+function setNoteReportFile(file) {
+  const chip   = document.getElementById('noteReportChip');
+  const opts   = document.getElementById('noteReportOpts');
+  const nombre = document.getElementById('noteReportName');
+  const input  = document.getElementById('noteReportInput');
+
+  if (!file) {
+    noteReportFile = null;
+    if (input) input.value = '';
+    chip?.classList.add('sm-hidden');
+    opts?.classList.add('sm-hidden');
+    return;
+  }
+  if (!/\.(html?|pdf)$/i.test(file.name)) { showError('El archivo tiene que ser .html o .pdf'); return; }
+  if (file.size > 8 * 1024 * 1024)  { showError('El archivo pesa más de 8 MB'); return; }
+
+  noteReportFile = file;
+  if (nombre) nombre.textContent = `${file.name} · ${(file.size/1024).toFixed(0)} KB`;
+  chip?.classList.remove('sm-hidden');
+  opts?.classList.remove('sm-hidden');
+  const esPdf = /\.pdf$/i.test(file.name);
+  const embed = document.getElementById('noteReportEmbed');
+  if (embed) { embed.checked = !esPdf; embed.disabled = esPdf;
+               embed.parentElement.style.opacity = esPdf ? '0.45' : ''; }
+  // Si carga un reporte es porque lo quiere mandar: se tilda solo
+  const check = document.getElementById('notifyCheck');
+  if (check && !check.checked) { check.checked = true; check.dispatchEvent(new Event('change')); }
+}
+
 let noteSubmitting = false;
 async function submitNote(asset, getPriority) {
   if (noteSubmitting) return;
   const inputEl = document.getElementById('newNoteInput');
   if (!inputEl) return;
-  // Rechaza si no hay texto real (un contenteditable puede tener <br> o <p> vacíos)
+  // Sin texto solo se puede guardar si hay un archivo cargado:
+  // en ese caso la nota queda con el nombre del archivo
   const plain = (inputEl.innerText || inputEl.textContent || '').trim();
-  if (!plain) { inputEl.focus(); return; }
-  const note = sanitizeNoteHtml(inputEl.innerHTML).trim();
-  if (!note) return;
+  if (!plain && !noteReportFile) { inputEl.focus(); return; }
+  const note = sanitizeNoteHtml(inputEl.innerHTML).trim()
+               || `📎 ${esc(noteReportFile.name)}`;
   const priority = getPriority();
   const notify = document.getElementById('notifyCheck')?.checked || false;
 
@@ -616,8 +697,14 @@ async function submitNote(asset, getPriority) {
   inputEl.setAttribute('contenteditable', 'false');
 
   try {
-    await api('POST', `/portfolios/${activePortId}/assets/${asset.symbol}/notes`,
-      fd({ note, priority, notify: String(notify) }));
+    const form = fd({ note, priority, notify: String(notify) });
+    if (noteReportFile) {
+      form.append('file', noteReportFile);
+      form.append('embed',  document.getElementById('noteReportEmbed')?.checked ? 'true' : 'false');
+      form.append('attach', document.getElementById('noteReportAttach')?.checked ? 'true' : 'false');
+    }
+    await api('POST', `/portfolios/${activePortId}/assets/${asset.symbol}/notes`, form);
+    setNoteReportFile(null);
     inputEl.innerHTML = '';
     showToast(notify ? '✓ Nota guardada y enviada' : '✓ Nota guardada', 'success');
     await loadNotesAndComments(asset);
@@ -1068,11 +1155,40 @@ function renderEmails(emails) {
       </div>
       <div style="background:#0D1117;border:1px solid #21262D;border-radius:10px;padding:16px 18px;margin-top:14px;">
         <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#484F58;
-                    text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px;">Send Manual Notification</div>
-        <textarea class="sm-textarea" id="manualNotifMsg" placeholder="Type a message to all subscribers…"
+                    text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px;">Enviar reporte</div>
+
+        <input type="text" class="sm-input" id="reportTitle" placeholder="Título del reporte (opcional)"
+               style="width:100%;margin-bottom:8px;">
+
+        <textarea class="sm-textarea" id="manualNotifMsg" placeholder="Escribí un mensaje para los subscribers…"
                   rows="3" style="min-height:80px;"></textarea>
-        <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-          <button class="sm-btn sm-btn-primary" id="sendManualNotifBtn">📨 Send to All</button>
+
+        <input type="file" id="reportFileInput" accept=".html,.htm,.pdf" style="display:none;">
+        <div class="sm-report-drop" id="reportDrop">
+          <div class="sm-report-drop-icon">📎</div>
+          <div>
+            <div class="sm-report-drop-title">Cargar el reporte (HTML o PDF)</div>
+            <div class="sm-report-drop-hint">Arrastralo acá o hacé clic para elegirlo · máximo 8 MB · el PDF siempre viaja adjunto</div>
+          </div>
+        </div>
+        <div class="sm-report-file sm-hidden" id="reportFileChip">
+          <span id="reportFileName"></span>
+          <button type="button" id="reportFileClear" title="Quitar el archivo">✕</button>
+        </div>
+
+        <div class="sm-report-opts">
+          <label><input type="checkbox" id="reportEmbed" checked> Mostrar el reporte dentro del mail</label>
+          <label><input type="checkbox" id="reportAttach" checked> Adjuntar el archivo</label>
+        </div>
+
+        <div class="sm-report-drop-hint" style="margin-top:8px;">
+          Si el reporte es grande, Gmail corta el cuerpo del mail; en ese caso conviene
+          mandarlo solo adjunto.
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">
+          <button class="sm-btn sm-btn-ghost" id="previewReportBtn">👁 Vista previa</button>
+          <button class="sm-btn sm-btn-primary" id="sendManualNotifBtn">📨 Enviar a todos</button>
         </div>
       </div>
     </div>`;
@@ -1080,7 +1196,77 @@ function renderEmails(emails) {
   document.getElementById('addEmailBtn').addEventListener('click', addSubscriberEmail);
   document.getElementById('newEmailAddr').addEventListener('keydown', e => { if (e.key==='Enter') addSubscriberEmail(); });
   document.getElementById('sendManualNotifBtn').addEventListener('click', sendManualNotification);
+  document.getElementById('previewReportBtn').addEventListener('click', previewReport);
+  setupReportDrop();
   emails.forEach(e => document.getElementById(`del-email-${e.id}`)?.addEventListener('click', () => removeSubscriberEmail(e.id)));
+}
+
+// ── Carga del archivo HTML del reporte ──────────────────────
+function setupReportDrop() {
+  const drop  = document.getElementById('reportDrop');
+  const input = document.getElementById('reportFileInput');
+  if (!drop || !input) return;
+
+  drop.addEventListener('click', () => input.click());
+  input.addEventListener('change', e => setReportFile(e.target.files[0]));
+  document.getElementById('reportFileClear')?.addEventListener('click', () => setReportFile(null));
+
+  ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.add('sm-report-drop-over');
+  }));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.remove('sm-report-drop-over');
+  }));
+  drop.addEventListener('drop', e => setReportFile(e.dataTransfer?.files?.[0]));
+}
+
+function setReportFile(file) {
+  const chip  = document.getElementById('reportFileChip');
+  const nombre = document.getElementById('reportFileName');
+  const input = document.getElementById('reportFileInput');
+
+  if (!file) {
+    reportFile = null;
+    if (input) input.value = '';
+    chip?.classList.add('sm-hidden');
+    return;
+  }
+  if (!/\.(html?|pdf)$/i.test(file.name)) { showError('El archivo tiene que ser .html o .pdf'); return; }
+  if (file.size > 8 * 1024 * 1024)  { showError('El archivo pesa más de 8 MB'); return; }
+
+  reportFile = file;
+  if (nombre) nombre.textContent = `${file.name} · ${(file.size/1024).toFixed(0)} KB`;
+  chip?.classList.remove('sm-hidden');
+  // Un PDF no se puede mostrar adentro del mail: siempre va adjunto
+  const esPdf = /\.pdf$/i.test(file.name);
+  const embed = document.getElementById('reportEmbed');
+  if (embed) { embed.checked = !esPdf; embed.disabled = esPdf;
+               embed.parentElement.style.opacity = esPdf ? '0.45' : ''; }
+}
+
+function reportFormData() {
+  const form = new FormData();
+  form.append('title',   document.getElementById('reportTitle')?.value?.trim() || '');
+  form.append('message', document.getElementById('manualNotifMsg')?.value?.trim() || '');
+  form.append('embed',   document.getElementById('reportEmbed')?.checked ? 'true' : 'false');
+  form.append('attach',  document.getElementById('reportAttach')?.checked ? 'true' : 'false');
+  if (reportFile) form.append('file', reportFile);
+  return form;
+}
+
+async function previewReport() {
+  if (!activePortId) { showError('Elegí un portfolio primero'); return; }
+  const btn = document.getElementById('previewReportBtn');
+  await withSpinner(btn, 'Armando…', async () => {
+    try {
+      const res = await fetch(`${BASE}/portfolios/${activePortId}/notify_report/preview`,
+                              { method: 'POST', body: reportFormData() });
+      const html = await res.text();
+      const url  = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch(e) { showError(e.message); }
+  });
 }
 
 function emailRowHtml(e) {
@@ -1102,26 +1288,43 @@ async function addSubscriberEmail() {
     document.getElementById('newEmailAddr').style.borderColor='#F85149'; return;
   }
   document.getElementById('newEmailAddr').style.borderColor='';
-  try { await api('POST', `/portfolios/${activePortId}/emails`, fd({email, name:name||''})); await loadAndRenderEmails(); }
-  catch(e) { showError(e.message); }
+  await withSpinner(document.getElementById('addEmailBtn'), 'Agregando…', async () => {
+    try { await api('POST', `/portfolios/${activePortId}/emails`, fd({email, name:name||''})); await loadAndRenderEmails(); }
+    catch(e) { showError(e.message); }
+  });
 }
 
 async function removeSubscriberEmail(emailId) {
-  try { await api('DELETE', `/emails/${emailId}`); await loadAndRenderEmails(); }
-  catch(e) { showError(e.message); }
+  await withSpinner(document.getElementById(`del-email-${emailId}`), '…', async () => {
+    try { await api('DELETE', `/emails/${emailId}`); await loadAndRenderEmails(); }
+    catch(e) { showError(e.message); }
+  });
 }
 
 async function sendManualNotification() {
-  const msg = document.getElementById('manualNotifMsg')?.value?.trim();
-  if (!msg) { document.getElementById('manualNotifMsg').style.borderColor='#F85149'; return; }
-  document.getElementById('manualNotifMsg').style.borderColor='';
-  try {
-    const res = await api('POST', `/portfolios/${activePortId}/notify`, fd({message:msg}));
-    if (res.status === 'ok') {
-      showToast(`✓ Sent to ${res.sent_to?.length||0} subscriber(s)`, 'success');
-      document.getElementById('manualNotifMsg').value = '';
-    } else showError(res.message||'Could not send');
-  } catch(e) { showError(e.message); }
+  if (!activePortId) { showError('Elegí un portfolio primero'); return; }
+  const caja = document.getElementById('manualNotifMsg');
+  const msg  = caja?.value?.trim();
+  if (!msg && !reportFile) {
+    if (caja) caja.style.borderColor = '#F85149';
+    showError('Cargá un archivo HTML o escribí un mensaje');
+    return;
+  }
+  if (caja) caja.style.borderColor = '';
+
+  const btn = document.getElementById('sendManualNotifBtn');
+  await withSpinner(btn, 'Enviando…', async () => {
+    try {
+      const res = await api('POST', `/portfolios/${activePortId}/notify_report`, reportFormData());
+      if (res.status === 'ok') {
+        showToast(`✓ Enviado a ${res.sent_to?.length||0} subscriber(s)`, 'success');
+        if (caja) caja.value = '';
+        const titulo = document.getElementById('reportTitle');
+        if (titulo) titulo.value = '';
+        setReportFile(null);
+      } else showError(res.message || 'No se pudo enviar');
+    } catch(e) { showError(e.message); }
+  });
 }
 
 // ══════════════════════════════════════════════════

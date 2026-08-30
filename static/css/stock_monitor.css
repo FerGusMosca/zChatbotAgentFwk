@@ -1305,3 +1305,79 @@
 .sm-sim-sym { color: #E6EDF3 !important; font-weight: 500; }
 
 .sm-sim-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+
+/* ══════════════════════════════════════════════════════════════════
+   v6 — ENVIO DE REPORTE (carga de archivo HTML)
+══════════════════════════════════════════════════════════════════ */
+.sm-report-drop {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 10px;
+  padding: 14px 16px;
+  background: #0B0F14;
+  border: 1px dashed #30363D;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.sm-report-drop:hover,
+.sm-report-drop-over {
+  border-color: #1F6FEB;
+  background: rgba(31,111,235,0.06);
+}
+.sm-report-drop-icon { font-size: 20px; line-height: 1; }
+.sm-report-drop-title {
+  color: #C9D1D9;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+.sm-report-drop-hint {
+  color: #484F58;
+  font-size: 11px;
+}
+.sm-report-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: rgba(31,111,235,0.08);
+  border: 1px solid rgba(31,111,235,0.35);
+  border-radius: 8px;
+  color: #58A6FF;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+}
+.sm-report-file button {
+  background: none;
+  border: none;
+  color: #6E7681;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 2px;
+}
+.sm-report-file button:hover { color: #F85149; }
+.sm-report-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+}
+.sm-report-opts label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #8B949E;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sm-report-opts input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  margin: 0;
+  accent-color: #1F6FEB;
+  cursor: pointer;
+}
